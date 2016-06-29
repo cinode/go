@@ -189,7 +189,7 @@ func TestResave(t *testing.T) {
 			}
 		}()
 
-		// Overwrite blob with deletion inside
+		// Overwrite blob while being deleted
 		func() {
 			w, _ := c.Save(b.name)
 
