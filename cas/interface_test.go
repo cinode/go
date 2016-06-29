@@ -112,113 +112,193 @@ func TestSaveSuccessful(t *testing.T) {
 	})
 }
 
-func TestResave(t *testing.T) {
+func errPanic(e error) {
+	if e != nil {
+		panic("Unexpected error: " + e.Error())
+	}
+}
+
+func putBlob(n string, b []byte, c CAS) {
+	w, e := c.Save(n)
+	errPanic(e)
+	cnt, e := w.Write(b)
+	errPanic(e)
+	if cnt != len(b) {
+		panic("Invalid data size written")
+	}
+	e = w.Close()
+	errPanic(e)
+	if !c.Exists(n) {
+		panic("Blob does not exist: " + n)
+	}
+}
+
+func getBlob(n string, c CAS) []byte {
+	r, e := c.Open(n)
+	errPanic(e)
+	d, e := ioutil.ReadAll(r)
+	errPanic(e)
+	e = r.Close()
+	errPanic(e)
+	return d
+}
+
+func TestOverwriteValidContents(t *testing.T) {
 	allCAS(func(c CAS) {
 
 		b := testBlobs[0]
+		putBlob(b.name, b.data, c)
+
+		w, _ := c.Save(b.name)
+
+		if !c.Exists(b.name) {
+			t.Fatalf("CAS %s: Blob should exist", c.Kind())
+		}
+
+		w.Write(b.data)
+		if !c.Exists(b.name) {
+			t.Fatalf("CAS %s: Blob should exist", c.Kind())
+		}
+
+		e := w.Close()
+		if e != nil {
+			t.Fatalf("CAS %s: Couldn't save correct blob: %s", c.Kind(), e)
+		}
+
+		if !c.Exists(b.name) {
+			t.Fatalf("CAS %s: Blob should exist", c.Kind())
+		}
+
+		if !bytes.Equal(b.data, getBlob(b.name, c)) {
+			t.Fatalf("CAS %s: Did read invalid data", c.Kind())
+		}
+	})
+}
+
+func TestOverwriteInvalidContents(t *testing.T) {
+	allCAS(func(c CAS) {
+
+		b := testBlobs[0]
+		putBlob(b.name, b.data, c)
+
+		w, _ := c.Save(b.name)
+		if !c.Exists(b.name) {
+			t.Fatalf("CAS %s: Blob should exist", c.Kind())
+		}
+
+		w.Write(b.data)
+		if !c.Exists(b.name) {
+			t.Fatalf("CAS %s: Blob should exist", c.Kind())
+		}
+
+		w.Write([]byte("Extra"))
+		e := w.Close()
+		if e != ErrNameMismatch {
+			t.Fatalf("CAS %s: Invalid blob save error: %s", c.Kind(), e)
+		}
+
+		if !c.Exists(b.name) {
+			t.Fatalf("CAS %s: Blob should exist", c.Kind())
+		}
+
+		if !bytes.Equal(b.data, getBlob(b.name, c)) {
+			t.Fatalf("CAS %s: Did read invalid data", c.Kind())
+		}
+	})
+}
+
+func TestOverwriteWhileDeleting(t *testing.T) {
+	allCAS(func(c CAS) {
+
+		b := testBlobs[0]
+		putBlob(b.name, b.data, c)
+
+		w, _ := c.Save(b.name)
+
+		if !c.Exists(b.name) {
+			t.Fatalf("CAS %s: Blob should exist", c.Kind())
+		}
+
+		w.Write(b.data)
+		if !c.Exists(b.name) {
+			t.Fatalf("CAS %s: Blob should exist", c.Kind())
+		}
+		e := c.Delete(b.name)
+		if e != nil {
+			t.Fatalf("CAS %s: Can't remove blob", c.Kind())
+		}
+		if c.Exists(b.name) {
+			t.Fatalf("CAS %s: Blob should not exist", c.Kind())
+		}
+
+		e = w.Close()
+		if e != nil {
+			t.Fatalf("CAS %s: Couldn't save correct blob: %s", c.Kind(), e)
+		}
+
+		if !c.Exists(b.name) {
+			t.Fatalf("CAS %s: Blob should exist", c.Kind())
+		}
+
+		if !bytes.Equal(b.data, getBlob(b.name, c)) {
+			t.Fatalf("CAS %s: Did read invalid data", c.Kind())
+		}
+	})
+}
+
+func TestDeleteNonExisting(t *testing.T) {
+	allCAS(func(c CAS) {
+
+		b := testBlobs[0]
+		putBlob(b.name, b.data, c)
+
+		err := c.Delete("non-existing")
+		if err != ErrNotFound {
+			t.Fatalf("CAS %s: Did not get ErrNotFound while deleting non-existing blob: %v", c.Kind(), err)
+		}
+
+	})
+}
+
+func TestDeleteExisting(t *testing.T) {
+	allCAS(func(c CAS) {
+
+		b := testBlobs[0]
+		putBlob(b.name, b.data, c)
+
+		if !c.Exists(b.name) {
+			t.Fatalf("CAS %s: Blob should exist", c.Kind())
+		}
+
+		if !bytes.Equal(b.data, getBlob(b.name, c)) {
+			t.Fatalf("CAS %s: Did read invalid data", c.Kind())
+		}
+
+		err := c.Delete(b.name)
+		if err != nil {
+			t.Fatalf("CAS %s: Couldn't delete blob: %v", c.Kind(), err)
+		}
 
 		if c.Exists(b.name) {
 			t.Fatalf("CAS %s: Blob should not exist", c.Kind())
 		}
 
-		// Write blob once
-		func() {
-			w, _ := c.Save(b.name)
-			w.Write(b.data)
-			e := w.Close()
-			if e != nil {
-				t.Fatalf("CAS %s: Couldn't save correct blob: %s", c.Kind(), e)
-			}
-		}()
-
-		if !c.Exists(b.name) {
-			t.Fatalf("CAS %s: Blob should not exist", c.Kind())
+		r, err := c.Open(b.name)
+		if err != ErrNotFound {
+			t.Fatalf("CAS %s: Did not get ErrNotFound error after blob deletion", c.Kind())
+		}
+		if r != nil {
+			t.Fatalf("CAS %s: Got reader for deleted blob", c.Kind())
 		}
 
-		// Overwrite blob
-		func() {
-			w, _ := c.Save(b.name)
+	})
+}
 
-			if !c.Exists(b.name) {
-				t.Fatalf("CAS %s: Blob should exist", c.Kind())
-			}
-
-			w.Write(b.data)
-			if !c.Exists(b.name) {
-				t.Fatalf("CAS %s: Blob should exist", c.Kind())
-			}
-
-			e := w.Close()
-			if e != nil {
-				t.Fatalf("CAS %s: Couldn't save correct blob: %s", c.Kind(), e)
-			}
-
-			if !c.Exists(b.name) {
-				t.Fatalf("CAS %s: Blob should exist", c.Kind())
-			}
-
-		}()
-
-		// Overwrite with malformed data
-		func() {
-			w, _ := c.Save(b.name)
-
-			if !c.Exists(b.name) {
-				t.Fatalf("CAS %s: Blob should exist", c.Kind())
-			}
-
-			w.Write(b.data)
-			if !c.Exists(b.name) {
-				t.Fatalf("CAS %s: Blob should exist", c.Kind())
-			}
-
-			w.Write([]byte("Extra"))
-			e := w.Close()
-			if e != ErrNameMismatch {
-				t.Fatalf("CAS %s: Invalid blob save error: %s", c.Kind(), e)
-			}
-
-			if !c.Exists(b.name) {
-				t.Fatalf("CAS %s: Blob should exist", c.Kind())
-			}
-
-			r, _ := c.Open(b.name)
-			d, _ := ioutil.ReadAll(r)
-			if !bytes.Equal(b.data, d) {
-				t.Fatalf("CAS %s: Did read invalid data", c.Kind())
-			}
-		}()
-
-		// Overwrite blob while being deleted
-		func() {
-			w, _ := c.Save(b.name)
-
-			if !c.Exists(b.name) {
-				t.Fatalf("CAS %s: Blob should exist", c.Kind())
-			}
-
-			w.Write(b.data)
-			if !c.Exists(b.name) {
-				t.Fatalf("CAS %s: Blob should exist", c.Kind())
-			}
-			e := c.Delete(b.name)
-			if e != nil {
-				t.Fatalf("CAS %s: Can't remove blob", c.Kind())
-			}
-			if c.Exists(b.name) {
-				t.Fatalf("CAS %s: Blob should not exist", c.Kind())
-			}
-
-			e = w.Close()
-			if e != nil {
-				t.Fatalf("CAS %s: Couldn't save correct blob: %s", c.Kind(), e)
-			}
-
-			if !c.Exists(b.name) {
-				t.Fatalf("CAS %s: Blob should exist", c.Kind())
-			}
-
-		}()
-
+func TestGetKind(t *testing.T) {
+	allCAS(func(c CAS) {
+		k := c.Kind()
+		if len(k) == 0 {
+			t.Fatalf("Invalid kind - empty string")
+		}
 	})
 }
