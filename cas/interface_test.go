@@ -3,6 +3,7 @@ package cas
 import (
 	"bytes"
 	"io/ioutil"
+	"sync"
 	"testing"
 )
 
@@ -300,5 +301,35 @@ func TestGetKind(t *testing.T) {
 		if len(k) == 0 {
 			t.Fatalf("Invalid kind - empty string")
 		}
+	})
+}
+
+func TestSimultaneousReads(t *testing.T) {
+	threadCnt := 100
+	readCnt := 1000
+
+	allCAS(func(c CAS) {
+
+		// Prepare data
+		for _, b := range testBlobs {
+			putBlob(b.name, b.data, c)
+		}
+
+		wg := sync.WaitGroup{}
+		wg.Add(threadCnt)
+
+		for i := 0; i < threadCnt; i++ {
+			go func(i int) {
+				defer wg.Done()
+				for n := 0; n < readCnt; n++ {
+					b := testBlobs[(i+n)%len(testBlobs)]
+					if !bytes.Equal(b.data, getBlob(b.name, c)) {
+						t.Fatalf("CAS %s: Did read invalid data", c.Kind())
+					}
+				}
+			}(i)
+		}
+
+		wg.Wait()
 	})
 }
