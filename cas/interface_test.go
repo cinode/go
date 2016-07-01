@@ -11,9 +11,9 @@ var testBlobs = []struct {
 	name string
 	data []byte
 }{
-	{"s6bi7Tmf1itJ5o3vuASiMPDpY69tDkpUjDfe5srJHEX9v", []byte("Test")},
-	{"sAKjyeXcDkdbTp7BWZruxDqthaCHb4kmdQxE28j2HSNva", []byte("Test1")},
-	{"sGKot5hBsd81kMupNCXHaqbhv3huEbxAFMLnpcX2hniwn", []byte("")},
+	{"Pq2UxZQcWw2rN8iKPcteaSd4LeXYW2YphibQjmj3kUQC", []byte("Test")},
+	{"TZ4M9KMpYgLEPBxvo36FR4hDpgvuoxqiu1BLzeT3xLAr", []byte("Test1")},
+	{"ZZ8FaUwURAkWvzbnRhTt2pWSJCYZMAELqPk9USTUJgC4", []byte("")},
 }
 
 func allCAS(f func(c CAS)) {

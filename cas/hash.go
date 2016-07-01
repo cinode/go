@@ -7,7 +7,7 @@ import (
 	base58 "github.com/jbenet/go-base58"
 )
 
-const hashNamePrefix = "s"
+const hashNameBytePrefix = 0x01
 
 type hasher struct {
 	h hash.Hash
@@ -18,7 +18,7 @@ func (h *hasher) Write(p []byte) (n int, err error) {
 }
 
 func (h *hasher) Name() string {
-	return hashNamePrefix + base58.Encode(h.h.Sum(nil))
+	return base58.Encode(h.h.Sum([]byte{hashNameBytePrefix}))
 }
 
 func newHasher() *hasher {

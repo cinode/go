@@ -8,16 +8,17 @@ func TestHasher(t *testing.T) {
 		n string
 		d string
 	}{
-		{n: "sGKot5hBsd81kMupNCXHaqbhv3huEbxAFMLnpcX2hniwn", d: ""},
-		{n: "sBjj4AWTNrjQVHqgWbP2XaxXz4DYH1WZMyERHxsad7b2w", d: "test"},
+		{n: "ZZ8FaUwURAkWvzbnRhTt2pWSJCYZMAELqPk9USTUJgC4", d: ""},
+		{n: "Uy3RfJCyen9FrvTvpZCpnBLWJiBbkidTTHNcpo1PdYHD", d: "test"},
 	}
 
 	for _, d := range testData {
 
 		h := newHasher()
 		h.Write([]byte(d.d))
-		if h.Name() != d.n {
-			t.Errorf("Invalid hashed name")
+		n := h.Name()
+		if n != d.n {
+			t.Errorf("Invalid hashed name, got %s, expected %s", n, d.n)
 		}
 	}
 }
