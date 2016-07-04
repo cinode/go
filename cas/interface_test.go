@@ -2,7 +2,9 @@ package cas
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
+	"os"
 	"sync"
 	"testing"
 )
@@ -18,12 +20,19 @@ var testBlobs = []struct {
 
 func allCAS(f func(c CAS)) {
 	f(InMemory())
+
+	path, err := ioutil.TempDir("", "cinodetest")
+	if err != nil {
+		panic(fmt.Sprintf("Error while creating temporary directory: %s", err))
+	}
+	defer os.RemoveAll(path)
+	f(InFileSystem(path))
 }
 
 func TestOpenNonExisting(t *testing.T) {
 	allCAS(func(c CAS) {
 
-		s, e := c.Open("non-existing")
+		s, e := c.Open("nonexistingname")
 		if s != nil {
 			t.Fatalf("CAS %s: Opened non-existing blob", c.Kind())
 		}
@@ -33,10 +42,10 @@ func TestOpenNonExisting(t *testing.T) {
 	})
 }
 
-func TestSaveInvalidName(t *testing.T) {
+func TestSaveNameMismatch(t *testing.T) {
 	allCAS(func(c CAS) {
 
-		w, e := c.Save("invalid-name")
+		w, e := c.Save("invalidname")
 		if e != nil {
 			t.Fatalf("CAS %s: Couldn't create CAS writer: %s", c.Kind(), e)
 		}
@@ -331,5 +340,63 @@ func TestSimultaneousReads(t *testing.T) {
 		}
 
 		wg.Wait()
+	})
+}
+
+// Invalid names behave just as if there was no blob with such name.
+// Writing such blob would always fail on close (similarly to how invalid name
+// when writing behaves)
+var invalidNames = []string{
+	"",
+	"short",
+	"invalid-character",
+}
+
+func TestOpenInvalidName(t *testing.T) {
+	allCAS(func(c CAS) {
+		for _, n := range invalidNames {
+			_, e := c.Open(n)
+			if e != ErrNotFound {
+				t.Fatalf("CAS %s: Incorrect error for invalid name: %v", c.Kind(), e)
+			}
+		}
+	})
+}
+
+func TestSaveInvalidName(t *testing.T) {
+	allCAS(func(c CAS) {
+		for _, n := range invalidNames {
+			s, e := c.Save(n)
+			if e != nil {
+				t.Fatalf("CAS %s: Got error when opening invalid name write stream: %v", c.Kind(), e)
+			}
+			e = s.Close()
+			if e != ErrNameMismatch {
+				t.Fatalf("CAS %s: Got wrong error when closing stream "+
+					"with invalid name: %v", c.Kind(), e)
+			}
+		}
+	})
+}
+
+func TestExistsInvalidName(t *testing.T) {
+	allCAS(func(c CAS) {
+		for _, n := range invalidNames {
+			e := c.Exists(n)
+			if e {
+				t.Fatalf("CAS %s: Blob with invalid name exists: %v", c.Kind(), e)
+			}
+		}
+	})
+}
+
+func TestDeleteInvalidName(t *testing.T) {
+	allCAS(func(c CAS) {
+		for _, n := range invalidNames {
+			e := c.Delete(n)
+			if e != ErrNotFound {
+				t.Fatalf("CAS %s: Incorrect error for invalid name: %v", c.Kind(), e)
+			}
+		}
 	})
 }
