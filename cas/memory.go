@@ -45,10 +45,11 @@ func (m *memory) Open(n string) (io.ReadCloser, error) {
 }
 
 type memoryWriter struct {
-	b bytes.Buffer
-	h *hasher
-	m *memory
-	n string
+	b    bytes.Buffer
+	h    *hasher
+	m    *memory
+	n    string
+	auto bool
 }
 
 func (m *memoryWriter) Write(p []byte) (n int, err error) {
@@ -59,8 +60,12 @@ func (m *memoryWriter) Write(p []byte) (n int, err error) {
 func (m *memoryWriter) Close() error {
 	// Test if name does match
 	n := m.h.Name()
-	if n != m.n {
-		return ErrNameMismatch
+	if m.auto {
+		m.n = n
+	} else {
+		if n != m.n {
+			return ErrNameMismatch
+		}
 	}
 
 	// Save inside CAS data
@@ -72,10 +77,28 @@ func (m *memoryWriter) Close() error {
 	return nil
 }
 
+func (m *memoryWriter) Name() string {
+	if m.h != nil {
+		panic("Calling Name() before Close()")
+	}
+	return m.n
+}
+
 func (m *memory) Save(n string) (io.WriteCloser, error) {
 	return &memoryWriter{
-		h: newHasher(),
-		m: m, n: n,
+		h:    newHasher(),
+		m:    m,
+		n:    n,
+		auto: false,
+	}, nil
+}
+
+func (m *memory) SaveAutoNamed() (AutoNamedWriter, error) {
+	return &memoryWriter{
+		h:    newHasher(),
+		m:    m,
+		n:    "",
+		auto: true,
 	}, nil
 }
 

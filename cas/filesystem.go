@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	"path/filepath"
 )
@@ -48,6 +49,7 @@ type writeWrapper struct {
 	d  string
 	n  string
 	h  *hasher
+	a  bool
 }
 
 func (w *writeWrapper) Write(b []byte) (n int, err error) {
@@ -56,12 +58,10 @@ func (w *writeWrapper) Write(b []byte) (n int, err error) {
 }
 
 func (w *writeWrapper) Close() error {
-	_ = "breakpoint"
-	moved := false
 
 	// Ensure to cleanup the mess
 	defer func() {
-		if !moved {
+		if w.fl != nil {
 			os.Remove(w.fl.Name())
 		}
 	}()
@@ -71,8 +71,12 @@ func (w *writeWrapper) Close() error {
 
 	// Test if name does match
 	n := w.h.Name()
-	if n != w.n {
-		return ErrNameMismatch
+	if w.a {
+		w.n = n
+	} else {
+		if n != w.n {
+			return ErrNameMismatch
+		}
 	}
 
 	// Move to destination location
@@ -81,8 +85,17 @@ func (w *writeWrapper) Close() error {
 		return err
 	}
 
-	moved = true
+	w.fl = nil
+	w.h = nil
+
 	return nil
+}
+
+func (w *writeWrapper) Name() string {
+	if w.fl != nil {
+		panic("Called Name() with no successfull call to Close()")
+	}
+	return w.n
 }
 
 func (fs *fileSystem) createTemporaryWriteStream(destName string) (*os.File, error) {
@@ -127,7 +140,20 @@ func (fs *fileSystem) Save(name string) (io.WriteCloser, error) {
 	if err != nil {
 		return &nullWriter{}, nil
 	}
-	err = os.MkdirAll(filepath.Dir(destName), 0777)
+	return fs.saveInternal(name, destName, false)
+}
+
+func (fs *fileSystem) SaveAutoNamed() (AutoNamedWriter, error) {
+	destName, err := fs.getTempName()
+	if err != nil {
+		return nil, err
+	}
+
+	return fs.saveInternal("", destName, true)
+}
+
+func (fs *fileSystem) saveInternal(name, destName string, auto bool) (AutoNamedWriter, error) {
+	err := os.MkdirAll(filepath.Dir(destName), 0777)
 	if err != nil {
 		return nil, err
 	}
@@ -142,6 +168,7 @@ func (fs *fileSystem) Save(name string) (io.WriteCloser, error) {
 			d:  destName,
 			n:  name,
 			h:  newHasher(),
+			a:  auto,
 		},
 		nil
 }
@@ -180,5 +207,10 @@ func (fs *fileSystem) getFileName(name string) (string, error) {
 		return "", ErrNotFound
 	}
 	fn := fs.path + "/" + name[0:3] + "/" + name[3:6] + "/" + name[6:]
+	return fn, nil
+}
+
+func (fs *fileSystem) getTempName() (string, error) {
+	fn := fmt.Sprintf("%s/_temporary/%d.upload", fs.path, rand.Int())
 	return fn, nil
 }

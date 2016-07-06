@@ -400,3 +400,32 @@ func TestDeleteInvalidName(t *testing.T) {
 		}
 	})
 }
+
+func TestAutoNamedWriter(t *testing.T) {
+	allCAS(func(c CAS) {
+		for _, b := range testBlobs {
+			w, err := c.SaveAutoNamed()
+			if err != nil {
+				t.Fatalf("CAS %s: Can not create auto named writer: %v", c.Kind(), err)
+			}
+			n, err := w.Write(b.data)
+			if err != nil {
+				t.Fatalf("CAS %s: Could not write to auto named writer: %v", c.Kind(), err)
+			}
+			if n != len(b.data) {
+				t.Fatalf("CAS %s: Invalid number of bytes written to auto named writer: "+
+					" %v instead of %v", c.Kind(), n, len(b.data))
+			}
+			err = w.Close()
+			if err != nil {
+				t.Fatalf("CAS %s: Could not close auto named writer: %v", c.Kind(), err)
+			}
+
+			name := w.Name()
+			if name != b.name {
+				t.Fatalf("CAS %s: Invalid name from auto named writer: "+
+					"'%s' instead of '%s'", c.Kind(), name, b.name)
+			}
+		}
+	})
+}

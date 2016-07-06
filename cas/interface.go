@@ -13,6 +13,16 @@ var (
 	ErrNameMismatch = errors.New("Data name mismatch")
 )
 
+// AutoNamedWriter is returned when saving a blob which will be automatically
+// assigned it's name.
+type AutoNamedWriter interface {
+	io.WriteCloser
+
+	// Name will return blob's name after Close() is being called on the writer.
+	// Calling this function before Close() is undefined.
+	Name() string
+}
+
 // CAS interface contains the public interface of any conformant CAS storage
 type CAS interface {
 
@@ -32,6 +42,14 @@ type CAS interface {
 	// it can be successfully written as long as it's contents does match
 	// the name of the blob.
 	Save(name string) (io.WriteCloser, error)
+
+	// SaveAutoNamed should return write stream that can be used to store new
+	// data blob. Caller must call Close on the stream to indicate end of data.
+	// After calling Close on the stream, one may obtain the name of blob by
+	// calling it's Name() method. In case a blob with same name already exists,
+	// it will overwrite existing blob, it's negligible however for the new
+	// data to have contents different to the previous one.
+	SaveAutoNamed() (AutoNamedWriter, error)
 
 	// Exists does check whether blob of given name exists in CAS. Partially
 	// written blobs are equal to non-existing ones.
