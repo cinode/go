@@ -45,60 +45,60 @@ func (m *memory) Open(n string) (io.ReadCloser, error) {
 }
 
 type memoryWriter struct {
-	b    bytes.Buffer
-	h    *hasher
-	m    *memory
-	n    string
-	auto bool
+	buf    bytes.Buffer
+	hasher *hasher
+	mem    *memory
+	name   string
+	auto   bool
 }
 
 func (m *memoryWriter) Write(p []byte) (n int, err error) {
-	m.h.Write(p)
-	return m.b.Write(p)
+	m.hasher.Write(p)
+	return m.buf.Write(p)
 }
 
 func (m *memoryWriter) Close() error {
 	// Test if name does match
-	n := m.h.Name()
+	n := m.hasher.Name()
 	if m.auto {
-		m.n = n
+		m.name = n
 	} else {
-		if n != m.n {
+		if n != m.name {
 			return ErrNameMismatch
 		}
 	}
 
 	// Save inside CAS data
-	m.m.rw.Lock()
-	defer m.m.rw.Unlock()
-	m.m.bmap[n] = m.b.Bytes()
-	m.h = nil
-	m.m = nil
+	m.mem.rw.Lock()
+	defer m.mem.rw.Unlock()
+	m.mem.bmap[n] = m.buf.Bytes()
+	m.hasher = nil
+	m.mem = nil
 	return nil
 }
 
 func (m *memoryWriter) Name() string {
-	if m.h != nil {
+	if m.mem != nil {
 		panic("Calling Name() before Close()")
 	}
-	return m.n
+	return m.name
 }
 
-func (m *memory) Save(n string) (io.WriteCloser, error) {
+func (m *memory) Save(name string) (io.WriteCloser, error) {
 	return &memoryWriter{
-		h:    newHasher(),
-		m:    m,
-		n:    n,
-		auto: false,
+		hasher: newHasher(),
+		mem:    m,
+		name:   name,
+		auto:   false,
 	}, nil
 }
 
 func (m *memory) SaveAutoNamed() (AutoNamedWriter, error) {
 	return &memoryWriter{
-		h:    newHasher(),
-		m:    m,
-		n:    "",
-		auto: true,
+		hasher: newHasher(),
+		mem:    m,
+		name:   "",
+		auto:   true,
 	}, nil
 }
 

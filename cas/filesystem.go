@@ -45,15 +45,15 @@ func (fs *fileSystem) Open(name string) (io.ReadCloser, error) {
 }
 
 type writeWrapper struct {
-	fl *os.File
-	d  string
-	n  string
-	h  *hasher
-	a  bool
+	fl       *os.File
+	destName string
+	name     string
+	hasher   *hasher
+	auto     bool
 }
 
 func (w *writeWrapper) Write(b []byte) (n int, err error) {
-	w.h.Write(b)
+	w.hasher.Write(b)
 	return w.fl.Write(b)
 }
 
@@ -70,23 +70,23 @@ func (w *writeWrapper) Close() error {
 	w.fl.Close()
 
 	// Test if name does match
-	n := w.h.Name()
-	if w.a {
-		w.n = n
+	n := w.hasher.Name()
+	if w.auto {
+		w.name = n
 	} else {
-		if n != w.n {
+		if n != w.name {
 			return ErrNameMismatch
 		}
 	}
 
 	// Move to destination location
-	err := os.Rename(w.fl.Name(), w.d)
+	err := os.Rename(w.fl.Name(), w.destName)
 	if err != nil {
 		return err
 	}
 
 	w.fl = nil
-	w.h = nil
+	w.hasher = nil
 
 	return nil
 }
@@ -95,7 +95,7 @@ func (w *writeWrapper) Name() string {
 	if w.fl != nil {
 		panic("Called Name() with no successfull call to Close()")
 	}
-	return w.n
+	return w.name
 }
 
 func (fs *fileSystem) createTemporaryWriteStream(destName string) (*os.File, error) {
@@ -164,11 +164,11 @@ func (fs *fileSystem) saveInternal(name, destName string, auto bool) (AutoNamedW
 	}
 
 	return &writeWrapper{
-			fl: fl,
-			d:  destName,
-			n:  name,
-			h:  newHasher(),
-			a:  auto,
+			fl:       fl,
+			destName: destName,
+			name:     name,
+			hasher:   newHasher(),
+			auto:     auto,
 		},
 		nil
 }
