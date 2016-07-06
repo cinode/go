@@ -390,6 +390,17 @@ func TestExistsInvalidName(t *testing.T) {
 	})
 }
 
+func TestDeleteInvalidNonExisting(t *testing.T) {
+	allCAS(func(c CAS) {
+		for _, b := range testBlobs {
+			e := c.Delete(b.name)
+			if e != ErrNotFound {
+				t.Fatalf("CAS %s: Incorrect error for invalid name: %v", c.Kind(), e)
+			}
+		}
+	})
+}
+
 func TestDeleteInvalidName(t *testing.T) {
 	allCAS(func(c CAS) {
 		for _, n := range invalidNames {
@@ -426,6 +437,42 @@ func TestAutoNamedWriter(t *testing.T) {
 				t.Fatalf("CAS %s: Invalid name from auto named writer: "+
 					"'%s' instead of '%s'", c.Kind(), name, b.name)
 			}
+		}
+	})
+}
+
+func TestAutoNamedWriterPanicBeforeClose(t *testing.T) {
+	allCAS(func(c CAS) {
+		for _, b := range testBlobs {
+
+			// Panic before any write
+			func() {
+				w, err := c.SaveAutoNamed()
+				errPanic(err)
+				defer func() {
+					w.Close()
+					if r := recover(); r == nil {
+						t.Errorf("The code did not panic")
+					}
+				}()
+				w.Name()
+			}()
+
+			// Panic after write
+			func() {
+				w, err := c.SaveAutoNamed()
+				errPanic(err)
+				_, err = w.Write(b.data)
+				errPanic(err)
+				defer func() {
+					w.Close()
+					if r := recover(); r == nil {
+						t.Errorf("The code did not panic")
+					}
+				}()
+				w.Name()
+			}()
+
 		}
 	})
 }
