@@ -2,9 +2,9 @@ package cas
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
+	"io"
 	"io/ioutil"
-	"os"
 	"sync"
 	"testing"
 )
@@ -20,13 +20,13 @@ var testBlobs = []struct {
 
 func allCAS(f func(c CAS)) {
 	f(InMemory())
-
-	path, err := ioutil.TempDir("", "cinodetest")
-	if err != nil {
-		panic(fmt.Sprintf("Error while creating temporary directory: %s", err))
-	}
-	defer os.RemoveAll(path)
-	f(InFileSystem(path))
+	/*
+		path, err := ioutil.TempDir("", "cinodetest")
+		if err != nil {
+			panic(fmt.Sprintf("Error while creating temporary directory: %s", err))
+		}
+		defer os.RemoveAll(path)
+		f(InFileSystem(path))*/
 }
 
 func TestOpenNonExisting(t *testing.T) {
@@ -42,26 +42,62 @@ func TestOpenNonExisting(t *testing.T) {
 	})
 }
 
+type helperReader struct {
+	buf     io.Reader
+	onRead  func() error
+	onEOF   func() error
+	onClose func() error
+}
+
+func bReader(b []byte, onRead func() error, onEOF func() error, onClose func() error) *helperReader {
+
+	nop := func() error {
+		return nil
+	}
+
+	if onRead == nil {
+		onRead = nop
+	}
+	if onEOF == nil {
+		onEOF = nop
+	}
+	if onClose == nil {
+		onClose = nop
+	}
+
+	return &helperReader{
+		buf:     bytes.NewReader(b),
+		onRead:  onRead,
+		onEOF:   onEOF,
+		onClose: onClose,
+	}
+}
+
+func (h *helperReader) Read(b []byte) (n int, err error) {
+	err = h.onRead()
+	if err != nil {
+		return 0, err
+	}
+
+	n, err = h.buf.Read(b)
+	if err == io.EOF {
+		err = h.onEOF()
+		if err != nil {
+			return 0, err
+		}
+		return 0, io.EOF
+	}
+
+	return n, err
+}
+
+func (h *helperReader) Close() error {
+	return h.onClose()
+}
+
 func TestSaveNameMismatch(t *testing.T) {
 	allCAS(func(c CAS) {
-
-		w, e := c.Save("invalidname")
-		if e != nil {
-			t.Fatalf("CAS %s: Couldn't create CAS writer: %s", c.Kind(), e)
-		}
-		if w == nil {
-			t.Fatalf("CAS %s: Didn't get blob writer", c.Kind())
-		}
-
-		n, e := w.Write([]byte("Test"))
-		if e != nil {
-			t.Fatalf("CAS %s: Couldn't write CAS data: %s", c.Kind(), e)
-		}
-		if n != 4 {
-			t.Fatalf("CAS %s: Invalid number of bytes written: %d", c.Kind(), n)
-		}
-
-		e = w.Close()
+		e := c.Save("invalidname", bReader([]byte("Test"), nil, nil, nil))
 		if e == nil || e != ErrNameMismatch {
 			t.Fatalf("CAS %s: Didn't detect name mismatch: %s", c.Kind(), e)
 		}
@@ -76,35 +112,31 @@ func TestSaveSuccessful(t *testing.T) {
 				t.Fatalf("CAS %s: Blob should not exist", c.Kind())
 			}
 
-			// Saving blob
-			w, e := c.Save(b.name)
-			if e != nil {
-				t.Fatalf("CAS %s: Couldn't create CAS writer: %s", c.Kind(), e)
-			}
-			if w == nil {
-				t.Fatalf("CAS %s: Didn't get blob writer", c.Kind())
-			}
-			if c.Exists(b.name) {
-				t.Fatalf("CAS %s: Blob should not exist before saving data", c.Kind())
-			}
-			n, e := w.Write(b.data)
+			closeCalled := false
+
+			rdr := bReader(b.data, func() error {
+				if c.Exists(b.name) {
+					t.Fatalf("CAS %s: Blob should not exist before saving data", c.Kind())
+				}
+				return nil
+			}, func() error {
+				if c.Exists(b.name) {
+					t.Fatalf("CAS %s: Blob should not exist before saving data", c.Kind())
+				}
+				return nil
+			}, func() error {
+				closeCalled = true
+				return nil
+			})
+
+			e := c.Save(b.name, rdr)
 			if e != nil {
 				t.Fatalf("CAS %s: Couldn't write CAS data: %s", c.Kind(), e)
 			}
-			if n != len(b.data) {
-				t.Fatalf("CAS %s: Invalid number of bytes written: %d", c.Kind(), n)
+
+			if !closeCalled {
+				t.Fatalf("CAS %s: Stream was not closed", c.Kind())
 			}
-			if c.Exists(b.name) {
-				t.Fatalf("CAS %s: Blob should not exist before stream close", c.Kind())
-			}
-			e = w.Close()
-			if e != nil {
-				t.Fatalf("CAS %s: Couldn't save correct blob: %s", c.Kind(), e)
-			}
-			if !c.Exists(b.name) {
-				t.Fatalf("CAS %s: Blob should exist after stream close", c.Kind())
-			}
-			w = nil
 
 			// Reading blob
 			r, e := c.Open(b.name)
@@ -129,14 +161,7 @@ func errPanic(e error) {
 }
 
 func putBlob(n string, b []byte, c CAS) {
-	w, e := c.Save(n)
-	errPanic(e)
-	cnt, e := w.Write(b)
-	errPanic(e)
-	if cnt != len(b) {
-		panic("Invalid data size written")
-	}
-	e = w.Close()
+	e := c.Save(n, bReader(b, nil, nil, nil))
 	errPanic(e)
 	if !c.Exists(n) {
 		panic("Blob does not exist: " + n)
@@ -153,24 +178,98 @@ func getBlob(n string, c CAS) []byte {
 	return d
 }
 
+func TestCancelWhileSaving(t *testing.T) {
+	allCAS(func(c CAS) {
+		for _, b := range testBlobs {
+			errRet := errors.New("Test error")
+			e := c.Save(b.name, bReader(b.data, func() error {
+				return errRet
+			}, nil, nil))
+			if e != errRet {
+				t.Fatalf("CAS %s: Incorrect error returned: %v", c.Kind(), e)
+			}
+			if c.Exists(b.name) {
+				t.Fatalf("CAS %s: Blob should not exist", c.Kind())
+			}
+		}
+	})
+}
+
+func TestCancelWhileClosingSave(t *testing.T) {
+	allCAS(func(c CAS) {
+		for _, b := range testBlobs {
+			errRet := errors.New("Test error")
+			e := c.Save(b.name, bReader(b.data, nil, nil, func() error {
+				return errRet
+			}))
+			if e != errRet {
+				t.Fatalf("CAS %s: Incorrect error returned: %v", c.Kind(), e)
+			}
+			if c.Exists(b.name) {
+				t.Fatalf("CAS %s: Blob should not exist", c.Kind())
+			}
+		}
+	})
+}
+
+func TestCancelWhileSavingAutoNamed(t *testing.T) {
+	allCAS(func(c CAS) {
+		for _, b := range testBlobs {
+			errRet := errors.New("Test error")
+			n, e := c.SaveAutoNamed(bReader(b.data, func() error {
+				return errRet
+			}, nil, nil))
+			if e != errRet {
+				t.Fatalf("CAS %s: Incorrect error returned: %v", c.Kind(), e)
+			}
+			if n != "" {
+				t.Fatalf("CAS %s: Should get empty name, got '%s'", c.Kind(), n)
+			}
+			if c.Exists(b.name) {
+				t.Fatalf("CAS %s: Blob should exist", c.Kind())
+			}
+		}
+	})
+}
+
+func TestCancelWhileClosingAutoNamed(t *testing.T) {
+	allCAS(func(c CAS) {
+		for _, b := range testBlobs {
+			errRet := errors.New("Test error")
+			n, e := c.SaveAutoNamed(bReader(b.data, nil, nil, func() error {
+				return errRet
+			}))
+			if e != errRet {
+				t.Fatalf("CAS %s: Incorrect error returned: %v", c.Kind(), e)
+			}
+			if n != "" {
+				t.Fatalf("CAS %s: Should get empty name, got '%s'", c.Kind(), n)
+			}
+			if c.Exists(b.name) {
+				t.Fatalf("CAS %s: Blob should exist", c.Kind())
+			}
+		}
+	})
+}
+
 func TestOverwriteValidContents(t *testing.T) {
 	allCAS(func(c CAS) {
 
 		b := testBlobs[0]
 		putBlob(b.name, b.data, c)
 
-		w, _ := c.Save(b.name)
+		e := c.Save(b.name, bReader(b.data, func() error {
+			if !c.Exists(b.name) {
+				t.Fatalf("CAS %s: Blob should exist", c.Kind())
+			}
+			return nil
+		}, func() error {
+			if !c.Exists(b.name) {
+				t.Fatalf("CAS %s: Blob should exist", c.Kind())
+			}
+			return nil
+		}, nil))
 
-		if !c.Exists(b.name) {
-			t.Fatalf("CAS %s: Blob should exist", c.Kind())
-		}
-
-		w.Write(b.data)
-		if !c.Exists(b.name) {
-			t.Fatalf("CAS %s: Blob should exist", c.Kind())
-		}
-
-		e := w.Close()
 		if e != nil {
 			t.Fatalf("CAS %s: Couldn't save correct blob: %s", c.Kind(), e)
 		}
@@ -191,20 +290,76 @@ func TestOverwriteInvalidContents(t *testing.T) {
 		b := testBlobs[0]
 		putBlob(b.name, b.data, c)
 
-		w, _ := c.Save(b.name)
-		if !c.Exists(b.name) {
-			t.Fatalf("CAS %s: Blob should exist", c.Kind())
-		}
+		e := c.Save(b.name, bReader(append(b.data, []byte("extra")...), func() error {
 
-		w.Write(b.data)
-		if !c.Exists(b.name) {
-			t.Fatalf("CAS %s: Blob should exist", c.Kind())
-		}
+			if !c.Exists(b.name) {
+				t.Fatalf("CAS %s: Blob should exist", c.Kind())
+			}
+			return nil
+		}, func() error {
 
-		w.Write([]byte("Extra"))
-		e := w.Close()
+			if !c.Exists(b.name) {
+				t.Fatalf("CAS %s: Blob should exist", c.Kind())
+			}
+			return nil
+		}, nil))
+
 		if e != ErrNameMismatch {
-			t.Fatalf("CAS %s: Invalid blob save error: %s", c.Kind(), e)
+			t.Fatalf("CAS %s: Saved incorrect blob: %s", c.Kind(), e)
+		}
+
+		if !c.Exists(b.name) {
+			t.Fatalf("CAS %s: Blob should exist", c.Kind())
+		}
+
+		if !bytes.Equal(b.data, getBlob(b.name, c)) {
+			t.Fatalf("CAS %s: Did read invalid data", c.Kind())
+		}
+	})
+}
+
+func TestCancelWhileOverwriting(t *testing.T) {
+	allCAS(func(c CAS) {
+
+		b := testBlobs[0]
+		putBlob(b.name, b.data, c)
+
+		e := c.Save(b.name, bReader(b.data, func() error {
+			if !c.Exists(b.name) {
+				t.Fatalf("CAS %s: Blob should exist", c.Kind())
+			}
+			return errors.New("Cancel")
+		}, nil, nil))
+
+		if e == nil {
+			t.Fatalf("CAS %s: Didn't get error although cancelled", c.Kind())
+		}
+
+		if !c.Exists(b.name) {
+			t.Fatalf("CAS %s: Blob should exist", c.Kind())
+		}
+
+		if !bytes.Equal(b.data, getBlob(b.name, c)) {
+			t.Fatalf("CAS %s: Did read invalid data", c.Kind())
+		}
+	})
+}
+
+func TestCancelCloseWhileOverwriting(t *testing.T) {
+	allCAS(func(c CAS) {
+
+		b := testBlobs[0]
+		putBlob(b.name, b.data, c)
+
+		e := c.Save(b.name, bReader(b.data, nil, nil, func() error {
+			if !c.Exists(b.name) {
+				t.Fatalf("CAS %s: Blob should exist", c.Kind())
+			}
+			return errors.New("Cancel")
+		}))
+
+		if e == nil {
+			t.Fatalf("CAS %s: Didn't get error although cancelled", c.Kind())
 		}
 
 		if !c.Exists(b.name) {
@@ -223,25 +378,29 @@ func TestOverwriteWhileDeleting(t *testing.T) {
 		b := testBlobs[0]
 		putBlob(b.name, b.data, c)
 
-		w, _ := c.Save(b.name)
+		e := c.Save(b.name, bReader(b.data, func() error {
+			if !c.Exists(b.name) {
+				t.Fatalf("CAS %s: Blob should exist", c.Kind())
+			}
+			return nil
+		}, func() error {
 
-		if !c.Exists(b.name) {
-			t.Fatalf("CAS %s: Blob should exist", c.Kind())
-		}
+			if !c.Exists(b.name) {
+				t.Fatalf("CAS %s: Blob should exist", c.Kind())
+			}
 
-		w.Write(b.data)
-		if !c.Exists(b.name) {
-			t.Fatalf("CAS %s: Blob should exist", c.Kind())
-		}
-		e := c.Delete(b.name)
-		if e != nil {
-			t.Fatalf("CAS %s: Can't remove blob", c.Kind())
-		}
-		if c.Exists(b.name) {
-			t.Fatalf("CAS %s: Blob should not exist", c.Kind())
-		}
+			err := c.Delete(b.name)
+			if err != nil {
+				t.Fatalf("CAS %s: Couldn't delete blob: %v", c.Kind(), err)
+			}
 
-		e = w.Close()
+			if c.Exists(b.name) {
+				t.Fatalf("CAS %s: Blob should not exist", c.Kind())
+			}
+
+			return nil
+		}, nil))
+
 		if e != nil {
 			t.Fatalf("CAS %s: Couldn't save correct blob: %s", c.Kind(), e)
 		}
@@ -366,14 +525,28 @@ func TestOpenInvalidName(t *testing.T) {
 func TestSaveInvalidName(t *testing.T) {
 	allCAS(func(c CAS) {
 		for _, n := range invalidNames {
-			s, e := c.Save(n)
-			if e != nil {
+			readCalled, eofCalled, closeCalled := false, false, false
+			e := c.Save(n, bReader([]byte{}, func() error {
+				readCalled = true
+				return nil
+			}, func() error {
+				eofCalled = true
+				return nil
+			}, func() error {
+				closeCalled = true
+				return nil
+			}))
+			if e != ErrNameMismatch {
 				t.Fatalf("CAS %s: Got error when opening invalid name write stream: %v", c.Kind(), e)
 			}
-			e = s.Close()
-			if e != ErrNameMismatch {
-				t.Fatalf("CAS %s: Got wrong error when closing stream "+
-					"with invalid name: %v", c.Kind(), e)
+			if !eofCalled {
+				t.Fatalf("CAS %s: Didn't get EOF when reading incorrect blob data", c.Kind())
+			}
+			if !readCalled {
+				t.Fatalf("CAS %s: Didn't call read for incorrect blob name", c.Kind())
+			}
+			if !closeCalled {
+				t.Fatalf("CAS %s: Didn't call close for incorrect blob name", c.Kind())
 			}
 		}
 	})
@@ -415,64 +588,15 @@ func TestDeleteInvalidName(t *testing.T) {
 func TestAutoNamedWriter(t *testing.T) {
 	allCAS(func(c CAS) {
 		for _, b := range testBlobs {
-			w, err := c.SaveAutoNamed()
+			name, err := c.SaveAutoNamed(bReader(b.data, nil, nil, nil))
 			if err != nil {
 				t.Fatalf("CAS %s: Can not create auto named writer: %v", c.Kind(), err)
 			}
-			n, err := w.Write(b.data)
-			if err != nil {
-				t.Fatalf("CAS %s: Could not write to auto named writer: %v", c.Kind(), err)
-			}
-			if n != len(b.data) {
-				t.Fatalf("CAS %s: Invalid number of bytes written to auto named writer: "+
-					" %v instead of %v", c.Kind(), n, len(b.data))
-			}
-			err = w.Close()
-			if err != nil {
-				t.Fatalf("CAS %s: Could not close auto named writer: %v", c.Kind(), err)
-			}
 
-			name := w.Name()
 			if name != b.name {
 				t.Fatalf("CAS %s: Invalid name from auto named writer: "+
 					"'%s' instead of '%s'", c.Kind(), name, b.name)
 			}
-		}
-	})
-}
-
-func TestAutoNamedWriterPanicBeforeClose(t *testing.T) {
-	allCAS(func(c CAS) {
-		for _, b := range testBlobs {
-
-			// Panic before any write
-			func() {
-				w, err := c.SaveAutoNamed()
-				errPanic(err)
-				defer func() {
-					w.Close()
-					if r := recover(); r == nil {
-						t.Errorf("The code did not panic")
-					}
-				}()
-				w.Name()
-			}()
-
-			// Panic after write
-			func() {
-				w, err := c.SaveAutoNamed()
-				errPanic(err)
-				_, err = w.Write(b.data)
-				errPanic(err)
-				defer func() {
-					w.Close()
-					if r := recover(); r == nil {
-						t.Errorf("The code did not panic")
-					}
-				}()
-				w.Name()
-			}()
-
 		}
 	})
 }

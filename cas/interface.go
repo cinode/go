@@ -13,16 +13,6 @@ var (
 	ErrNameMismatch = errors.New("Data name mismatch")
 )
 
-// AutoNamedWriter is returned when saving a blob which will be automatically
-// assigned it's name.
-type AutoNamedWriter interface {
-	io.WriteCloser
-
-	// Name will return blob's name after Close() is being called on the writer.
-	// Calling this function before Close() is undefined.
-	Name() string
-}
-
 // CAS interface contains the public interface of any conformant CAS storage
 type CAS interface {
 
@@ -35,21 +25,18 @@ type CAS interface {
 	// after reading it's contents.
 	Open(name string) (io.ReadCloser, error)
 
-	// Save should return write stream that can be used to store new data blob.
-	// Caller must call Close on the stream to indicate end of data. If the name
-	// of blob won't match the contents, ErrNameMismatch error will be returned
-	// and no data will be stored. In case a blob with same name already exists,
-	// it can be successfully written as long as it's contents does match
-	// the name of the blob.
-	Save(name string) (io.WriteCloser, error)
+	// Save tries to save data blob with given name. Blob's data will be read
+	// from given reader until either EOF ending successfull save or any other
+	// error which will cancel the save - in such case this error will be
+	// returned from this function. If name does not match blob's data,
+	// ErrNameMismatch will be returned. In case of either error or success,
+	// reader will be closed.
+	Save(name string, r io.ReadCloser) error
 
-	// SaveAutoNamed should return write stream that can be used to store new
-	// data blob. Caller must call Close on the stream to indicate end of data.
-	// After calling Close on the stream, one may obtain the name of blob by
-	// calling it's Name() method. In case a blob with same name already exists,
-	// it will overwrite existing blob, it's negligible however for the new
-	// data to have contents different to the previous one.
-	SaveAutoNamed() (AutoNamedWriter, error)
+	// SaveAutoNamed creates new blob but automatically calculates it's name.
+	// Apart from the name and lack of ErrNameMismatch, the behavior of this
+	// function is equal to Save()
+	SaveAutoNamed(r io.ReadCloser) (name string, err error)
 
 	// Exists does check whether blob of given name exists in CAS. Partially
 	// written blobs are equal to non-existing ones.

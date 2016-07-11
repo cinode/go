@@ -18,9 +18,11 @@ type fileSystem struct {
 }
 
 // InFileSystem returns filesystem-based CAS implementation
+/*
 func InFileSystem(path string) CAS {
 	return &fileSystem{path: path}
 }
+*/
 
 func (fs *fileSystem) Kind() string {
 	return "FileSystem"
@@ -91,9 +93,23 @@ func (w *writeWrapper) Close() error {
 	return nil
 }
 
+func (w *writeWrapper) Cancel() {
+	if w.fl == nil {
+		panic("Called Cancel multiple times or after calling Close()")
+	}
+
+	w.fl.Close()
+	os.Remove(w.fl.Name())
+	w.fl = nil
+	w.hasher = nil
+}
+
 func (w *writeWrapper) Name() string {
 	if w.fl != nil {
 		panic("Called Name() with no successfull call to Close()")
+	}
+	if w.name == "" {
+		panic("Called Name() after Cancel()")
 	}
 	return w.name
 }
@@ -131,11 +147,14 @@ func (n *nullWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
+func (n *nullWriter) Cancel() {
+}
+
 func (n *nullWriter) Close() error {
 	return ErrNameMismatch
 }
 
-func (fs *fileSystem) Save(name string) (io.WriteCloser, error) {
+func (fs *fileSystem) Save(name string) (io.Writer, error) {
 	destName, err := fs.getFileName(name)
 	if err != nil {
 		return &nullWriter{}, nil
@@ -143,7 +162,7 @@ func (fs *fileSystem) Save(name string) (io.WriteCloser, error) {
 	return fs.saveInternal(name, destName, false)
 }
 
-func (fs *fileSystem) SaveAutoNamed() (AutoNamedWriter, error) {
+func (fs *fileSystem) SaveAutoNamed() (io.Writer, error) {
 	destName, err := fs.getTempName()
 	if err != nil {
 		return nil, err
@@ -152,7 +171,7 @@ func (fs *fileSystem) SaveAutoNamed() (AutoNamedWriter, error) {
 	return fs.saveInternal("", destName, true)
 }
 
-func (fs *fileSystem) saveInternal(name, destName string, auto bool) (AutoNamedWriter, error) {
+func (fs *fileSystem) saveInternal(name, destName string, auto bool) (io.Writer, error) {
 	err := os.MkdirAll(filepath.Dir(destName), 0777)
 	if err != nil {
 		return nil, err

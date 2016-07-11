@@ -3,6 +3,7 @@ package cas
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"sync"
 )
 
@@ -15,21 +16,15 @@ type memory struct {
 	rw sync.RWMutex
 }
 
+// InMemory returns simple in-memory CAS implementation
+func InMemory() CAS {
+	return &memory{
+		bmap: make(map[string][]byte),
+	}
+}
+
 func (m *memory) Kind() string {
 	return "Memory"
-}
-
-type memoryReader struct {
-	r io.Reader
-}
-
-func (m *memoryReader) Read(p []byte) (n int, err error) {
-	return m.r.Read(p)
-}
-
-func (m *memoryReader) Close() error {
-	m.r = nil
-	return nil
 }
 
 func (m *memory) Open(n string) (io.ReadCloser, error) {
@@ -41,65 +36,44 @@ func (m *memory) Open(n string) (io.ReadCloser, error) {
 		return nil, ErrNotFound
 	}
 
-	return &memoryReader{r: bytes.NewReader(b)}, nil
+	return ioutil.NopCloser(bytes.NewReader(b)), nil
 }
 
-type memoryWriter struct {
-	buf    bytes.Buffer
-	hasher *hasher
-	mem    *memory
-	name   string
-	auto   bool
-}
+func (m *memory) saveInternal(r io.ReadCloser, checkName func(string) bool) (string, error) {
+	h := newHasher()
+	b := new(bytes.Buffer)
 
-func (m *memoryWriter) Write(p []byte) (n int, err error) {
-	m.hasher.Write(p)
-	return m.buf.Write(p)
-}
-
-func (m *memoryWriter) Close() error {
-	// Test if name does match
-	n := m.hasher.Name()
-	if m.auto {
-		m.name = n
-	} else {
-		if n != m.name {
-			return ErrNameMismatch
-		}
+	_, err := io.Copy(b, io.TeeReader(r, h))
+	if err != nil {
+		r.Close()
+		return "", err
 	}
 
-	// Save inside CAS data
-	m.mem.rw.Lock()
-	defer m.mem.rw.Unlock()
-	m.mem.bmap[n] = m.buf.Bytes()
-	m.hasher = nil
-	m.mem = nil
-	return nil
-}
-
-func (m *memoryWriter) Name() string {
-	if m.mem != nil {
-		panic("Calling Name() before Close()")
+	err = r.Close()
+	if err != nil {
+		return "", err
 	}
-	return m.name
+
+	name := h.Name()
+	if !checkName(name) {
+		return "", ErrNameMismatch
+	}
+
+	// Store buffer inside CAS data
+	m.rw.Lock()
+	defer m.rw.Unlock()
+
+	m.bmap[name] = b.Bytes()
+	return name, nil
 }
 
-func (m *memory) Save(name string) (io.WriteCloser, error) {
-	return &memoryWriter{
-		hasher: newHasher(),
-		mem:    m,
-		name:   name,
-		auto:   false,
-	}, nil
+func (m *memory) Save(name string, r io.ReadCloser) error {
+	_, err := m.saveInternal(r, func(n string) bool { return name == n })
+	return err
 }
 
-func (m *memory) SaveAutoNamed() (AutoNamedWriter, error) {
-	return &memoryWriter{
-		hasher: newHasher(),
-		mem:    m,
-		name:   "",
-		auto:   true,
-	}, nil
+func (m *memory) SaveAutoNamed(r io.ReadCloser) (string, error) {
+	return m.saveInternal(r, func(string) bool { return true })
 }
 
 func (m *memory) Exists(n string) bool {
@@ -121,11 +95,4 @@ func (m *memory) Delete(n string) error {
 
 	delete(m.bmap, n)
 	return nil
-}
-
-// InMemory returns simple in-memory CAS implementation
-func InMemory() CAS {
-	return &memory{
-		bmap: make(map[string][]byte),
-	}
 }
