@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -18,11 +19,9 @@ type fileSystem struct {
 }
 
 // InFileSystem returns filesystem-based CAS implementation
-/*
 func InFileSystem(path string) CAS {
 	return &fileSystem{path: path}
 }
-*/
 
 func (fs *fileSystem) Kind() string {
 	return "FileSystem"
@@ -140,56 +139,86 @@ func (fs *fileSystem) createTemporaryWriteStream(destName string) (*os.File, err
 	return nil, errToManySimultaneousUploads
 }
 
-type nullWriter struct {
-}
-
-func (n *nullWriter) Write(b []byte) (int, error) {
-	return len(b), nil
-}
-
-func (n *nullWriter) Cancel() {
-}
-
-func (n *nullWriter) Close() error {
-	return ErrNameMismatch
-}
-
-func (fs *fileSystem) Save(name string) (io.Writer, error) {
+func (fs *fileSystem) Save(name string, r io.ReadCloser) error {
 	destName, err := fs.getFileName(name)
 	if err != nil {
-		return &nullWriter{}, nil
+		// Act as if we didn't know the name is incorrect
+		io.Copy(ioutil.Discard, r)
+		r.Close()
+		return ErrNameMismatch
 	}
-	return fs.saveInternal(name, destName, false)
+	_, err = fs.saveInternal(r, destName, func(n string) bool { return n == name })
+	return err
 }
 
-func (fs *fileSystem) SaveAutoNamed() (io.Writer, error) {
+func (fs *fileSystem) SaveAutoNamed(r io.ReadCloser) (string, error) {
 	destName, err := fs.getTempName()
 	if err != nil {
-		return nil, err
+		r.Close()
+		return "", err
 	}
 
-	return fs.saveInternal("", destName, true)
+	return fs.saveInternal(r, destName, func(n string) bool { return true })
 }
 
-func (fs *fileSystem) saveInternal(name, destName string, auto bool) (io.Writer, error) {
+func (fs *fileSystem) saveInternal(r io.ReadCloser, destName string, nameCheck func(string) bool) (string, error) {
+
+	defer func() {
+		if r != nil {
+			r.Close()
+		}
+	}()
+
 	err := os.MkdirAll(filepath.Dir(destName), 0777)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	fl, err := fs.createTemporaryWriteStream(destName)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return &writeWrapper{
-			fl:       fl,
-			destName: destName,
-			name:     name,
-			hasher:   newHasher(),
-			auto:     auto,
-		},
-		nil
+	defer func() {
+		if fl != nil {
+			fl.Close()
+			os.Remove(fl.Name())
+		}
+	}()
+
+	h := newHasher()
+	_, err = io.Copy(fl, io.TeeReader(r, h))
+	if err != nil {
+		return "", err
+	}
+
+	err = r.Close()
+	r = nil
+	if err != nil {
+		return "", err
+	}
+
+	name := h.Name()
+	if !nameCheck(name) {
+		return "", ErrNameMismatch
+	}
+
+	err = fl.Close()
+	if err != nil {
+		os.Remove(fl.Name())
+		fl = nil
+		return "", err
+	}
+
+	err = os.Rename(fl.Name(), destName)
+	if err != nil {
+		os.Remove(fl.Name())
+		fl = nil
+		return "", err
+	}
+
+	fl = nil
+	return name, nil
 }
 
 func (fs *fileSystem) Exists(name string) bool {

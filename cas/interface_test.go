@@ -3,8 +3,10 @@ package cas
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 	"sync"
 	"testing"
 )
@@ -20,13 +22,15 @@ var testBlobs = []struct {
 
 func allCAS(f func(c CAS)) {
 	f(InMemory())
-	/*
+
+	func() {
 		path, err := ioutil.TempDir("", "cinodetest")
 		if err != nil {
 			panic(fmt.Sprintf("Error while creating temporary directory: %s", err))
 		}
 		defer os.RemoveAll(path)
-		f(InFileSystem(path))*/
+		f(InFileSystem(path))
+	}()
 }
 
 func TestOpenNonExisting(t *testing.T) {
