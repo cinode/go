@@ -76,12 +76,15 @@ func (m *memory) SaveAutoNamed(r io.ReadCloser) (string, error) {
 	return m.saveInternal(r, func(string) bool { return true })
 }
 
-func (m *memory) Exists(n string) bool {
+func (m *memory) Exists(n string) error {
 	m.rw.RLock()
 	defer m.rw.RUnlock()
 
-	_, ok := m.bmap[n]
-	return ok
+	if _, ok := m.bmap[n]; !ok {
+		return ErrNotFound
+	}
+
+	return nil
 }
 
 func (m *memory) Delete(n string) error {
