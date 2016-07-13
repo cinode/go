@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"sync"
 	"testing"
@@ -36,6 +38,16 @@ func allCAS(f func(c CAS)) {
 		defer os.RemoveAll(path)
 		f(InFileSystem(path))
 	}()
+
+	func() {
+		// Test web interface and web connector
+		server := httptest.NewServer(WebInterface(InMemory()))
+		defer server.Close()
+
+		f(FromWeb(server.URL+"/", &http.Client{}))
+
+	}()
+
 }
 
 func TestOpenNonExisting(t *testing.T) {
@@ -108,7 +120,7 @@ func TestSaveNameMismatch(t *testing.T) {
 	allCAS(func(c CAS) {
 		e := c.Save("invalidname", bReader([]byte("Test"), nil, nil, nil))
 		if e == nil || e != ErrNameMismatch {
-			t.Fatalf("CAS %s: Didn't detect name mismatch: %s", c.Kind(), e)
+			t.Fatalf("CAS %s: Didn't detect name mismatch: %v", c.Kind(), e)
 		}
 	})
 }
@@ -133,20 +145,26 @@ func TestSaveSuccessful(t *testing.T) {
 				t.Fatalf("CAS %s: Blob should not exist", c.Kind())
 			}
 
-			closeCalled := false
+			closeCalledCnt := 0
 
 			rdr := bReader(b.data, func() error {
+				if closeCalledCnt > 0 {
+					t.Fatalf("CAS %s: Read after Close()", c.Kind())
+				}
 				if exists(c, b.name) {
 					t.Fatalf("CAS %s: Blob should not exist before saving data", c.Kind())
 				}
 				return nil
 			}, func() error {
+				if closeCalledCnt > 0 {
+					t.Fatalf("CAS %s: EOF after Close()", c.Kind())
+				}
 				if exists(c, b.name) {
 					t.Fatalf("CAS %s: Blob should not exist before saving data", c.Kind())
 				}
 				return nil
 			}, func() error {
-				closeCalled = true
+				closeCalledCnt++
 				return nil
 			})
 
@@ -155,8 +173,11 @@ func TestSaveSuccessful(t *testing.T) {
 				t.Fatalf("CAS %s: Couldn't write CAS data: %s", c.Kind(), e)
 			}
 
-			if !closeCalled {
+			if closeCalledCnt == 0 {
 				t.Fatalf("CAS %s: Stream was not closed", c.Kind())
+			}
+			if closeCalledCnt > 1 {
+				t.Fatalf("CAS %s: Stream was closed multiple times (%d)", c.Kind(), closeCalledCnt)
 			}
 
 			// Reading blob
@@ -206,8 +227,8 @@ func TestCancelWhileSaving(t *testing.T) {
 			e := c.Save(b.name, bReader(b.data, func() error {
 				return errRet
 			}, nil, nil))
-			if e != errRet {
-				t.Fatalf("CAS %s: Incorrect error returned: %v", c.Kind(), e)
+			if e == nil {
+				t.Fatalf("CAS %s: No error returned", c.Kind())
 			}
 			if exists(c, b.name) {
 				t.Fatalf("CAS %s: Blob should not exist", c.Kind())
@@ -223,8 +244,8 @@ func TestCancelWhileClosingSave(t *testing.T) {
 			e := c.Save(b.name, bReader(b.data, nil, nil, func() error {
 				return errRet
 			}))
-			if e != errRet {
-				t.Fatalf("CAS %s: Incorrect error returned: %v", c.Kind(), e)
+			if e == nil {
+				t.Fatalf("CAS %s: No error returned", c.Kind())
 			}
 			if exists(c, b.name) {
 				t.Fatalf("CAS %s: Blob should not exist", c.Kind())
@@ -240,8 +261,8 @@ func TestCancelWhileSavingAutoNamed(t *testing.T) {
 			n, e := c.SaveAutoNamed(bReader(b.data, func() error {
 				return errRet
 			}, nil, nil))
-			if e != errRet {
-				t.Fatalf("CAS %s: Incorrect error returned: %v", c.Kind(), e)
+			if e == nil {
+				t.Fatalf("CAS %s: No error returned", c.Kind())
 			}
 			if n != "" {
 				t.Fatalf("CAS %s: Should get empty name, got '%s'", c.Kind(), n)
@@ -260,8 +281,8 @@ func TestCancelWhileClosingAutoNamed(t *testing.T) {
 			n, e := c.SaveAutoNamed(bReader(b.data, nil, nil, func() error {
 				return errRet
 			}))
-			if e != errRet {
-				t.Fatalf("CAS %s: Incorrect error returned: %v", c.Kind(), e)
+			if e == nil {
+				t.Fatalf("CAS %s: No error returned", c.Kind())
 			}
 			if n != "" {
 				t.Fatalf("CAS %s: Should get empty name, got '%s'", c.Kind(), n)
@@ -546,28 +567,43 @@ func TestOpenInvalidName(t *testing.T) {
 func TestSaveInvalidName(t *testing.T) {
 	allCAS(func(c CAS) {
 		for _, n := range invalidNames {
-			readCalled, eofCalled, closeCalled := false, false, false
+			readCalled, eofCalledCnt, closeCalledCnt := false, 0, 0
 			e := c.Save(n, bReader([]byte{}, func() error {
+				if closeCalledCnt > 0 {
+					t.Fatalf("CAS %s: Read after Close()", c.Kind())
+				}
+				if eofCalledCnt > 0 {
+					t.Fatalf("CAS %s: Read after EOF", c.Kind())
+				}
 				readCalled = true
 				return nil
 			}, func() error {
-				eofCalled = true
+				if closeCalledCnt > 0 {
+					t.Fatalf("CAS %s: EOF after Close()", c.Kind())
+				}
+				eofCalledCnt++
 				return nil
 			}, func() error {
-				closeCalled = true
+				closeCalledCnt++
 				return nil
 			}))
 			if e != ErrNameMismatch {
 				t.Fatalf("CAS %s: Got error when opening invalid name write stream: %v", c.Kind(), e)
 			}
-			if !eofCalled {
-				t.Fatalf("CAS %s: Didn't get EOF when reading incorrect blob data", c.Kind())
-			}
 			if !readCalled {
 				t.Fatalf("CAS %s: Didn't call read for incorrect blob name", c.Kind())
 			}
-			if !closeCalled {
+			if eofCalledCnt == 0 {
+				t.Fatalf("CAS %s: Didn't get EOF when reading incorrect blob data", c.Kind())
+			}
+			if eofCalledCnt > 1 {
+				t.Fatalf("CAS %s: Did get EOF multiple times (%d)", c.Kind(), eofCalledCnt)
+			}
+			if closeCalledCnt == 0 {
 				t.Fatalf("CAS %s: Didn't call close for incorrect blob name", c.Kind())
+			}
+			if closeCalledCnt > 1 {
+				t.Fatalf("CAS %s: Close called multiple times for incorrect blob name", c.Kind())
 			}
 		}
 	})
