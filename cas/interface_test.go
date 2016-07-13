@@ -515,8 +515,8 @@ func TestGetKind(t *testing.T) {
 }
 
 func TestSimultaneousReads(t *testing.T) {
-	threadCnt := 100
-	readCnt := 1000
+	threadCnt := 10
+	readCnt := 200
 
 	allCAS(func(c CAS) {
 
