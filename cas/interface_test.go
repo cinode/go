@@ -544,6 +544,55 @@ func TestSimultaneousReads(t *testing.T) {
 	})
 }
 
+func TestSimultaneousSaves(t *testing.T) {
+	threadCnt := 3
+
+	allCAS(func(c CAS) {
+
+		b := testBlobs[0]
+
+		wg := sync.WaitGroup{}
+		wg.Add(threadCnt)
+
+		wg2 := sync.WaitGroup{}
+		wg2.Add(threadCnt)
+
+		for i := 0; i < threadCnt; i++ {
+			go func(i int) {
+				firstTime := true
+				err := c.Save(b.name, bReader(b.data, func() error {
+
+					if !firstTime {
+						return nil
+					}
+					firstTime = false
+
+					// Blob must not exist now
+					if exists(c, b.name) {
+						t.Fatalf("CAS %s: Blob exists although no writter finished yet", c.Kind())
+					}
+
+					// Wait for all writes to start
+					wg.Done()
+					wg.Wait()
+
+					return nil
+
+				}, nil, nil))
+				errPanic(err)
+
+				if !exists(c, b.name) {
+					t.Fatalf("CAS %s: Blob does not exist yet", c.Kind())
+				}
+
+				wg2.Done()
+			}(i)
+		}
+
+		wg2.Wait()
+	})
+}
+
 // Invalid names behave just as if there was no blob with such name.
 // Writing such blob would always fail on close (similarly to how invalid name
 // when writing behaves)

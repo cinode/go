@@ -46,7 +46,7 @@ func (fs *fileSystem) Open(name string) (io.ReadCloser, error) {
 }
 
 func (fs *fileSystem) createTemporaryWriteStream(destName string) (*os.File, error) {
-	for i := 0; i < 0x1000; i++ {
+	for i := 0; i < 0x100; i++ {
 		tempName := fmt.Sprintf("%s.upload_%d", destName, i)
 		fh, err := os.OpenFile(
 			tempName,
@@ -84,12 +84,7 @@ func (fs *fileSystem) Save(name string, r io.ReadCloser) error {
 }
 
 func (fs *fileSystem) SaveAutoNamed(r io.ReadCloser) (string, error) {
-	destName, err := fs.getTempName()
-	if err != nil {
-		r.Close()
-		return "", err
-	}
-
+	destName := fs.getTempName()
 	return fs.saveInternal(r, destName, func(n string) bool { return true })
 }
 
@@ -193,7 +188,6 @@ func (fs *fileSystem) getFileName(name string) (string, error) {
 	return fn, nil
 }
 
-func (fs *fileSystem) getTempName() (string, error) {
-	fn := fmt.Sprintf("%s/_temporary/%d.upload", fs.path, rand.Int())
-	return fn, nil
+func (fs *fileSystem) getTempName() string {
+	return fmt.Sprintf("%s/_temporary/%d.upload", fs.path, rand.Int())
 }
