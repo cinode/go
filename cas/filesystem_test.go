@@ -2,33 +2,56 @@ package cas
 
 import (
 	"bytes"
-	"errors"
+	"io"
 	"io/ioutil"
 	"os"
-	"sync"
-	"sync/atomic"
+	"path/filepath"
 	"testing"
 )
 
-func TestFilesystemOpenFailure(t *testing.T) {
+var (
+	filesystemTestBlobName = "ZZ8FaUwURAkWvzbnRhTt2pWSJCYZMAELqPk9USTUJgC4"
+)
 
+func temporaryFS() (*fileSystem, func()) {
 	tmpPath, err := ioutil.TempDir("", "cinode_filesystem_test")
 	errPanic(err)
-	defer os.RemoveAll(tmpPath)
+	return &fileSystem{path: tmpPath},
+		func() { os.RemoveAll(tmpPath) }
+}
 
-	// Put file where directory should be
-	err = os.MkdirAll(tmpPath+"/ZZ8/FaU/", 0777)
+func touchFile(fName string) string {
+	err := os.MkdirAll(filepath.Dir(fName), 0777)
 	errPanic(err)
-	fName := tmpPath + "/ZZ8/FaU/wURAkWvzbnRhTt2pWSJCYZMAELqPk9USTUJgC4"
 	fl, err := os.Create(fName)
 	errPanic(err)
 	fl.Close()
+	return fName
+}
 
+func protect(fName string) func() {
+	fi, err := os.Stat(fName)
+	errPanic(err)
 	os.Chmod(fName, 0)
-	defer os.Chmod(fName, 0644)
+	mode := fi.Mode()
+	return func() { os.Chmod(fName, mode) }
+}
 
-	fs := InFileSystem(tmpPath)
-	stream, err := fs.Open("ZZ8FaUwURAkWvzbnRhTt2pWSJCYZMAELqPk9USTUJgC4")
+func testData() io.ReadCloser {
+	return ioutil.NopCloser(bytes.NewBuffer([]byte{}))
+}
+
+func TestFilesystemOpenFailure(t *testing.T) {
+
+	fs, d := temporaryFS()
+	defer d()
+
+	// Put file where directory should be
+	fName, err := fs.getFileName(filesystemTestBlobName)
+	errPanic(err)
+	defer protect(touchFile(fName))()
+
+	stream, err := fs.Open(filesystemTestBlobName)
 	if err == nil {
 		t.Fatal("Did not get error while trying to save blob")
 	}
@@ -42,110 +65,149 @@ func TestFilesystemOpenFailure(t *testing.T) {
 
 func TestFilesystemSaveFailureDir(t *testing.T) {
 
-	tmpPath, err := ioutil.TempDir("", "cinode_filesystem_test")
-	errPanic(err)
-
-	defer os.RemoveAll(tmpPath)
+	fs, d := temporaryFS()
+	defer d()
 
 	// Put file where directory should be
-	fl, err := os.Create(tmpPath + "/ZZ8")
+	fName, err := fs.getFileName(filesystemTestBlobName)
 	errPanic(err)
-	fl.Close()
+	fName = filepath.Dir(fName)
+	defer protect(touchFile(fName))()
 
-	fs := InFileSystem(tmpPath)
-	err = fs.Save(
-		"ZZ8FaUwURAkWvzbnRhTt2pWSJCYZMAELqPk9USTUJgC4",
-		ioutil.NopCloser(bytes.NewBuffer([]byte{})))
+	err = fs.Save(filesystemTestBlobName, testData())
 	if err == nil {
 		t.Fatal("Did not get error while trying to save blob")
+	}
+	if err == ErrNotFound || err == ErrNameMismatch {
+		t.Fatalf("Incorrect error received: %v", err)
 	}
 }
 
 func TestFilesystemToManySimultaneousSaves(t *testing.T) {
-	threadCnt := 0x100 + 1
 
-	tmpPath, err := ioutil.TempDir("", "cinode_filesystem_test")
+	fs, d := temporaryFS()
+	defer d()
+
+	fName, err := fs.getFileName(filesystemTestBlobName)
 	errPanic(err)
-	defer os.RemoveAll(tmpPath)
-
-	c := InFileSystem(tmpPath)
-
-	b := testBlobs[0]
-
-	wg := sync.WaitGroup{}
-	wg.Add(threadCnt)
-
-	wg2 := sync.WaitGroup{}
-	wg2.Add(threadCnt)
-
-	errorFound := int32(0)
-	for i := 0; i < threadCnt; i++ {
-		go func(i int) {
-			err := c.Save(b.name, bReader(b.data, nil, func() error {
-				// Wait for all writes to start
-				wg.Done()
-				wg.Wait()
-				return errors.New("Don't finish")
-			}, nil))
-			if err == errToManySimultaneousUploads {
-				wg.Done()
-				atomic.StoreInt32(&errorFound, 1)
-			}
-			wg2.Done()
-		}(i)
+	for i := 0; i < fileSystemMaxSimultaneousUploads; i++ {
+		touchFile(fs.temporaryWriteStreamFileName(fName, i))
 	}
-
-	wg2.Wait()
-
-	if errorFound == 0 {
-		t.Fatalf("Did not get errToManySimultaneousUploads error")
+	err = fs.Save(filesystemTestBlobName, testData())
+	if err != errToManySimultaneousUploads {
+		t.Fatalf("Incorrect error received: %v", err)
 	}
 
 }
 
 func TestFilesystemSaveFailureTempFile(t *testing.T) {
 
-	tmpPath, err := ioutil.TempDir("", "cinode_filesystem_test")
-	errPanic(err)
-
-	defer os.RemoveAll(tmpPath)
+	fs, d := temporaryFS()
+	defer d()
 
 	// Create blob's directory as unmodifiable
-	dirPath := tmpPath + "/ZZ8/FaU/"
-	err = os.MkdirAll(dirPath, 0777)
+	fName, err := fs.getFileName(filesystemTestBlobName)
 	errPanic(err)
-	os.Chmod(dirPath, 0)
-	defer os.Chmod(dirPath, 0755)
+	dirPath := filepath.Dir(fName)
+	errPanic(os.MkdirAll(dirPath, 0777))
+	defer protect(dirPath)()
 
-	fs := InFileSystem(tmpPath)
-	err = fs.Save(
-		"ZZ8FaUwURAkWvzbnRhTt2pWSJCYZMAELqPk9USTUJgC4",
-		ioutil.NopCloser(bytes.NewBuffer([]byte{})))
+	err = fs.Save(filesystemTestBlobName, testData())
 	if err == nil {
 		t.Fatal("Did not get error while trying to save blob")
+	}
+	if err == ErrNotFound || err == ErrNameMismatch {
+		t.Fatalf("Incorrect error received: %v", err)
 	}
 }
 
 func TestFilesystemSaveAutoNamedFailureTempFile(t *testing.T) {
 
-	tmpPath, err := ioutil.TempDir("", "cinode_filesystem_test")
-	errPanic(err)
-
-	defer os.RemoveAll(tmpPath)
+	fs, d := temporaryFS()
+	defer d()
 
 	// Create blob's directory as unmodifiable
-	dirPath := tmpPath + "/_temporary"
-	err = os.MkdirAll(dirPath, 0777)
-	errPanic(err)
-	os.Chmod(dirPath, 0)
-	defer os.Chmod(dirPath, 0755)
+	dirPath := fs.path + "/_temporary"
+	errPanic(os.MkdirAll(dirPath, 0777))
+	defer protect(dirPath)()
 
-	fs := InFileSystem(tmpPath)
-	name, err := fs.SaveAutoNamed(ioutil.NopCloser(bytes.NewBuffer([]byte{})))
+	name, err := fs.SaveAutoNamed(testData())
 	if err == nil {
 		t.Fatal("Did not get error while trying to save blob")
 	}
+	if err == ErrNotFound || err == ErrNameMismatch {
+		t.Fatalf("Incorrect error received: %v", err)
+	}
 	if name != "" {
 		t.Fatal("Should get empty file name")
+	}
+}
+
+func TestFilesystemRenameFailure(t *testing.T) {
+
+	fs, d := temporaryFS()
+	defer d()
+
+	// Create directory where blob should be
+	fName, err := fs.getFileName(filesystemTestBlobName)
+	os.MkdirAll(fName, 0777)
+
+	err = fs.Save(filesystemTestBlobName, testData())
+	if err == nil {
+		t.Fatal("Did not get error while trying to save blob")
+	}
+	if err == ErrNotFound || err == ErrNameMismatch {
+		t.Fatalf("Incorrect error received: %v", err)
+	}
+}
+
+func TestFilesystemDeleteFailure(t *testing.T) {
+
+	fs, d := temporaryFS()
+	defer d()
+
+	// Create directory where blob should be with some file inside
+	fName, err := fs.getFileName(filesystemTestBlobName)
+	os.MkdirAll(fName, 0777)
+	touchFile(fName + "/keep.me")
+
+	err = fs.Delete(filesystemTestBlobName)
+	if err == nil {
+		t.Fatal("Did not get error while trying to save blob")
+	}
+	if err == ErrNotFound || err == ErrNameMismatch {
+		t.Fatalf("Incorrect error received: %v", err)
+	}
+}
+
+func TestFilesystemDeleteNotFound(t *testing.T) {
+
+	fs, d := temporaryFS()
+	defer d()
+
+	err := fs.Delete(filesystemTestBlobName)
+	if err != ErrNotFound {
+		t.Fatalf("Incorrect error received: %v", err)
+	}
+}
+
+func TestFilesystemExistsFailure(t *testing.T) {
+
+	fs, d := temporaryFS()
+	defer d()
+
+	// Create blob's directory as unmodifiable
+	fName, err := fs.getFileName(filesystemTestBlobName)
+	errPanic(err)
+	dirPath := filepath.Dir(fName)
+	errPanic(os.MkdirAll(dirPath, 0777))
+	defer protect(dirPath)()
+
+	err = fs.Exists(filesystemTestBlobName)
+	if err == nil {
+		t.Fatal("Did not get error while trying to save blob")
+	}
+	if err == ErrNotFound || err == ErrNameMismatch {
+		t.Fatalf("Incorrect error received: %v", err)
 	}
 }

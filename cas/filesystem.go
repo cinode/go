@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 )
 
+const fileSystemMaxSimultaneousUploads = 0x100
+
 var (
 	errToManySimultaneousUploads = errors.New("To many simultaneous uploads")
 )
@@ -45,13 +47,17 @@ func (fs *fileSystem) Open(name string) (io.ReadCloser, error) {
 	return nil, err
 }
 
+func (fs *fileSystem) temporaryWriteStreamFileName(destName string, seqNo int) string {
+	return fmt.Sprintf("%s.upload_%d", destName, seqNo)
+}
+
 func (fs *fileSystem) createTemporaryWriteStream(destName string) (*os.File, error) {
-	for i := 0; i < 0x100; i++ {
-		tempName := fmt.Sprintf("%s.upload_%d", destName, i)
+	for i := 0; i < fileSystemMaxSimultaneousUploads; i++ {
+		tempName := fs.temporaryWriteStreamFileName(destName, i)
 		fh, err := os.OpenFile(
 			tempName,
 			os.O_CREATE|os.O_EXCL|os.O_APPEND|os.O_WRONLY,
-			0666,
+			0644,
 		)
 		if os.IsExist(err) {
 			// Temporary file exists, more simultaneous uploads?
@@ -96,7 +102,7 @@ func (fs *fileSystem) saveInternal(r io.ReadCloser, destName string, nameCheck f
 		}
 	}()
 
-	err := os.MkdirAll(filepath.Dir(destName), 0777)
+	err := os.MkdirAll(filepath.Dir(destName), 0755)
 	if err != nil {
 		return "", err
 	}
