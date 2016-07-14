@@ -84,10 +84,7 @@ func (i *webInterface) serveGet(w http.ResponseWriter, r *http.Request) {
 	defer blob.Close()
 
 	_, err = io.Copy(w, blob)
-	if !i.checkErr(err, w, r) {
-		return
-	}
-
+	i.checkErr(err, w, r)
 }
 
 func (i *webInterface) servePost(w http.ResponseWriter, r *http.Request) {
@@ -146,13 +143,12 @@ func (i *webInterface) serveHead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := i.cas.Exists(name)
+	exists, err := i.cas.Exists(name)
 	if err != nil {
-		if err == ErrNotFound {
-			http.NotFound(w, r)
-			return
-		}
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
+	}
+	if !exists {
+		http.NotFound(w, r)
 	}
 }

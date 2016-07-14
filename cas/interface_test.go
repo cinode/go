@@ -126,15 +126,11 @@ func TestSaveNameMismatch(t *testing.T) {
 }
 
 func exists(c CAS, n string) bool {
-	err := c.Exists(n)
-	if err == nil {
-		return true
+	exists, err := c.Exists(n)
+	if err != nil {
+		panic("Invalid error detected when testing blob's existance: " + err.Error())
 	}
-	if err == ErrNotFound {
-		return false
-	}
-
-	panic("Invalid error detected when testing blob's existance: " + err.Error())
+	return exists
 }
 
 func TestSaveSuccessful(t *testing.T) {
@@ -661,12 +657,10 @@ func TestSaveInvalidName(t *testing.T) {
 func TestExistsInvalidName(t *testing.T) {
 	allCAS(func(c CAS) {
 		for _, n := range invalidNames {
-			err := c.Exists(n)
-			if err == nil {
+			ex, err := c.Exists(n)
+			errPanic(err)
+			if ex {
 				t.Fatalf("CAS %s: Blob with invalid name exists", c.Kind())
-			}
-			if err != ErrNotFound {
-				t.Fatalf("CAS %s: Error while invalid name existance check: %v", c.Kind(), err)
 			}
 		}
 	})

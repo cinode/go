@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-var (
+const (
 	filesystemTestBlobName = "ZZ8FaUwURAkWvzbnRhTt2pWSJCYZMAELqPk9USTUJgC4"
 )
 
@@ -203,7 +203,7 @@ func TestFilesystemExistsFailure(t *testing.T) {
 	errPanic(os.MkdirAll(dirPath, 0777))
 	defer protect(dirPath)()
 
-	err = fs.Exists(filesystemTestBlobName)
+	_, err = fs.Exists(filesystemTestBlobName)
 	if err == nil {
 		t.Fatal("Did not get error while trying to save blob")
 	}

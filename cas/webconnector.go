@@ -103,14 +103,21 @@ func (w *webConnector) Save(name string, r io.ReadCloser) error {
 	return w.errCheck(res)
 }
 
-func (w *webConnector) Exists(name string) error {
+func (w *webConnector) Exists(name string) (bool, error) {
 	res, err := http.Head(w.baseURL + name)
 	if err != nil {
-		return err
+		return false, err
 	}
 	io.Copy(ioutil.Discard, res.Body)
 	res.Body.Close()
-	return w.errCheck(res)
+	err = w.errCheck(res)
+	if err == ErrNotFound {
+		return false, nil
+	}
+	if err == nil {
+		return true, nil
+	}
+	return false, err
 }
 
 func (w *webConnector) Delete(name string) error {

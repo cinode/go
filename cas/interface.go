@@ -39,11 +39,10 @@ type CAS interface {
 	SaveAutoNamed(r io.ReadCloser) (name string, err error)
 
 	// Exists does check whether blob of given name exists in CAS. Partially
-	// written blobs are equal to non-existing ones. If blob exists, returned
-	// error will be nil, if blob does not exists, returned value will be
-	// ErrNotFound. In case of any other error encountered during blob existance
-	// evaluation, appropriate error should be returned.
-	Exists(name string) error
+	// written blobs are equal to non-existing ones. Boolean value returned
+	// indicates whether the blob exists or not, if error is not nil, there
+	// was an error while trying to check blob's existance.
+	Exists(name string) (bool, error)
 
 	// Delete tries to remove blob with given name. If blob does not exist
 	// (which includes partially written blobs) ErrNotFound will be returned.

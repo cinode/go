@@ -154,21 +154,21 @@ func (fs *fileSystem) saveInternal(r io.ReadCloser, destName string, nameCheck f
 	return name, nil
 }
 
-func (fs *fileSystem) Exists(name string) error {
+func (fs *fileSystem) Exists(name string) (bool, error) {
 	fn, err := fs.getFileName(name)
 	if err != nil {
-		return ErrNotFound
+		return false, nil
 	}
 
 	fh, err := os.Open(fn)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return ErrNotFound
+			return false, nil
 		}
-		return err
+		return false, err
 	}
 	fh.Close()
-	return nil
+	return true, nil
 }
 
 func (fs *fileSystem) Delete(name string) error {
