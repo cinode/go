@@ -1,6 +1,7 @@
 package cas
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -75,4 +76,18 @@ func TestWebInterfaceDeleteQueryString(t *testing.T) {
 
 func TestWebInterfacePostNonRoot(t *testing.T) {
 	testHTTPResponse(t, http.MethodPost, webInterfaceTestBlobName, testData(), http.StatusNotFound)
+}
+
+type errorOnExists struct {
+	memory
+}
+
+func (a *errorOnExists) Exists(name string) (bool, error) {
+	return false, errors.New("Error")
+}
+
+func TestWebIntefaceExistsFailure(t *testing.T) {
+	server := httptest.NewServer(WebInterface(&errorOnExists{}))
+	defer server.Close()
+	testHTTPResponseOwnServer(t, http.MethodHead, server.URL+"/"+webInterfaceTestBlobName, nil, http.StatusInternalServerError)
 }
