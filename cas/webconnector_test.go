@@ -6,10 +6,6 @@ import (
 	"testing"
 )
 
-const (
-	webConnectorTestBlobName = "ZZ8FaUwURAkWvzbnRhTt2pWSJCYZMAELqPk9USTUJgC4"
-)
-
 func TestWebConnectorInvalidUrl(t *testing.T) {
 	c := FromWeb("://bad.url", &http.Client{})
 	_, err := c.Open("test")
@@ -24,11 +20,11 @@ func TestWebConnectorInvalidUrl(t *testing.T) {
 	if err == nil {
 		t.Fatal("Did not get error for Delete")
 	}
-	err = c.Save(webConnectorTestBlobName, testData())
+	err = c.Save(emptyBlobName, emptyBlobReader())
 	if err == nil {
 		t.Fatal("Did not get error for Delete")
 	}
-	_, err = c.SaveAutoNamed(testData())
+	_, err = c.SaveAutoNamed(emptyBlobReader())
 	if err == nil {
 		t.Fatal("Did not get error for Delete")
 	}
@@ -54,11 +50,11 @@ func TestWebConnectorServerSideError(t *testing.T) {
 	if err == nil {
 		t.Fatal("Did not get error for Delete")
 	}
-	err = c.Save(webConnectorTestBlobName, testData())
+	err = c.Save(emptyBlobName, emptyBlobReader())
 	if err == nil {
 		t.Fatal("Did not get error for Delete")
 	}
-	_, err = c.SaveAutoNamed(testData())
+	_, err = c.SaveAutoNamed(emptyBlobReader())
 	if err == nil {
 		t.Fatal("Did not get error for Delete")
 	}

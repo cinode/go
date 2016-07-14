@@ -1,15 +1,10 @@
 package cas
 
 import (
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-)
-
-const (
-	webInterfaceTestBlobName = "ZZ8FaUwURAkWvzbnRhTt2pWSJCYZMAELqPk9USTUJgC4"
 )
 
 func testServer() (string, func()) {
@@ -44,50 +39,42 @@ func TestWebInterfaceInvalidMethod(t *testing.T) {
 func TestWebInterfaceGetQueryString(t *testing.T) {
 	url, d := testServer()
 	defer d()
-	testHTTPResponseOwnServer(t, http.MethodPut, url+webInterfaceTestBlobName, testData(), http.StatusOK)
-	testHTTPResponseOwnServer(t, http.MethodGet, url+webInterfaceTestBlobName+"?param=value", nil, http.StatusNotFound)
+	testHTTPResponseOwnServer(t, http.MethodPut, url+emptyBlobName, emptyBlobReader(), http.StatusOK)
+	testHTTPResponseOwnServer(t, http.MethodGet, url+emptyBlobName+"?param=value", nil, http.StatusNotFound)
 }
 
 func TestWebInterfacePostQueryString(t *testing.T) {
-	testHTTPResponse(t, http.MethodPost, "?param=value", testData(), http.StatusNotFound)
-	testHTTPResponse(t, http.MethodPost, "", testData(), http.StatusOK)
+	testHTTPResponse(t, http.MethodPost, "?param=value", emptyBlobReader(), http.StatusNotFound)
+	testHTTPResponse(t, http.MethodPost, "", emptyBlobReader(), http.StatusOK)
 }
 
 func TestWebInterfacePutQueryString(t *testing.T) {
-	testHTTPResponse(t, http.MethodPut, webInterfaceTestBlobName+"?param=value", testData(), http.StatusNotFound)
-	testHTTPResponse(t, http.MethodPut, webInterfaceTestBlobName, testData(), http.StatusOK)
+	testHTTPResponse(t, http.MethodPut, emptyBlobName+"?param=value", emptyBlobReader(), http.StatusNotFound)
+	testHTTPResponse(t, http.MethodPut, emptyBlobName, emptyBlobReader(), http.StatusOK)
 }
 
 func TestWebInterfaceHeadQueryString(t *testing.T) {
 	url, d := testServer()
 	defer d()
-	testHTTPResponseOwnServer(t, http.MethodPut, url+webInterfaceTestBlobName, testData(), http.StatusOK)
-	testHTTPResponseOwnServer(t, http.MethodHead, url+webInterfaceTestBlobName+"?param=value", nil, http.StatusNotFound)
-	testHTTPResponseOwnServer(t, http.MethodHead, url+webInterfaceTestBlobName, nil, http.StatusOK)
+	testHTTPResponseOwnServer(t, http.MethodPut, url+emptyBlobName, emptyBlobReader(), http.StatusOK)
+	testHTTPResponseOwnServer(t, http.MethodHead, url+emptyBlobName+"?param=value", nil, http.StatusNotFound)
+	testHTTPResponseOwnServer(t, http.MethodHead, url+emptyBlobName, nil, http.StatusOK)
 }
 
 func TestWebInterfaceDeleteQueryString(t *testing.T) {
 	url, d := testServer()
 	defer d()
-	testHTTPResponseOwnServer(t, http.MethodPut, url+webInterfaceTestBlobName, testData(), http.StatusOK)
-	testHTTPResponseOwnServer(t, http.MethodDelete, url+webInterfaceTestBlobName+"?param=value", nil, http.StatusNotFound)
-	testHTTPResponseOwnServer(t, http.MethodDelete, url+webInterfaceTestBlobName, nil, http.StatusOK)
+	testHTTPResponseOwnServer(t, http.MethodPut, url+emptyBlobName, emptyBlobReader(), http.StatusOK)
+	testHTTPResponseOwnServer(t, http.MethodDelete, url+emptyBlobName+"?param=value", nil, http.StatusNotFound)
+	testHTTPResponseOwnServer(t, http.MethodDelete, url+emptyBlobName, nil, http.StatusOK)
 }
 
 func TestWebInterfacePostNonRoot(t *testing.T) {
-	testHTTPResponse(t, http.MethodPost, webInterfaceTestBlobName, testData(), http.StatusNotFound)
-}
-
-type errorOnExists struct {
-	memory
-}
-
-func (a *errorOnExists) Exists(name string) (bool, error) {
-	return false, errors.New("Error")
+	testHTTPResponse(t, http.MethodPost, emptyBlobName, emptyBlobReader(), http.StatusNotFound)
 }
 
 func TestWebIntefaceExistsFailure(t *testing.T) {
 	server := httptest.NewServer(WebInterface(&errorOnExists{}))
 	defer server.Close()
-	testHTTPResponseOwnServer(t, http.MethodHead, server.URL+"/"+webInterfaceTestBlobName, nil, http.StatusInternalServerError)
+	testHTTPResponseOwnServer(t, http.MethodHead, server.URL+"/"+emptyBlobName, nil, http.StatusInternalServerError)
 }
