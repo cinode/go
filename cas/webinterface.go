@@ -1,8 +1,14 @@
 package cas
 
 import (
+	"errors"
 	"io"
+	"mime/multipart"
 	"net/http"
+)
+
+var (
+	errNoData = errors.New("No upload data")
 )
 
 // WebInterface provides simple web interface for given CAS
@@ -87,6 +93,56 @@ func (i *webInterface) serveGet(w http.ResponseWriter, r *http.Request) {
 	i.checkErr(err, w, r)
 }
 
+type partReader struct {
+	p *multipart.Part
+	b io.Closer
+}
+
+func (r *partReader) Read(b []byte) (int, error) {
+	return r.p.Read(b)
+}
+
+func (r *partReader) Close() error {
+	err1 := r.p.Close()
+	err2 := r.b.Close()
+	if err1 != nil {
+		return err1
+	}
+	return err2
+}
+
+func (i *webInterface) getUploadReader(r *http.Request) (io.ReadCloser, error) {
+
+	mpr, err := r.MultipartReader()
+	if err == http.ErrNotMultipart {
+		// Not multipart, read raw body data
+		return r.Body, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		// Get next part of the upload
+		part, err := mpr.NextPart()
+		if err == io.EOF {
+			return nil, errNoData
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		// Search for first file input
+		fn := part.FileName()
+		if fn != "" {
+			return &partReader{
+				p: part,
+				b: r.Body,
+			}, nil
+		}
+	}
+}
+
 func (i *webInterface) servePost(w http.ResponseWriter, r *http.Request) {
 
 	path, ok := i.getName(w, r)
@@ -100,7 +156,12 @@ func (i *webInterface) servePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	name, err := i.cas.SaveAutoNamed(r.Body)
+	reader, err := i.getUploadReader(r)
+	if !i.checkErr(err, w, r) {
+		return
+	}
+
+	name, err := i.cas.SaveAutoNamed(reader)
 	if !i.checkErr(err, w, r) {
 		return
 	}
@@ -114,7 +175,12 @@ func (i *webInterface) servePut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := i.cas.Save(name, r.Body)
+	reader, err := i.getUploadReader(r)
+	if !i.checkErr(err, w, r) {
+		return
+	}
+
+	err = i.cas.Save(name, reader)
 	if !i.checkErr(err, w, r) {
 		return
 	}
