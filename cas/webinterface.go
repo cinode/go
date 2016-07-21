@@ -53,17 +53,22 @@ func (i *webInterface) getName(w http.ResponseWriter, r *http.Request) (string, 
 }
 
 func (i *webInterface) checkErr(err error, w http.ResponseWriter, r *http.Request) bool {
-	if err == nil {
-		return true
-	}
 
-	if err == ErrNotFound {
+	switch err {
+
+	case nil:
+		return true
+
+	case ErrNotFound:
 		http.NotFound(w, r)
 		return false
-	}
 
-	if err == ErrNameMismatch {
+	case ErrNameMismatch:
 		http.Error(w, "Name mismatch", http.StatusBadRequest)
+		return false
+
+	case errNoData:
+		http.Error(w, "No form file field", http.StatusBadRequest)
 		return false
 	}
 

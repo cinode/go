@@ -151,6 +151,27 @@ func TestFilesystemRenameFailure(t *testing.T) {
 	}
 }
 
+func TestFilesystemRenameFailure2(t *testing.T) {
+
+	fs, d := temporaryFS()
+	defer d()
+	_ = "breakpoint"
+
+	// Create file where final directory blob should be
+	fName, err := fs.getFileName(emptyBlobName)
+	fName = filepath.Dir(fName)
+	os.Mkdir(filepath.Dir(fName), 0777)
+	touchFile(fName)
+
+	_, err = fs.SaveAutoNamed(emptyBlobReader())
+	if err == nil {
+		t.Fatal("Did not get error while trying to save blob")
+	}
+	if err == ErrNotFound || err == ErrNameMismatch {
+		t.Fatalf("Incorrect error received: %v", err)
+	}
+}
+
 func TestFilesystemDeleteFailure(t *testing.T) {
 
 	fs, d := temporaryFS()
