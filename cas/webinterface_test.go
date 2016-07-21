@@ -1,7 +1,9 @@
 package cas
 
 import (
+	"bytes"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,16 +22,22 @@ func testHTTPResponse(t *testing.T, method string, path string, data io.Reader, 
 	testHTTPResponseOwnServer(t, method, url+path, data, code)
 }
 
-func testHTTPResponseOwnServer(t *testing.T, method string, url string, data io.Reader, code int) {
+func testHTTPResponseOwnServerContentType(t *testing.T, method string, url string,
+	data io.Reader, contentType string, code int) {
 
 	req, err := http.NewRequest(method, url, data)
 	errPanic(err)
+	req.Header.Set("Content-Type", contentType)
 	resp, err := http.DefaultClient.Do(req)
 	errPanic(err)
 	defer resp.Body.Close()
 	if resp.StatusCode != code {
 		t.Fatalf("Incorrect status code %d (%s)", resp.StatusCode, resp.Status)
 	}
+}
+
+func testHTTPResponseOwnServer(t *testing.T, method string, url string, data io.Reader, code int) {
+	testHTTPResponseOwnServerContentType(t, method, url, data, "application/octet-stream", code)
 }
 
 func TestWebInterfaceInvalidMethod(t *testing.T) {
@@ -77,4 +85,31 @@ func TestWebIntefaceExistsFailure(t *testing.T) {
 	server := httptest.NewServer(WebInterface(&errorOnExists{}))
 	defer server.Close()
 	testHTTPResponseOwnServer(t, http.MethodHead, server.URL+"/"+emptyBlobName, nil, http.StatusInternalServerError)
+}
+
+func TestWebInterfaceMultipartSave(t *testing.T) {
+	url, d := testServer()
+	defer d()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	_, err := writer.CreateFormFile("file", "file")
+	errPanic(err)
+	writer.Close()
+
+	testHTTPResponseOwnServerContentType(t, http.MethodPost, url, body, writer.FormDataContentType(), http.StatusOK)
+}
+
+func TestWebInterfaceMultipartNoDataSave(t *testing.T) {
+	url, d := testServer()
+	defer d()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	field, err := writer.CreateFormField("test")
+	errPanic(err)
+	field.Write([]byte("test"))
+	writer.Close()
+
+	testHTTPResponseOwnServerContentType(t, http.MethodPost, url, body, writer.FormDataContentType(), http.StatusBadRequest)
 }

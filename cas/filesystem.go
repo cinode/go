@@ -143,7 +143,13 @@ func (fs *fileSystem) saveInternal(r io.ReadCloser, destName string, nameCheck f
 		return "", err
 	}
 
-	err = os.Rename(fl.Name(), destName)
+	blobFileName, _ := fs.getFileName(name)
+	err = os.MkdirAll(filepath.Dir(blobFileName), 0755)
+	if err != nil {
+		return "", err
+	}
+
+	err = os.Rename(fl.Name(), blobFileName)
 	if err != nil {
 		os.Remove(fl.Name())
 		fl = nil

@@ -169,7 +169,7 @@ func TestCancelWhileSavingAutoNamed(t *testing.T) {
 				t.Fatalf("CAS %s: Should get empty name, got '%s'", c.Kind(), n)
 			}
 			if exists(c, b.name) {
-				t.Fatalf("CAS %s: Blob should exist", c.Kind())
+				t.Fatalf("CAS %s: Blob should not exist", c.Kind())
 			}
 		}
 	})
@@ -604,6 +604,10 @@ func TestAutoNamedWriter(t *testing.T) {
 			if name != b.name {
 				t.Fatalf("CAS %s: Invalid name from auto named writer: "+
 					"'%s' instead of '%s'", c.Kind(), name, b.name)
+			}
+
+			if !exists(c, b.name) {
+				t.Fatalf("CAS %s: Blob does not exist", c.Kind())
 			}
 		}
 	})
