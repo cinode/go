@@ -1,7 +1,7 @@
 language: go
 go:
     - 1.6
-    - tip
+#   - tip
 before_script:
     - go vet ./...
 before_install:
