@@ -1,4 +1,4 @@
-package cas
+package datastore
 
 import (
 	"io/ioutil"

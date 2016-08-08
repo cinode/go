@@ -1,4 +1,4 @@
-package cas
+package datastore
 
 import (
 	"crypto/sha256"

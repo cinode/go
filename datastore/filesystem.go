@@ -1,4 +1,4 @@
-package cas
+package datastore
 
 import (
 	"errors"
@@ -20,8 +20,8 @@ type fileSystem struct {
 	path string
 }
 
-// InFileSystem returns filesystem-based CAS implementation
-func InFileSystem(path string) CAS {
+// InFileSystem returns filesystem-based datastore implementation
+func InFileSystem(path string) DS {
 	return &fileSystem{path: path}
 }
 

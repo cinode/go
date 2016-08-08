@@ -1,4 +1,4 @@
-package cas
+package datastore
 
 import (
 	"errors"
@@ -6,21 +6,21 @@ import (
 )
 
 var (
-	// ErrNotFound will be used when blob with given name was not found in CAS
+	// ErrNotFound will be used when blob with given name was not found in datastore
 	ErrNotFound = errors.New("Data not found")
 	// ErrNameMismatch will be used to indicate that blob's name does not match
 	// blob's contents
 	ErrNameMismatch = errors.New("Data name mismatch")
 )
 
-// CAS interface contains the public interface of any conformant CAS storage
-type CAS interface {
+// DS interface contains the public interface of any conformant datastore
+type DS interface {
 
-	// Kind returns string representation of CAS kind (i.e. "Memory")
+	// Kind returns string representation of datastore kind (i.e. "Memory")
 	Kind() string
 
 	// Open returns a read stream for given blob name or an error. In case blob
-	// is not found in CAS, returned error must be ErrNotFound.
+	// is not found in datastore, returned error must be ErrNotFound.
 	// In case of returning a stream, caller must ensure to call Close on it
 	// after reading it's contents.
 	Open(name string) (io.ReadCloser, error)
@@ -38,10 +38,10 @@ type CAS interface {
 	// function is equal to Save()
 	SaveAutoNamed(r io.ReadCloser) (name string, err error)
 
-	// Exists does check whether blob of given name exists in CAS. Partially
-	// written blobs are equal to non-existing ones. Boolean value returned
-	// indicates whether the blob exists or not, if error is not nil, there
-	// was an error while trying to check blob's existance.
+	// Exists does check whether blob of given name exists in datastore.
+	// Partially written blobs are equal to non-existing ones. Boolean value
+	// returned indicates whether the blob exists or not, if error is not nil,
+	// there was an error while trying to check blob's existance.
 	Exists(name string) (bool, error)
 
 	// Delete tries to remove blob with given name. If blob does not exist
