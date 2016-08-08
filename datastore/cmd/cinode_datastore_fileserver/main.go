@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/cinode/go/cas"
+	"github.com/cinode/go/datastore"
 )
 
 var usageText = `
@@ -26,7 +26,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	c := cas.InFileSystem(dataFolder)
-	http.ListenAndServe(listenAddress, cas.WebInterface(c))
+	c := datastore.InFileSystem(dataFolder)
+	http.ListenAndServe(listenAddress, datastore.WebInterface(c))
 
 }
