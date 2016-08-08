@@ -17,7 +17,7 @@ type memory struct {
 }
 
 // InMemory returns simple in-memory CAS implementation
-func InMemory() CAS {
+func InMemory() DS {
 	return &memory{
 		bmap: make(map[string][]byte),
 	}

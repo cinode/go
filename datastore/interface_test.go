@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-func allCAS(f func(c CAS)) {
+func allDS(f func(c DS)) {
 
 	func() {
 		// Test raw memory stream
@@ -41,7 +41,7 @@ func allCAS(f func(c CAS)) {
 }
 
 func TestOpenNonExisting(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 
 		s, e := c.Open("nonexistingname")
 		if s != nil {
@@ -54,7 +54,7 @@ func TestOpenNonExisting(t *testing.T) {
 }
 
 func TestSaveNameMismatch(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 		e := c.Save("invalidname", bReader([]byte("Test"), nil, nil, nil))
 		if e == nil || e != ErrNameMismatch {
 			t.Fatalf("CAS %s: Didn't detect name mismatch: %v", c.Kind(), e)
@@ -63,7 +63,7 @@ func TestSaveNameMismatch(t *testing.T) {
 }
 
 func TestSaveSuccessful(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 		for _, b := range testBlobs {
 
 			if exists(c, b.name) {
@@ -122,7 +122,7 @@ func TestSaveSuccessful(t *testing.T) {
 }
 
 func TestCancelWhileSaving(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 		for _, b := range testBlobs {
 			errRet := errors.New("Test error")
 			e := c.Save(b.name, bReader(b.data, func() error {
@@ -139,7 +139,7 @@ func TestCancelWhileSaving(t *testing.T) {
 }
 
 func TestCancelWhileClosingSave(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 		for _, b := range testBlobs {
 			errRet := errors.New("Test error")
 			e := c.Save(b.name, bReader(b.data, nil, nil, func() error {
@@ -156,7 +156,7 @@ func TestCancelWhileClosingSave(t *testing.T) {
 }
 
 func TestCancelWhileSavingAutoNamed(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 		for _, b := range testBlobs {
 			errRet := errors.New("Test error")
 			n, e := c.SaveAutoNamed(bReader(b.data, func() error {
@@ -176,7 +176,7 @@ func TestCancelWhileSavingAutoNamed(t *testing.T) {
 }
 
 func TestCancelWhileClosingAutoNamed(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 		for _, b := range testBlobs {
 			errRet := errors.New("Test error")
 			n, e := c.SaveAutoNamed(bReader(b.data, nil, nil, func() error {
@@ -196,7 +196,7 @@ func TestCancelWhileClosingAutoNamed(t *testing.T) {
 }
 
 func TestOverwriteValidContents(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 
 		b := testBlobs[0]
 		putBlob(b.name, b.data, c)
@@ -228,7 +228,7 @@ func TestOverwriteValidContents(t *testing.T) {
 }
 
 func TestOverwriteInvalidContents(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 
 		b := testBlobs[0]
 		putBlob(b.name, b.data, c)
@@ -262,7 +262,7 @@ func TestOverwriteInvalidContents(t *testing.T) {
 }
 
 func TestCancelWhileOverwriting(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 
 		b := testBlobs[0]
 		putBlob(b.name, b.data, c)
@@ -289,7 +289,7 @@ func TestCancelWhileOverwriting(t *testing.T) {
 }
 
 func TestCancelCloseWhileOverwriting(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 
 		b := testBlobs[0]
 		putBlob(b.name, b.data, c)
@@ -316,7 +316,7 @@ func TestCancelCloseWhileOverwriting(t *testing.T) {
 }
 
 func TestOverwriteWhileDeleting(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 
 		b := testBlobs[0]
 		putBlob(b.name, b.data, c)
@@ -359,7 +359,7 @@ func TestOverwriteWhileDeleting(t *testing.T) {
 }
 
 func TestDeleteNonExisting(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 
 		b := testBlobs[0]
 		putBlob(b.name, b.data, c)
@@ -373,7 +373,7 @@ func TestDeleteNonExisting(t *testing.T) {
 }
 
 func TestDeleteExisting(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 
 		b := testBlobs[0]
 		putBlob(b.name, b.data, c)
@@ -407,7 +407,7 @@ func TestDeleteExisting(t *testing.T) {
 }
 
 func TestGetKind(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 		k := c.Kind()
 		if len(k) == 0 {
 			t.Fatalf("Invalid kind - empty string")
@@ -419,7 +419,7 @@ func TestSimultaneousReads(t *testing.T) {
 	threadCnt := 10
 	readCnt := 200
 
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 
 		// Prepare data
 		for _, b := range testBlobs {
@@ -448,7 +448,7 @@ func TestSimultaneousReads(t *testing.T) {
 func TestSimultaneousSaves(t *testing.T) {
 	threadCnt := 3
 
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 
 		b := testBlobs[0]
 
@@ -504,7 +504,7 @@ var invalidNames = []string{
 }
 
 func TestOpenInvalidName(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 		for _, n := range invalidNames {
 			_, e := c.Open(n)
 			if e != ErrNotFound {
@@ -515,7 +515,7 @@ func TestOpenInvalidName(t *testing.T) {
 }
 
 func TestSaveInvalidName(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 		for _, n := range invalidNames {
 			readCalled, eofCalledCnt, closeCalledCnt := false, 0, 0
 			e := c.Save(n, bReader([]byte{}, func() error {
@@ -560,7 +560,7 @@ func TestSaveInvalidName(t *testing.T) {
 }
 
 func TestExistsInvalidName(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 		for _, n := range invalidNames {
 			ex, err := c.Exists(n)
 			errPanic(err)
@@ -572,7 +572,7 @@ func TestExistsInvalidName(t *testing.T) {
 }
 
 func TestDeleteInvalidNonExisting(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 		for _, b := range testBlobs {
 			e := c.Delete(b.name)
 			if e != ErrNotFound {
@@ -583,7 +583,7 @@ func TestDeleteInvalidNonExisting(t *testing.T) {
 }
 
 func TestDeleteInvalidName(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 		for _, n := range invalidNames {
 			e := c.Delete(n)
 			if e != ErrNotFound {
@@ -594,7 +594,7 @@ func TestDeleteInvalidName(t *testing.T) {
 }
 
 func TestAutoNamedWriter(t *testing.T) {
-	allCAS(func(c CAS) {
+	allDS(func(c DS) {
 		for _, b := range testBlobs {
 			name, err := c.SaveAutoNamed(bReader(b.data, nil, nil, nil))
 			if err != nil {

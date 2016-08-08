@@ -91,7 +91,7 @@ func errPanic(e error) {
 	}
 }
 
-func putBlob(n string, b []byte, c CAS) {
+func putBlob(n string, b []byte, c DS) {
 	e := c.Save(n, bReader(b, nil, nil, nil))
 	errPanic(e)
 	if !exists(c, n) {
@@ -99,7 +99,7 @@ func putBlob(n string, b []byte, c CAS) {
 	}
 }
 
-func getBlob(n string, c CAS) []byte {
+func getBlob(n string, c DS) []byte {
 	r, e := c.Open(n)
 	errPanic(e)
 	d, e := ioutil.ReadAll(r)
@@ -109,7 +109,7 @@ func getBlob(n string, c CAS) []byte {
 	return d
 }
 
-func exists(c CAS, n string) bool {
+func exists(c DS, n string) bool {
 	exists, err := c.Exists(n)
 	if err != nil {
 		panic("Invalid error detected when testing blob's existance: " + err.Error())

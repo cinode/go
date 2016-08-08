@@ -13,12 +13,12 @@ var (
 
 // WebInterface provides simple web interface for given CAS
 type webInterface struct {
-	cas CAS
+	cas DS
 }
 
 // WebInterface returns http handler representing web interface to given CAS
 // instance
-func WebInterface(cas CAS) http.Handler {
+func WebInterface(cas DS) http.Handler {
 	return &webInterface{
 		cas: cas,
 	}

@@ -37,7 +37,7 @@ type webConnector struct {
 }
 
 // FromWeb returns CAS implementation that connects to external url
-func FromWeb(baseURL string, client *http.Client) CAS {
+func FromWeb(baseURL string, client *http.Client) DS {
 
 	return &webConnector{
 		baseURL: baseURL,

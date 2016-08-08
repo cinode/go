@@ -14,7 +14,7 @@ var (
 )
 
 // CAS interface contains the public interface of any conformant CAS storage
-type CAS interface {
+type DS interface {
 
 	// Kind returns string representation of CAS kind (i.e. "Memory")
 	Kind() string
