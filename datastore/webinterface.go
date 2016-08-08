@@ -11,16 +11,16 @@ var (
 	errNoData = errors.New("No upload data")
 )
 
-// WebInterface provides simple web interface for given CAS
+// WebInterface provides simple web interface for given Datastore
 type webInterface struct {
-	cas DS
+	ds DS
 }
 
-// WebInterface returns http handler representing web interface to given CAS
-// instance
-func WebInterface(cas DS) http.Handler {
+// WebInterface returns http handler representing web interface to given
+// Datastore instance
+func WebInterface(ds DS) http.Handler {
 	return &webInterface{
-		cas: cas,
+		ds: ds,
 	}
 }
 
@@ -88,7 +88,7 @@ func (i *webInterface) serveGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	blob, err := i.cas.Open(name)
+	blob, err := i.ds.Open(name)
 	if !i.checkErr(err, w, r) {
 		return
 	}
@@ -166,7 +166,7 @@ func (i *webInterface) servePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	name, err := i.cas.SaveAutoNamed(reader)
+	name, err := i.ds.SaveAutoNamed(reader)
 	if !i.checkErr(err, w, r) {
 		return
 	}
@@ -185,7 +185,7 @@ func (i *webInterface) servePut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = i.cas.Save(name, reader)
+	err = i.ds.Save(name, reader)
 	if !i.checkErr(err, w, r) {
 		return
 	}
@@ -200,7 +200,7 @@ func (i *webInterface) serveDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := i.cas.Delete(name)
+	err := i.ds.Delete(name)
 	if !i.checkErr(err, w, r) {
 		return
 	}
@@ -214,7 +214,7 @@ func (i *webInterface) serveHead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exists, err := i.cas.Exists(name)
+	exists, err := i.ds.Exists(name)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return

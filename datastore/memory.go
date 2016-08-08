@@ -16,7 +16,7 @@ type memory struct {
 	rw sync.RWMutex
 }
 
-// InMemory returns simple in-memory CAS implementation
+// InMemory returns simple in-memory Datastore implementation
 func InMemory() DS {
 	return &memory{
 		bmap: make(map[string][]byte),
@@ -59,7 +59,7 @@ func (m *memory) saveInternal(r io.ReadCloser, checkName func(string) bool) (str
 		return "", ErrNameMismatch
 	}
 
-	// Store buffer inside CAS data
+	// Store buffer inside Datastore data
 	m.rw.Lock()
 	defer m.rw.Unlock()
 

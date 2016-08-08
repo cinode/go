@@ -36,7 +36,7 @@ type webConnector struct {
 	client  *http.Client
 }
 
-// FromWeb returns CAS implementation that connects to external url
+// FromWeb returns Datastore implementation that connects to external url
 func FromWeb(baseURL string, client *http.Client) DS {
 
 	return &webConnector{
