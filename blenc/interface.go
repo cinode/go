@@ -2,20 +2,22 @@ package blenc
 
 import "io"
 
-// KeyGenerationMode is used to specify how encryption key should be generated
-type KeyGenerationMode int
+// KeyGenerator is used to generate key before encrypting blob's data.
+type KeyGenerator interface {
 
-const (
-	// KGMRandom is used to specify that encryption key should be generated
-	// randomly
-	KGMRandom KeyGenerationMode = iota
+	// GenerateKey takes given data stream, calculates symmetric key for it's
+	// contents and returns stream with the same data along with the key or an
+	// error if the key could not be calculated.
+	//
+	// Note: Because key genereation could consume stream's data, GenerateKey is
+	//       responsible to create needed copies of such data using local storage.
+	//       Due to security reasons, this temporary data must not be stored in
+	//       a plaintext form. An encrypted form must be stored instead where keys
+	//       would only be held in memory.
+	GenerateKey(stream io.ReadCloser) (key string, origStream io.ReadCloser, err error)
+}
 
-	// KGMDerivedDeterministic is used to specify that encryption key should be
-	// derived from hash of blob's contents
-	KGMDerivedDeterministic
-)
-
-// BE interface describes functoinality exposed by Blob Encryption layer
+// BE interface describes functionality exposed by Blob Encryption layer
 // implementation
 type BE interface {
 
@@ -27,8 +29,8 @@ type BE interface {
 
 	// Save gathers data from given ReadCloser interface and stores it's
 	// encrypted version in the underlying Datastore.
-	// Key is generated according to given key generation mode.
-	Save(r io.ReadCloser, kgm KeyGenerationMode) (name, key string, err error)
+	// Key is generated using given key generator.
+	Save(r io.ReadCloser, kg KeyGenerator) (name, key string, err error)
 
 	// Exists does check whether blob of given name exists. It forwards the call
 	// to underlying datastore.
