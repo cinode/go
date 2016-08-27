@@ -14,7 +14,7 @@ func allKG(f func(kg KeyGenerator)) {
 
 }
 
-func testEqualData(t *testing.T) {
+func TestEqualData(t *testing.T) {
 	for _, data := range []string{
 		"",
 		"a",
