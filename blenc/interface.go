@@ -9,9 +9,9 @@ type KeyGenerator interface {
 	// contents and returns stream with the same data along with the key or an
 	// error if the key could not be calculated.
 	//
-	// Note: Because key genereation could consume stream's data, GenerateKey is
+	// Note: Because key genereation can consume stream's data, GenerateKey is
 	//       responsible to create needed copies of such data using local storage.
-	//       Due to security reasons, this temporary data must not be stored in
+	//       Due to security reasons, this temporary storage must not be stored in
 	//       a plaintext form. An encrypted form must be stored instead where keys
 	//       would only be held in memory.
 	GenerateKey(stream io.ReadCloser) (key string, origStream io.ReadCloser, err error)
