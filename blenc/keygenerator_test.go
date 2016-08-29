@@ -3,6 +3,7 @@ package blenc
 import (
 	"bytes"
 	"io/ioutil"
+	"strings"
 	"testing"
 )
 
@@ -20,6 +21,7 @@ func TestEqualData(t *testing.T) {
 		"a",
 		"abc",
 		"9876543210123456789098765432101234567890",
+		strings.Repeat("data", 1025),
 	} {
 		data := []byte(data)
 		allKG(func(kg KeyGenerator) {
