@@ -11,6 +11,10 @@ func (k *keyGeneratorConstant) GenerateKey(stream io.ReadCloser) (
 	return k.key, stream, nil
 }
 
+func (k *keyGeneratorConstant) IsDeterministic() bool {
+	return true
+}
+
 // KeyConstant returns an implementation of KeyGenerator interface that always
 // returns the same key.
 //

@@ -15,6 +15,10 @@ type KeyGenerator interface {
 	//       a plaintext form. An encrypted form must be stored instead where keys
 	//       would only be held in memory.
 	GenerateKey(stream io.ReadCloser) (key string, origStream io.ReadCloser, err error)
+
+	// IsDeterministic returns true if this key generator is deterministic which
+	// means that it returns same key for same data.
+	IsDeterministic() bool
 }
 
 // BE interface describes functionality exposed by Blob Encryption layer
