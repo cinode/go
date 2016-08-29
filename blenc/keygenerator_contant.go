@@ -14,8 +14,9 @@ func (k *keyGeneratorConstant) GenerateKey(stream io.ReadCloser) (
 // KeyConstant returns an implementation of KeyGenerator interface that always
 // returns the same key.
 //
-// Note: Do never ever use this in production code. Reusing keys could lead to
-//       serious cryptographical vulnerabilities.
-func KeyConstant(key string) KeyGenerator {
+// Note: Since reusing of the same key could lead to security vulnerabilities,
+//       this key generator has been made private and is only used for internal
+//       functionality.
+func constantKey(key string) KeyGenerator {
 	return &keyGeneratorConstant{key: key}
 }

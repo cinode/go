@@ -9,7 +9,7 @@ import (
 func allKG(f func(kg KeyGenerator)) {
 
 	func() {
-		f(KeyConstant("testkey"))
+		f(constantKey("testkey"))
 	}()
 
 }
