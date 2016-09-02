@@ -2,16 +2,16 @@ package blenc
 
 import "io"
 
-type keyGeneratorConstant struct {
-	key string
+type keyDataGeneratorConstant struct {
+	keyData []byte
 }
 
-func (k *keyGeneratorConstant) GenerateKey(stream io.ReadCloser) (
-	key string, origStream io.ReadCloser, err error) {
-	return k.key, stream, nil
+func (k *keyDataGeneratorConstant) GenerateKeyData(stream io.ReadCloser) (
+	keyData []byte, origStream io.ReadCloser, err error) {
+	return k.keyData, stream, nil
 }
 
-func (k *keyGeneratorConstant) IsDeterministic() bool {
+func (k *keyDataGeneratorConstant) IsDeterministic() bool {
 	return true
 }
 
@@ -21,6 +21,6 @@ func (k *keyGeneratorConstant) IsDeterministic() bool {
 // Note: Since reusing of the same key could lead to security vulnerabilities,
 //       this key generator has been made private and is only used for internal
 //       functionality.
-func constantKey(key string) KeyGenerator {
-	return &keyGeneratorConstant{key: key}
+func constantKey(keyData []byte) KeyDataGenerator {
+	return &keyDataGeneratorConstant{keyData: keyData}
 }

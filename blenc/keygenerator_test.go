@@ -7,10 +7,17 @@ import (
 	"testing"
 )
 
-func allKG(f func(kg KeyGenerator)) {
+func allKG(f func(kg KeyDataGenerator)) {
 
 	func() {
-		f(constantKey("testkey"))
+		f(constantKey(append(
+			[]byte{keyTypeAES},
+			[]byte(strings.Repeat("*", 32))...,
+		)))
+		f(constantKey(append(
+			[]byte{keyTypeChaCha20},
+			[]byte(strings.Repeat("*", 32))...,
+		)))
 	}()
 
 }
@@ -24,8 +31,8 @@ func TestEqualData(t *testing.T) {
 		strings.Repeat("data", 1025),
 	} {
 		data := []byte(data)
-		allKG(func(kg KeyGenerator) {
-			key, s, err := kg.GenerateKey(ioutil.NopCloser(bytes.NewReader(data)))
+		allKG(func(kg KeyDataGenerator) {
+			key, s, err := kg.GenerateKeyData(ioutil.NopCloser(bytes.NewReader(data)))
 			errPanic(err)
 			defer s.Close()
 			read, err := ioutil.ReadAll(s)
@@ -34,14 +41,14 @@ func TestEqualData(t *testing.T) {
 				t.Fatalf("Data read from stream after key generation is invalid")
 			}
 
-			key2, _, err := kg.GenerateKey(ioutil.NopCloser(bytes.NewReader(data)))
+			key2, _, err := kg.GenerateKeyData(ioutil.NopCloser(bytes.NewReader(data)))
 			errPanic(err)
 			if kg.IsDeterministic() {
-				if key != key2 {
+				if !bytes.Equal(key, key2) {
 					t.Fatalf("Deterministic key generator produced different key for the same data")
 				}
 			} else {
-				if key != key2 {
+				if bytes.Equal(key, key2) {
 					t.Fatalf("Non-deterministic key generator produced same key for the same data")
 				}
 			}

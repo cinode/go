@@ -2,19 +2,21 @@ package blenc
 
 import "io"
 
-// KeyGenerator is used to generate key before encrypting blob's data.
-type KeyGenerator interface {
+// KeyDataGenerator is used to generate key before encrypting blob's data.
+type KeyDataGenerator interface {
 
-	// GenerateKey takes given data stream, calculates symmetric key for it's
-	// contents and returns stream with the same data along with the key or an
-	// error if the key could not be calculated.
+	// GenerateKeyData takes given data stream, calculates set of bytes to be
+	// used as a key. This data should be reveal pseudorandom properties - it
+	// will be used directly as a key to selected cipher. If needed, one must
+	// apply key derivation function on data that's not good enough. Number of
+	// bytes returned must be at least 32.
 	//
 	// Note: Because key genereation can consume stream's data, GenerateKey is
 	//       responsible to create needed copies of such data using local storage.
 	//       Due to security reasons, this temporary storage must not be stored in
 	//       a plaintext form. An encrypted form must be stored instead where keys
 	//       would only be held in memory.
-	GenerateKey(stream io.ReadCloser) (key string, origStream io.ReadCloser, err error)
+	GenerateKeyData(stream io.ReadCloser) (keyData []byte, origStream io.ReadCloser, err error)
 
 	// IsDeterministic returns true if this key generator is deterministic which
 	// means that it returns same key for same data.
@@ -34,7 +36,7 @@ type BE interface {
 	// Save gathers data from given ReadCloser interface and stores it's
 	// encrypted version in the underlying Datastore.
 	// Key is generated using given key generator.
-	Save(r io.ReadCloser, kg KeyGenerator) (name, key string, err error)
+	Save(r io.ReadCloser, kg KeyDataGenerator) (name, key string, err error)
 
 	// Exists does check whether blob of given name exists. It forwards the call
 	// to underlying datastore.

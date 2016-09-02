@@ -6,9 +6,9 @@ import (
 	"../datastore"
 )
 
-func allBE(f func(be BE, kg KeyGenerator)) {
+func allBE(f func(be BE, kg KeyDataGenerator)) {
 	func() {
-		allKG(func(kg KeyGenerator) {
+		allKG(func(kg KeyDataGenerator) {
 			f(FromDatastore(datastore.InMemory()), kg)
 		})
 	}()
@@ -18,7 +18,7 @@ func TestNewBE(t *testing.T) {
 	testData1 := []byte("data1")
 	testData2 := []byte("data2")
 
-	allBE(func(be BE, kg KeyGenerator) {
+	allBE(func(be BE, kg KeyDataGenerator) {
 		d1n, d1k, err := be.Save(bReader(testData1, nil, nil, nil), kg)
 		errPanic(err)
 
