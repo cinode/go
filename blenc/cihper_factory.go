@@ -6,8 +6,8 @@ import (
 	"errors"
 	"io"
 
-	"github.com/Yawning/chacha20"
 	base58 "github.com/jbenet/go-base58"
+	"github.com/yawning/chacha20"
 )
 
 // ErrInvalidKey is used as an error when given string representation if the
