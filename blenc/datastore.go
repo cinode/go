@@ -7,12 +7,6 @@ import (
 	"github.com/cinode/go/datastore"
 )
 
-var (
-	// ErrInvalidKeyDataGenerator is used when given key data generator produces
-	// invalid data
-	ErrInvalidKeyDataGenerator = errors.New("Invalid key data generator")
-)
-
 // FromDatastore creates Blob Encoder using given datastore implementation as
 // the storage layer
 func FromDatastore(ds datastore.DS) BE {
@@ -34,10 +28,6 @@ func (be *beDatastore) Save(r io.ReadCloser, kg KeyDataGenerator) (name, key str
 		return "", "", err
 	}
 
-	if len(keyData) < 32 {
-		return "", "", ErrInvalidKeyDataGenerator
-	}
-
 	var keyType byte = keyTypeDefault
 	r3, err := streamCipherReaderForKeyData(keyType, keyData, r2, false)
 	if err != nil {
@@ -47,7 +37,6 @@ func (be *beDatastore) Save(r io.ReadCloser, kg KeyDataGenerator) (name, key str
 
 	name, err = be.ds.SaveAutoNamed(r3)
 	if err != nil {
-		r3.Close()
 		return "", "", err
 	}
 
