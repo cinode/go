@@ -3,7 +3,7 @@ package blenc
 import (
 	"testing"
 
-	"../datastore"
+	"github.com/cinode/go/datastore"
 )
 
 func allBE(f func(be BE, kg KeyDataGenerator)) {
