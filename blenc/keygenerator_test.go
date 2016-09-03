@@ -7,15 +7,6 @@ import (
 	"testing"
 )
 
-func allKG(f func(kg KeyDataGenerator)) {
-
-	func() {
-		// Test constant key generator
-		f(constantKey([]byte(strings.Repeat("*", 32))))
-	}()
-
-}
-
 func TestEqualData(t *testing.T) {
 	for _, data := range []string{
 		"",

@@ -3,6 +3,9 @@ package blenc
 import (
 	"bytes"
 	"io"
+	"strings"
+
+	"github.com/cinode/go/datastore"
 )
 
 func errPanic(e error) {
@@ -62,4 +65,29 @@ func (h *helperReader) Read(b []byte) (n int, err error) {
 
 func (h *helperReader) Close() error {
 	return h.onClose()
+}
+
+func allBE(f func(be BE)) {
+	func() {
+
+		f(FromDatastore(datastore.InMemory()))
+
+	}()
+}
+
+func allKG(f func(kg KeyDataGenerator)) {
+
+	func() {
+		// Test constant key generator
+		f(constantKey([]byte(strings.Repeat("*", 32))))
+	}()
+
+}
+
+func allBEKG(f func(be BE, kg KeyDataGenerator)) {
+	allBE(func(be BE) {
+		allKG(func(kg KeyDataGenerator) {
+			f(be, kg)
+		})
+	})
 }

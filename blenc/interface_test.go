@@ -1,24 +1,12 @@
 package blenc
 
-import (
-	"testing"
-
-	"github.com/cinode/go/datastore"
-)
-
-func allBE(f func(be BE, kg KeyDataGenerator)) {
-	func() {
-		allKG(func(kg KeyDataGenerator) {
-			f(FromDatastore(datastore.InMemory()), kg)
-		})
-	}()
-}
+import "testing"
 
 func TestNewBE(t *testing.T) {
 	testData1 := []byte("data1")
 	testData2 := []byte("data2")
 
-	allBE(func(be BE, kg KeyDataGenerator) {
+	allBEKG(func(be BE, kg KeyDataGenerator) {
 		d1n, d1k, err := be.Save(bReader(testData1, nil, nil, nil), kg)
 		errPanic(err)
 
