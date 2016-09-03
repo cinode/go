@@ -91,3 +91,16 @@ func allBEKG(f func(be BE, kg KeyDataGenerator)) {
 		})
 	})
 }
+
+func beSave(be BE, data string) (name string, key string) {
+	kg := constantKey([]byte(strings.Repeat("*", 32)))
+	name, key, err := be.Save(bReader([]byte(data), nil, nil, nil), kg)
+	errPanic(err)
+	return name, key
+}
+
+func beExists(be BE, name string) bool {
+	ret, err := be.Exists(name)
+	errPanic(err)
+	return ret
+}

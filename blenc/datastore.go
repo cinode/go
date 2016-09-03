@@ -1,7 +1,6 @@
 package blenc
 
 import (
-	"errors"
 	"io"
 
 	"github.com/cinode/go/datastore"
@@ -18,7 +17,16 @@ type beDatastore struct {
 }
 
 func (be *beDatastore) Open(name, key string) (io.ReadCloser, error) {
-	return nil, errors.New("Unimplemented")
+	r, err := be.ds.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	r2, err := streamCipherReaderForKey(key, r)
+	if err != nil {
+		r.Close()
+		return nil, err
+	}
+	return r2, nil
 }
 
 func (be *beDatastore) Save(r io.ReadCloser, kg KeyDataGenerator) (name, key string, err error) {
