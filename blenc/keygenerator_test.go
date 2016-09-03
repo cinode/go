@@ -2,6 +2,7 @@ package blenc
 
 import (
 	"bytes"
+	"encoding/hex"
 	"io/ioutil"
 	"strings"
 	"testing"
@@ -17,7 +18,8 @@ func TestEqualData(t *testing.T) {
 	} {
 		data := []byte(data)
 		allKG(func(kg KeyDataGenerator) {
-			key, s, err := kg.GenerateKeyData(ioutil.NopCloser(bytes.NewReader(data)))
+			key := make([]byte, 32)
+			s, err := kg.GenerateKeyData(ioutil.NopCloser(bytes.NewReader(data)), key)
 			errPanic(err)
 			defer s.Close()
 			read, err := ioutil.ReadAll(s)
@@ -26,7 +28,8 @@ func TestEqualData(t *testing.T) {
 				t.Fatalf("Data read from stream after key generation is invalid")
 			}
 
-			key2, _, err := kg.GenerateKeyData(ioutil.NopCloser(bytes.NewReader(data)))
+			key2 := make([]byte, 32)
+			_, err = kg.GenerateKeyData(ioutil.NopCloser(bytes.NewReader(data)), key2)
 			errPanic(err)
 			if kg.IsDeterministic() {
 				if !bytes.Equal(key, key2) {
@@ -34,7 +37,8 @@ func TestEqualData(t *testing.T) {
 				}
 			} else {
 				if bytes.Equal(key, key2) {
-					t.Fatalf("Non-deterministic key generator produced same key for the same data")
+					t.Fatalf("Non-deterministic key generator produced same key for the same data\n"+
+						"Key data: %v", hex.EncodeToString(key))
 				}
 			}
 		})

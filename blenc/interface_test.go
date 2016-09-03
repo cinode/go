@@ -81,7 +81,8 @@ func (t testBogusKeyGenerator) IsDeterministic() bool {
 	return true
 }
 
-func (t testBogusKeyGenerator) GenerateKeyData(io.ReadCloser) (keyData []byte, origStream io.ReadCloser, err error) {
+func (t testBogusKeyGenerator) GenerateKeyData(stream io.ReadCloser, keyData []byte) (
+	sameStream io.ReadCloser, err error) {
 	err = errBogusKeyGeneratorError
 	return
 }
@@ -124,7 +125,7 @@ func TestSaveWithBogusKeyGenerator2(t *testing.T) {
 			closeCalled = true
 			return nil
 		}), bogusKG)
-		if err != ErrInvalidKey {
+		if err != errInsufficientKeyData {
 			t.Fatalf("Invalid error received for bogus key generator: %v", err)
 		}
 		if name != "" {

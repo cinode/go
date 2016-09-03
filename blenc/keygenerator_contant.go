@@ -1,14 +1,23 @@
 package blenc
 
-import "io"
+import (
+	"errors"
+	"io"
+)
+
+var errInsufficientKeyData = errors.New("Insufficient key data")
 
 type keyDataGeneratorConstant struct {
 	keyData []byte
 }
 
-func (k *keyDataGeneratorConstant) GenerateKeyData(stream io.ReadCloser) (
-	keyData []byte, origStream io.ReadCloser, err error) {
-	return k.keyData, stream, nil
+func (k *keyDataGeneratorConstant) GenerateKeyData(origStream io.ReadCloser, keyData []byte) (
+	equalStream io.ReadCloser, err error) {
+	if len(keyData) > len(k.keyData) {
+		return nil, errInsufficientKeyData
+	}
+	copy(keyData, k.keyData)
+	return origStream, nil
 }
 
 func (k *keyDataGeneratorConstant) IsDeterministic() bool {

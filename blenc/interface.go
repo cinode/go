@@ -5,18 +5,18 @@ import "io"
 // KeyDataGenerator is used to generate key before encrypting blob's data.
 type KeyDataGenerator interface {
 
-	// GenerateKeyData takes given data stream, calculates set of bytes to be
-	// used as a key. This data should be reveal pseudorandom properties - it
-	// will be used directly as a key to selected cipher. If needed, one must
-	// apply key derivation function on data that's not good enough. Number of
-	// bytes returned must be at least 32.
+	// GenerateKeyData must fill given byte array with data that can be used as
+	// a good quality encryption key. Quality is really important here, keys
+	// must not repeat for distinct blobs to guarantee cryptographic security.
+	// The length of array to be filled must be large enough to guarantee
+	// security even for randomly generated ones.
 	//
 	// Note: Because key genereation can consume stream's data, GenerateKey is
 	//       responsible to create needed copies of such data using local storage.
 	//       Due to security reasons, this temporary storage must not be stored in
 	//       a plaintext form. An encrypted form must be stored instead where keys
 	//       would only be held in memory.
-	GenerateKeyData(stream io.ReadCloser) (keyData []byte, origStream io.ReadCloser, err error)
+	GenerateKeyData(origStream io.ReadCloser, keyData []byte) (equalStream io.ReadCloser, err error)
 
 	// IsDeterministic returns true if this key generator is deterministic which
 	// means that it returns same key for same data.
