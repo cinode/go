@@ -10,14 +10,8 @@ import (
 func allKG(f func(kg KeyDataGenerator)) {
 
 	func() {
-		f(constantKey(append(
-			[]byte{keyTypeAES},
-			[]byte(strings.Repeat("*", 32))...,
-		)))
-		f(constantKey(append(
-			[]byte{keyTypeChaCha20},
-			[]byte(strings.Repeat("*", 32))...,
-		)))
+		// Test constant key generator
+		f(constantKey([]byte(strings.Repeat("*", 32))))
 	}()
 
 }

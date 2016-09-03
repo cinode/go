@@ -39,7 +39,7 @@ func (be *beDatastore) Save(r io.ReadCloser, kg KeyDataGenerator) (name, key str
 	}
 
 	var keyType byte = keyTypeDefault
-	r3, err := streamCipherReaderForKeyData(keyType, keyData, r2)
+	r3, err := streamCipherReaderForKeyData(keyType, keyData, r2, false)
 	if err != nil {
 		r2.Close()
 		return "", "", err
