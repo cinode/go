@@ -82,6 +82,11 @@ func allKG(f func(kg KeyDataGenerator)) {
 		f(constantKey([]byte(strings.Repeat("*", 32))))
 	}()
 
+	func() {
+		// Test random key generator
+		f(RandomKey())
+	}()
+
 }
 
 func allBEKG(f func(be BE, kg KeyDataGenerator)) {
