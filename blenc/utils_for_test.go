@@ -87,6 +87,11 @@ func allKG(f func(kg KeyDataGenerator)) {
 		f(RandomKey())
 	}()
 
+	func() {
+		// Test contents-based key generator
+		f(ContentsHashKey())
+	}()
+
 }
 
 func allBEKG(f func(be BE, kg KeyDataGenerator)) {
