@@ -5,7 +5,12 @@ go:
 before_script:
     - go vet ./...
 before_install:
-    - go get github.com/mattn/goveralls
     - go get golang.org/x/tools/cmd/cover
+    - go get github.com/axw/gocov/gocov
+    - go get github.com/modocache/gover
+    - go get github.com/mattn/goveralls
 script:
-    - $HOME/gopath/bin/goveralls -service=travis-ci -v ./datastore/
+    - go test -coverprofile=datastore.coverprofile ./datastore
+    - go test -coverprofile=blenc.coverprofile ./blenc
+    - $HOME/gopath/bin/gover
+    - $HOME/gopath/bin/goveralls -coverprofile=gover.coverprofile -service travis-ci
