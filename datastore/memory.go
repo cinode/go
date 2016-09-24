@@ -68,7 +68,7 @@ func (m *memory) saveInternal(r io.ReadCloser, checkName func(string) bool) (str
 }
 
 func (m *memory) Save(name string, r io.ReadCloser) error {
-	_, err := m.saveInternal(r, func(n string) bool { return name == n })
+	_, err := m.saveInternal(r, nameCheckForSave(name))
 	return err
 }
 

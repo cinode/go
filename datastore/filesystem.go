@@ -85,7 +85,7 @@ func (fs *fileSystem) Save(name string, r io.ReadCloser) error {
 		r.Close()
 		return ErrNameMismatch
 	}
-	_, err = fs.saveInternal(r, destName, func(n string) bool { return n == name })
+	_, err = fs.saveInternal(r, destName, nameCheckForSave(name))
 	return err
 }
 
