@@ -60,7 +60,7 @@ func (w *webConnector) Open(name string) (io.ReadCloser, error) {
 		res.Body.Close()
 		return nil, err
 	}
-	return res.Body, nil
+	return hashValidatingReader(res.Body, name), nil
 }
 
 func (w *webConnector) SaveAutoNamed(r io.ReadCloser) (string, error) {

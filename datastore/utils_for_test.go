@@ -116,3 +116,27 @@ func exists(c DS, n string) bool {
 	}
 	return exists
 }
+
+type memoryNoConsistencyCheck struct {
+	memory
+}
+
+func (m *memoryNoConsistencyCheck) Open(n string) (io.ReadCloser, error) {
+	m.rw.RLock()
+	defer m.rw.RUnlock()
+
+	b, ok := m.bmap[n]
+	if !ok {
+		return nil, ErrNotFound
+	}
+
+	return ioutil.NopCloser(bytes.NewReader(b)), nil
+}
+
+func newMemoryNoConsistencyCheck() *memoryNoConsistencyCheck {
+	return &memoryNoConsistencyCheck{
+		memory: memory{
+			bmap: make(map[string][]byte),
+		},
+	}
+}

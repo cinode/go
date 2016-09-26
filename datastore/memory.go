@@ -12,7 +12,7 @@ type memory struct {
 	// All known blobs
 	bmap map[string][]byte
 
-	// Mutext to blobs
+	// Mutex to blobs
 	rw sync.RWMutex
 }
 
@@ -36,7 +36,7 @@ func (m *memory) Open(n string) (io.ReadCloser, error) {
 		return nil, ErrNotFound
 	}
 
-	return ioutil.NopCloser(bytes.NewReader(b)), nil
+	return hashValidatingReader(ioutil.NopCloser(bytes.NewReader(b)), n), nil
 }
 
 func (m *memory) saveInternal(r io.ReadCloser, checkName func(string) bool) (string, error) {

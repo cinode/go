@@ -37,7 +37,7 @@ func (fs *fileSystem) Open(name string) (io.ReadCloser, error) {
 
 	rc, err := os.Open(fn)
 	if err == nil {
-		return rc, nil
+		return hashValidatingReader(rc, name), nil
 	}
 
 	if os.IsNotExist(err) {
