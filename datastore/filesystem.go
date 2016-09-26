@@ -37,7 +37,7 @@ func (fs *fileSystem) Open(name string) (io.ReadCloser, error) {
 
 	rc, err := os.Open(fn)
 	if err == nil {
-		return rc, nil
+		return hashValidatingReader(rc, name), nil
 	}
 
 	if os.IsNotExist(err) {
@@ -85,7 +85,7 @@ func (fs *fileSystem) Save(name string, r io.ReadCloser) error {
 		r.Close()
 		return ErrNameMismatch
 	}
-	_, err = fs.saveInternal(r, destName, func(n string) bool { return n == name })
+	_, err = fs.saveInternal(r, destName, nameCheckForSave(name))
 	return err
 }
 

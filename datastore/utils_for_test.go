@@ -116,3 +116,49 @@ func exists(c DS, n string) bool {
 	}
 	return exists
 }
+
+type memoryNoConsistencyCheck struct {
+	memory
+}
+
+func (m *memoryNoConsistencyCheck) Open(n string) (io.ReadCloser, error) {
+	m.rw.RLock()
+	defer m.rw.RUnlock()
+
+	b, ok := m.bmap[n]
+	if !ok {
+		return nil, ErrNotFound
+	}
+
+	return ioutil.NopCloser(bytes.NewReader(b)), nil
+}
+
+func newMemoryNoConsistencyCheck() *memoryNoConsistencyCheck {
+	return &memoryNoConsistencyCheck{
+		memory: memory{
+			bmap: make(map[string][]byte),
+		},
+	}
+}
+
+type memoryBrokenAutoNamed struct {
+	memory
+	breaker func(string) string
+}
+
+func (m *memoryBrokenAutoNamed) SaveAutoNamed(r io.ReadCloser) (string, error) {
+	n, err := m.memory.SaveAutoNamed(r)
+	if err != nil {
+		return "", err
+	}
+	return m.breaker(n), nil
+}
+
+func newMemoryBrokenAutoNamed(breaker func(string) string) *memoryBrokenAutoNamed {
+	return &memoryBrokenAutoNamed{
+		memory: memory{
+			bmap: make(map[string][]byte),
+		},
+		breaker: breaker,
+	}
+}

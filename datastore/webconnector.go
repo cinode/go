@@ -13,13 +13,14 @@ func errServerConnection(err error) error {
 }
 
 type webConnectorStreamWrapper struct {
-	source io.ReadCloser
+	reader io.Reader
+	closer io.Closer
 }
 
 func (w *webConnectorStreamWrapper) Read(b []byte) (int, error) {
-	n, err := w.source.Read(b)
+	n, err := w.reader.Read(b)
 	if err == io.EOF {
-		err2 := w.source.Close()
+		err2 := w.closer.Close()
 		if err2 != nil {
 			return 0, err2
 		}
@@ -60,14 +61,18 @@ func (w *webConnector) Open(name string) (io.ReadCloser, error) {
 		res.Body.Close()
 		return nil, err
 	}
-	return res.Body, nil
+	return hashValidatingReader(res.Body, name), nil
 }
 
 func (w *webConnector) SaveAutoNamed(r io.ReadCloser) (string, error) {
+	hasher := newHasher()
 	res, err := w.client.Post(
 		w.baseURL,
 		"application/octet-stream",
-		&webConnectorStreamWrapper{source: r},
+		&webConnectorStreamWrapper{
+			reader: io.TeeReader(r, hasher),
+			closer: r,
+		},
 	)
 	if err != nil {
 		return "", err
@@ -81,14 +86,18 @@ func (w *webConnector) SaveAutoNamed(r io.ReadCloser) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(name), nil
+	nameStr := string(name)
+	if !nameEqual(nameStr, hasher.Name()) {
+		return "", ErrNameMismatch
+	}
+	return nameStr, nil
 }
 
 func (w *webConnector) Save(name string, r io.ReadCloser) error {
 	req, err := http.NewRequest(
 		http.MethodPut,
 		w.baseURL+name,
-		&webConnectorStreamWrapper{source: r},
+		&webConnectorStreamWrapper{reader: r, closer: r},
 	)
 	if err != nil {
 		return err

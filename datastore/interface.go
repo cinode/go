@@ -22,7 +22,10 @@ type DS interface {
 	// Open returns a read stream for given blob name or an error. In case blob
 	// is not found in datastore, returned error must be ErrNotFound.
 	// In case of returning a stream, caller must ensure to call Close on it
-	// after reading it's contents.
+	// after reading it's contents. This function must guarantee that the
+	// returned contents does match blob's name. If it does not, ErrNameMismatch
+	// must be returned instead of io.EOF one. This check is needed to ensure
+	// the underlying data has not been tempered with (chosen ciphertext attack)
 	Open(name string) (io.ReadCloser, error)
 
 	// Save tries to save data blob with given name. Blob's data will be read

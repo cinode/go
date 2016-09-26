@@ -222,3 +222,32 @@ func TestFilesystemExistsFailure(t *testing.T) {
 		t.Fatalf("Incorrect error received: %v", err)
 	}
 }
+
+func TestFilesystemPreventLocalFilesManipulation(t *testing.T) {
+	fs, d := temporaryFS()
+	defer d()
+
+	blob := testBlobs[0]
+	putBlob(blob.name, blob.data, fs)
+
+	data := []byte{blob.data[0] + 1}
+
+	fName, err := fs.getFileName(blob.name)
+	errPanic(err)
+	fl, err := os.OpenFile(fName, os.O_RDWR, 0)
+	errPanic(err)
+
+	_, err = fl.Write(data)
+	fl.Close()
+	errPanic(err)
+
+	r, err := fs.Open(blob.name)
+	errPanic(err)
+
+	_, err = ioutil.ReadAll(r)
+	r.Close()
+	if err != ErrNameMismatch {
+		t.Fatalf("Didn't detect local file manipulation, got error: %v instead of %v",
+			err, ErrNameMismatch)
+	}
+}
