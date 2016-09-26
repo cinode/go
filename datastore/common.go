@@ -5,12 +5,18 @@ import (
 	"io"
 )
 
+func nameEqual(producedName, expectedName string) bool {
+	// TODO: Avoid []byte -> string -> []byte conversions by introducing some
+	//       kind of struct for blob name
+	return subtle.ConstantTimeCompare(
+		[]byte(expectedName),
+		[]byte(producedName),
+	) == 1
+}
+
 func nameCheckForSave(expectedName string) func(string) bool {
 	return func(producedName string) bool {
-		return subtle.ConstantTimeCompare(
-			[]byte(expectedName),
-			[]byte(producedName),
-		) == 1
+		return nameEqual(producedName, expectedName)
 	}
 }
 
@@ -24,10 +30,7 @@ type hashValidatingReaderStruct struct {
 func (h *hashValidatingReaderStruct) Read(b []byte) (int, error) {
 	n, err := h.rt.Read(b)
 	if err == io.EOF {
-		if subtle.ConstantTimeCompare(
-			[]byte(h.nm),
-			[]byte(h.hs.Name()),
-		) != 1 {
+		if !nameEqual(h.nm, h.hs.Name()) {
 			return 0, ErrNameMismatch
 		}
 	}

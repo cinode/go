@@ -140,3 +140,25 @@ func newMemoryNoConsistencyCheck() *memoryNoConsistencyCheck {
 		},
 	}
 }
+
+type memoryBrokenAutoNamed struct {
+	memory
+	breaker func(string) string
+}
+
+func (m *memoryBrokenAutoNamed) SaveAutoNamed(r io.ReadCloser) (string, error) {
+	n, err := m.memory.SaveAutoNamed(r)
+	if err != nil {
+		return "", err
+	}
+	return m.breaker(n), nil
+}
+
+func newMemoryBrokenAutoNamed(breaker func(string) string) *memoryBrokenAutoNamed {
+	return &memoryBrokenAutoNamed{
+		memory: memory{
+			bmap: make(map[string][]byte),
+		},
+		breaker: breaker,
+	}
+}
