@@ -12,5 +12,6 @@ before_install:
 script:
     - go test -coverprofile=datastore.coverprofile ./datastore
     - go test -coverprofile=blenc.coverprofile ./blenc
+    - go test -coverprofile=graph.coverprofile ./graph
     - $HOME/gopath/bin/gover
     - $HOME/gopath/bin/goveralls -coverprofile=gover.coverprofile -service travis-ci
