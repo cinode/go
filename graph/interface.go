@@ -37,16 +37,8 @@ type DirEntry struct {
 	Metadata map[string]string
 }
 
-func (d *DirEntry) clone() DirEntry {
-	ret := DirEntry{
-		Node:     d.Node.clone(),
-		Metadata: make(map[string]string),
-	}
-	for k, v := range d.Metadata {
-		ret.Metadata[k] = v
-	}
-	return ret
-}
+// DirEntryMap represents map of entries inside directory
+type DirEntryMap map[string]DirEntry
 
 // DirNode represents a directory node which does gather other entries
 // TODO: Pagination of entries based on cursors
@@ -58,7 +50,7 @@ type DirNode interface {
 	Child(name string) (DirEntry, error)
 
 	// List returns a list of all entries in the directory.
-	List() (entries map[string]DirEntry, err error)
+	List() (entries DirEntryMap, err error)
 
 	// AttachChild does attach already existing node to given entry,
 	// if entry already exists, it will be overwritten by the new one,

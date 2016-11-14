@@ -168,6 +168,40 @@ func TestSubDir(t *testing.T) {
 	})
 }
 
+func TestModifyEntriesMap(t *testing.T) {
+
+	meta := map[string]string{
+		"meta1key": "meta1value",
+		"meta2key": "meta2value",
+		"meta3key": "meta3value",
+	}
+
+	allGr(func(ep EntryPoint) {
+		d, err := ep.Root()
+		errCheck(t, err, nil)
+		saveFile(t, ep, d, "file", []byte("file"), meta)
+
+		// Metadata entries in Child()-returned value must not propagate
+		entry, err := d.Child("file")
+		errCheck(t, err, nil)
+		entry.Metadata["meta4key"] = "meta4value"
+		ensureIsFile(t, ep, []string{"file"}, nil, meta)
+
+		// Metadata entries in List()-returned value must not propagate
+		ls, err := d.List()
+		errCheck(t, err, nil)
+		ls["file"].Metadata["meta5key"] = "meta5value"
+		ensureIsFile(t, ep, []string{"file"}, nil, meta)
+
+		// Changing map returned from List() must not propagate
+		ls, err = d.List()
+		errCheck(t, err, nil)
+		ls["file2"] = ls["file"]
+		_, err = d.Child("file2")
+		errCheck(t, err, ErrNotFound)
+	})
+}
+
 func TestAttachSubtree(t *testing.T) {
 	allGr(func(ep EntryPoint) {
 

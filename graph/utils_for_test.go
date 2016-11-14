@@ -156,6 +156,20 @@ func ensureIsDir(t *testing.T, ep EntryPoint, path []string) DirNode {
 	return dir
 }
 
+func ensureMetadata(t *testing.T, de DirEntry, path []string, metaCheck map[string]string) {
+
+	if len(metaCheck) != len(de.Metadata) {
+		t.Fatalf("IsFile: %s has invalid metadata (count does not match)",
+			strings.Join(path, "/"))
+	}
+	for k, v := range metaCheck {
+		if vc, ok := de.Metadata[k]; !ok || v != vc {
+			t.Fatalf("IsFile: %s has invalid metadata (value does not exist or does not match)",
+				strings.Join(path, "/"))
+		}
+	}
+}
+
 func ensureIsFile(t *testing.T, ep EntryPoint, path []string,
 	contentsCheck []byte, metaCheck map[string]string) FileNode {
 
@@ -165,16 +179,7 @@ func ensureIsFile(t *testing.T, ep EntryPoint, path []string,
 		t.Fatalf("IsFile: %s does not exist", strings.Join(path, "/"))
 	}
 	if metaCheck != nil {
-		if len(metaCheck) != len(de.Metadata) {
-			t.Fatalf("IsFile: %s has invalid metadata (count does not match)",
-				strings.Join(path, "/"))
-		}
-		for k, v := range metaCheck {
-			if vc, ok := de.Metadata[k]; !ok || v != vc {
-				t.Fatalf("IsFile: %s has invalid metadata (value does not exist or does not match)",
-					strings.Join(path, "/"))
-			}
-		}
+		ensureMetadata(t, de, path, metaCheck)
 	}
 	errCheck(t, err, nil)
 	if f, ok := de.Node.(FileNode); ok {

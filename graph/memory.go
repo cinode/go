@@ -60,7 +60,7 @@ type memoryNodeBase struct {
 
 type memoryDirNode struct {
 	memoryNodeBase
-	e map[string]DirEntry
+	e DirEntryMap
 }
 
 func (m *memoryNodeBase) toMNB() *memoryNodeBase {
@@ -73,16 +73,12 @@ func (m *memoryDirNode) Child(name string) (DirEntry, error) {
 	if !ok {
 		return e, ErrNotFound
 	}
-	return e, nil
+	return e.clone(false), nil
 }
 
-func (m *memoryDirNode) List() (entries map[string]DirEntry, err error) {
+func (m *memoryDirNode) List() (entries DirEntryMap, err error) {
 	defer m.rlock()()
-	ret := make(map[string]DirEntry)
-	for k, v := range m.e {
-		ret[k] = v.clone()
-	}
-	return ret, nil
+	return m.e.clone(false), nil
 }
 
 func (m *memoryDirNode) AttachChild(name string, entry DirEntry) (DirEntry, error) {
@@ -96,7 +92,7 @@ func (m *memoryDirNode) AttachChild(name string, entry DirEntry) (DirEntry, erro
 
 	defer m.lock()()
 	// TODO: Recursion check?
-	clone := entry.clone()
+	clone := entry.clone(true)
 	m.e[name] = clone
 	return clone, nil
 }
@@ -111,11 +107,8 @@ func (m *memoryDirNode) DetachChild(name string) error {
 }
 
 func (m *memoryDirNode) clone() Node {
-	d := &memoryDirNode{e: make(map[string]DirEntry)}
+	d := &memoryDirNode{e: m.e.clone(true)}
 	d.init(m.m)
-	for n, e := range m.e {
-		d.e[n] = e.clone()
-	}
 	return d
 }
 
