@@ -63,6 +63,10 @@ type memoryDirNode struct {
 	e map[string]DirEntry
 }
 
+func (m *memoryNodeBase) toMNB() *memoryNodeBase {
+	return m
+}
+
 func (m *memoryDirNode) Child(name string) (DirEntry, error) {
 	defer m.rlock()()
 	e, ok := m.e[name]
@@ -81,20 +85,12 @@ func (m *memoryDirNode) List() (entries map[string]DirEntry, err error) {
 	return ret, nil
 }
 
-func getMemoryNodeBase(n Node) *memoryNodeBase {
-	switch n := n.(type) {
-	case *memoryDirNode:
-		return &n.memoryNodeBase
-	case *memoryFileNode:
-		return &n.memoryNodeBase
-	default:
-		return nil
-	}
-}
-
 func (m *memoryDirNode) AttachChild(name string, entry DirEntry) (DirEntry, error) {
 
-	if mnb := getMemoryNodeBase(entry.Node); mnb == nil || mnb.m != m.m {
+	mnb, ok := entry.Node.(interface {
+		toMNB() *memoryNodeBase
+	})
+	if !ok || mnb.toMNB().m != m.m {
 		return DirEntry{}, ErrIncompatibleNode
 	}
 
