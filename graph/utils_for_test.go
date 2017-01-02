@@ -69,12 +69,9 @@ func saveFile(t *testing.T, ep EntryPoint, dir DirNode, name string, b []byte, m
 	if dir == nil {
 		return fn
 	}
-	d, err := dir.AttachChild(name, DirEntry{
-		Node:     fn,
-		Metadata: meta,
-	})
+	node, err := dir.SetEntry(name, fn)
 	errCheck(t, err, nil)
-	if node, ok := d.Node.(FileNode); ok {
+	if node, ok := node.(FileNode); ok {
 		return node
 	}
 	t.Fatalf("Didn't get FileNode after attaching")
@@ -102,14 +99,14 @@ func mkDir(t *testing.T, ep EntryPoint, path []string) DirNode {
 
 	for _, p := range path {
 		pathStr = pathStr + p + "/"
-		de, err := dir.Child(p)
-		if err == ErrNotFound {
+		node, err := dir.GetEntry(p)
+		if err == ErrEntryNotFound {
 			newDir, err2 := ep.NewDetachedDirNode()
 			errCheck(t, err2, nil)
-			de, err = dir.AttachChild(p, DirEntry{Node: newDir})
+			node, err = dir.SetEntry(p, newDir)
 		}
 		errCheck(t, err, nil)
-		if d, ok := de.Node.(DirNode); !ok {
+		if d, ok := node.(DirNode); !ok {
 			t.Fatalf("Not a directory: %v", pathStr)
 		} else {
 			dir = d
@@ -119,13 +116,15 @@ func mkDir(t *testing.T, ep EntryPoint, path []string) DirNode {
 }
 
 func dump(n Node, name, ind string) string {
-	switch n := n.(type) {
+	switch n.(type) {
 	case DirNode:
 		ret := ind + name + ":\n"
-		list, _ := n.List()
-		for name, entry := range list {
-			ret += dump(entry.Node, name, ind+"  ")
-		}
+		/*
+			list, _ := n.List()
+			for name, entry := range list {
+				ret += dump(entry.Node, name, ind+"  ")
+			}
+		*/
 		return ret
 	case FileNode:
 		return ind + name + "\n"
@@ -141,12 +140,12 @@ func ensureIsDir(t *testing.T, ep EntryPoint, path []string) DirNode {
 	pathStr := ""
 	for _, p := range path {
 		pathStr = pathStr + p + "/"
-		de, err := dir.Child(p)
-		if err == ErrNotFound {
+		node, err := dir.GetEntry(p)
+		if err == ErrEntryNotFound {
 			t.Fatalf("IsDir: %s does not exist", pathStr)
 		}
 		errCheck(t, err, nil)
-		if d, ok := de.Node.(DirNode); !ok {
+		if d, ok := node.(DirNode); !ok {
 			t.Fatalf("IsDir Not a directory: %v", pathStr)
 		} else {
 			dir = d
@@ -156,6 +155,7 @@ func ensureIsDir(t *testing.T, ep EntryPoint, path []string) DirNode {
 	return dir
 }
 
+/*
 func ensureMetadata(t *testing.T, de DirEntry, path []string, metaCheck map[string]string) {
 
 	if len(metaCheck) != len(de.Metadata) {
@@ -169,20 +169,23 @@ func ensureMetadata(t *testing.T, de DirEntry, path []string, metaCheck map[stri
 		}
 	}
 }
+*/
 
 func ensureIsFile(t *testing.T, ep EntryPoint, path []string,
 	contentsCheck []byte, metaCheck map[string]string) FileNode {
 
 	dir := ensureIsDir(t, ep, path[:len(path)-1])
-	de, err := dir.Child(path[len(path)-1])
-	if err == ErrNotFound {
+	node, err := dir.GetEntry(path[len(path)-1])
+	if err == ErrEntryNotFound {
 		t.Fatalf("IsFile: %s does not exist", strings.Join(path, "/"))
 	}
-	if metaCheck != nil {
-		ensureMetadata(t, de, path, metaCheck)
-	}
-	errCheck(t, err, nil)
-	if f, ok := de.Node.(FileNode); ok {
+	/*
+		if metaCheck != nil {
+			ensureMetadata(t, de, path, metaCheck)
+			errCheck(t, err, nil)
+		}
+	*/
+	if f, ok := node.(FileNode); ok {
 		if contentsCheck != nil {
 			r, err := f.Open()
 			errCheck(t, err, nil)

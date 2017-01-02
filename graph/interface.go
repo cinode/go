@@ -5,86 +5,108 @@ import (
 	"io"
 )
 
-const (
-	metadataKeyName    = "n"
-	metadataKeyKeyInfo = "k"
+var (
+	// ErrEntryNotFound informs that given entry does not exist
+	ErrEntryNotFound = errors.New("Entry not found")
+
+	// ErrInvalidEntryName is used when entry name is empty or longer than
+	// MaxEntryNameLength bytes
+	ErrInvalidEntryName = errors.New("Invalid entry name")
+
+	// ErrIncompatibleNode is returned if node of incompatible node type or
+	// node from different entrypoint instance is being added to the current
+	// graph
+	ErrIncompatibleNode = errors.New("Given node is not compatible with this EntryPoint")
+
+	// ErrMetadataKeyNotFound is used when queried metadata key does not exist
+	ErrMetadataKeyNotFound = errors.New("Metadata key does not exist")
+
+	// ErrInvalidMetadataKey is used to indicate that given metadata key is
+	// empty or longer than MaxMetadataKeyLength bytes (in utf-8)
+	ErrInvalidMetadataKey = errors.New("Invalid metadata key")
+
+	// ErrInvalidMetadataValue is used when given metadata value is longer
+	// than MaxMetadataValueLength bytes (in utf-8)
+	ErrInvalidMetadataValue = errors.New("Invalid metadata value")
+
+	// ErrTooManyMetadataKeys is used when operation has been cancelled because
+	// it would increase the number of metadata keys in one node to a value
+	// greater than MaxMetadataKeysInNode
+	ErrTooManyMetadataKeys = errors.New("Too many metadata keys in a node")
 )
 
-var (
-	// ErrNotFound informs that given entry does not exist
-	ErrNotFound = errors.New("Entry not found")
-
-	// ErrIncompatibleNode is returned if node of incompatible type or from
-	// different entrypoint instance is being added to the current one
-	ErrIncompatibleNode = errors.New("Given node is not compatible with this EntryPoint")
+const (
+	// MaxEntryNameLength is the maximum length in bytes (utf-8) of a single
+	// entry name
+	MaxEntryNameLength = 1024
+	// MaxMetadataKeyLength is the maximum length in bytes (utf-8) of metadata
+	// key
+	MaxMetadataKeyLength = 128
+	// MaxMetadataValueLength is the maximum length in bytes (utf-8) of metadata
+	// value
+	MaxMetadataValueLength = 1024
+	// MaxMetadataKeysInNode is the maximum number of metadata keys for one node
+	MaxMetadataKeysInNode = 128
 )
 
 // Node is an abstract common interface representing all node types in blob
-// graph.
+// graph. A Node may be detached (not attached to any attachment points) or
+// attached to exactly one parent node. If a node is reattached, the result will
+// be a clone of the node attached to this other attachment point. Such clone
+// operation must be very cheap. A cloned node may be totally independent from
+// the original one if it's a static one (that includes node's children)
 type Node interface {
-	// ReadOnly() bool
-
 	clone() Node
+
+	// TODO: Following functions would be interesting to have here:
+	// IsReadOnly() bool
+	// IsDynamic() bool
+
+	// Parent returns parent node this one is attached to. If this node is
+	// detached, nil is returned
+	//GetParent() Node
 }
-
-// DirEntry represents one entry in a directory structure
-type DirEntry struct {
-
-	// Node is a destination node this entry points to
-	Node Node
-
-	// Metadata contains all user-defined metadata entries.
-	Metadata map[string]string
-}
-
-// DirEntryMap represents map of entries inside directory
-type DirEntryMap map[string]DirEntry
 
 // DirNode represents a directory node which does gather other entries
-// TODO: Pagination of entries based on cursors
 type DirNode interface {
 	Node
 
-	// Child looks for one child of given name in this directory
+	// TODO: Add metatada operations
+
+	// GetEntry looks for one child entry of given name in this directory
 	// If given entry does not exist, ErrNotFound is returned
-	Child(name string) (DirEntry, error)
+	GetEntry(name string) (Node, error)
 
-	// List returns a list of all entries in the directory.
-	List() (entries DirEntryMap, err error)
+	// HasEntry returns true if given entry exists, false otherwise
+	HasEntry(name string) (bool, error)
 
-	// AttachChild does attach already existing node to given entry,
-	// if entry already exists, it will be overwritten by the new one,
-	// if entry does not exist yet, it will be created.
-	// Entry being attached must be from the same graph structure.
-	// This attachement does attach current node state but does not
-	// automatically propagate changes made on the original node.
-	// Also if you'd like to alter attached object, the returned DirEntry
-	// should be used instead of the one passed as argument to this function.
-	//
-	// TODO: Add note about link nodes once imlemented to create automatic
-	//       contents update.
-	AttachChild(name string, entry DirEntry) (DirEntry, error)
+	// SetEntry creates new or updates existing entry, the node given will be
+	// cloned (according to node's clone strategy), the clone is returned back
+	// from this function
+	SetEntry(name string, node Node) (Node, error)
 
-	// DetachChild removes given child from this directory.
-	// Note that this removal does not mean physical removal of node that was
-	// attached earlier. It just breaks the link between this directory and
-	// child entry.
-	DetachChild(name string) error
+	// DeleteEntry removes given entry if found, ErrEntryNotFound is returned if
+	// entry does not exist
+	DeleteEntry(name string) error
 }
 
 // FileNode represents just a blob of data
 type FileNode interface {
 	Node
 
-	// Open opens the contents of this file node for reading. If there's no error,
-	// the caller must close returned ReadCloser instance, Close must be called
-	// exactly once.
+	// Open opens the contents of this file node for reading. If there's no
+	// error, the caller must close returned ReadCloser instance, Close must be
+	// called exactly once on the returned ReadCloser instance, even in case of
+	// an error during read.
 	Open() (io.ReadCloser, error)
 
 	// Save tries to save data on given file node. Data will be read
 	// from given reader until either EOF ending successfull save or any other
 	// error which will cancel the save - in such case this error will be
-	// returned from this function
+	// returned from this function. In case of a successfull save, parent
+	// directory structure (if this node is attached to one) will be updated
+	// to reflect changes made to this node. This change does not affect any
+	// clones previously created from this node.
 	Save(io.ReadCloser) error
 }
 

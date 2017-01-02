@@ -5,17 +5,48 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"strings"
 	"sync"
 	"testing"
 )
+
+/*
+type memBEPersistance struct {
+	bid string
+	key string
+}
+
+func (p *memBEPersistance) Get() (bid, key string, err error) {
+	if p.bid == "" {
+		return "", "", ErrBERootTabulaRasa
+	}
+	return p.bid, p.key, nil
+}
+
+func (p *memBEPersistance) Set(bid, key string) error {
+	p.bid = bid
+	p.key = key
+	return nil
+}
+*/
 
 func allGrP(f func(newEp func() EntryPoint)) {
 
 	f(func() EntryPoint {
 		return InMemory()
 	})
-
+	/*
+		f(func() EntryPoint {
+			ret, err := FromBE(
+				blenc.FromDatastore(
+					datastore.InMemory()),
+				&memBEPersistance{},
+			)
+			if err != nil {
+				panic("Can't create datastore-based EP")
+			}
+			return ret
+		})
+	*/
 }
 
 func allGr(f func(ep EntryPoint)) {
@@ -69,16 +100,16 @@ func TestCreateFileOnRoot(t *testing.T) {
 
 		// Saving files
 		for _, d := range blobs {
-			_, err := r.Child(d.name)
-			errCheck(t, err, ErrNotFound)
+			_, err := r.GetEntry(d.name)
+			errCheck(t, err, ErrEntryNotFound)
 			saveFile(t, ep, r, d.name, d.data, nil)
 		}
 
 		// Reading back contents
 		for _, d := range blobs {
-			de, err := r.Child(d.name)
+			node, err := r.GetEntry(d.name)
 			errCheck(t, err, nil)
-			f, ok := de.Node.(FileNode)
+			f, ok := node.(FileNode)
 			if !ok {
 				t.Fatalf("Node is not a file")
 			}
@@ -114,13 +145,13 @@ func TestIncompatibleNode(t *testing.T) {
 		f2, err := ep2.NewDetachedFileNode()
 		errCheck(t, err, nil)
 
-		_, err = d1.AttachChild("test", DirEntry{Node: f2})
+		_, err = d1.SetEntry("test", f2)
 		errCheck(t, err, ErrIncompatibleNode)
 
-		_, err = d1.AttachChild("test", DirEntry{Node: &dummyNode{}})
+		_, err = d1.SetEntry("test", &dummyNode{})
 		errCheck(t, err, ErrIncompatibleNode)
 
-		_, err = d1.AttachChild("test", DirEntry{})
+		_, err = d1.SetEntry("test", nil)
 		errCheck(t, err, ErrIncompatibleNode)
 	})
 }
@@ -135,14 +166,14 @@ func TestDetachNode(t *testing.T) {
 		}
 
 		for _, d := range blobs {
-			_, err := r.Child(d.name)
+			_, err := r.GetEntry(d.name)
 			errCheck(t, err, nil)
-			err = r.DetachChild(d.name)
+			err = r.DeleteEntry(d.name)
 			errCheck(t, err, nil)
-			_, err = r.Child(d.name)
-			errCheck(t, err, ErrNotFound)
-			err = r.DetachChild(d.name)
-			errCheck(t, err, ErrNotFound)
+			_, err = r.GetEntry(d.name)
+			errCheck(t, err, ErrEntryNotFound)
+			err = r.DeleteEntry(d.name)
+			errCheck(t, err, ErrEntryNotFound)
 		}
 
 	})
@@ -156,18 +187,19 @@ func TestSubDir(t *testing.T) {
 		d, err := ep.NewDetachedDirNode()
 		errCheck(t, err, nil)
 
-		_, err = r.AttachChild("d", DirEntry{Node: d})
+		_, err = r.SetEntry("d", d)
 		errCheck(t, err, nil)
 
-		de, err := r.Child("d")
+		node, err := r.GetEntry("d")
 		errCheck(t, err, nil)
 
-		if _, ok := de.Node.(DirNode); !ok {
+		if _, ok := node.(DirNode); !ok {
 			t.Fatalf("Did not get dir node")
 		}
 	})
 }
 
+/*
 func TestModifyEntriesMap(t *testing.T) {
 
 	meta := map[string]string{
@@ -182,7 +214,7 @@ func TestModifyEntriesMap(t *testing.T) {
 		saveFile(t, ep, d, "file", []byte("file"), meta)
 
 		// Metadata entries in Child()-returned value must not propagate
-		entry, err := d.Child("file")
+		entry, err := d.GetEntry("file")
 		errCheck(t, err, nil)
 		entry.Metadata["meta4key"] = "meta4value"
 		ensureIsFile(t, ep, []string{"file"}, nil, meta)
@@ -197,10 +229,11 @@ func TestModifyEntriesMap(t *testing.T) {
 		ls, err = d.List()
 		errCheck(t, err, nil)
 		ls["file2"] = ls["file"]
-		_, err = d.Child("file2")
+		_, err = d.GetEntry("file2")
 		errCheck(t, err, ErrNotFound)
 	})
 }
+*/
 
 func TestAttachSubtree(t *testing.T) {
 	allGr(func(ep EntryPoint) {
@@ -223,7 +256,7 @@ func TestAttachSubtree(t *testing.T) {
 
 		// Clone dir1 contents (a/b/c) into dir2 (d/e/f) using name g
 		// this should create d/e/f/g and d/e/f/g/file1
-		dir2.AttachChild("g", DirEntry{Node: dir1})
+		dir2.SetEntry("g", dir1)
 		ensureIsFile(t, ep, []string{"d", "e", "f", "g", "file1"}, contents1, attrs1)
 
 		// Change original file, ensure the cloned one did not change
@@ -232,15 +265,16 @@ func TestAttachSubtree(t *testing.T) {
 		ensureIsFile(t, ep, []string{"a", "b", "c", "file1"}, contents2, attrs2)
 
 		// Clone file only, this must not propagate attributes
-		dir2.AttachChild("file1", DirEntry{Node: fl})
+		dir2.SetEntry("file1", fl)
 		ensureIsFile(t, ep, []string{"d", "e", "f", "file1"}, contents1, map[string]string{})
 
 		// Delete original file, ensure the clone is still there
-		errCheck(t, dir1.DetachChild("file1"), nil)
+		errCheck(t, dir1.DeleteEntry("file1"), nil)
 		ensureIsFile(t, ep, []string{"d", "e", "f", "g", "file1"}, contents1, attrs1)
 	})
 }
 
+/*
 func TestListChildren(t *testing.T) {
 
 	allGr(func(ep EntryPoint) {
@@ -269,6 +303,7 @@ func TestListChildren(t *testing.T) {
 	})
 
 }
+*/
 
 func TestSaveError(t *testing.T) {
 

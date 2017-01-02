@@ -8,13 +8,31 @@ import (
 	"sync"
 )
 
+type memoryDirEntry struct {
+	n Node
+}
+
+func (m *memoryDirEntry) clone() memoryDirEntry {
+	return memoryDirEntry{n: m.n.clone()}
+}
+
+type memoryDirEntryMap map[string]memoryDirEntry
+
+func (m *memoryDirEntryMap) clone() memoryDirEntryMap {
+	ret := make(memoryDirEntryMap)
+	for name, entry := range *m {
+		ret[name] = entry.clone()
+	}
+	return ret
+}
+
 // InMemory returns in-memory implementation of entry point. This data is not
 // persisted anywhere and is lost whenever instance of this EntryPoint is
 // deleted. It's purpose is mostly for tests and prototypes.
 func InMemory() EntryPoint {
 	ret := &memory{}
 	ret.root.m = ret
-	ret.root.e = make(map[string]DirEntry)
+	ret.root.e = make(memoryDirEntryMap)
 	return ret
 }
 
@@ -43,7 +61,7 @@ func (m *memory) Root() (DirNode, error) {
 }
 
 func (m *memory) NewDetachedDirNode() (DirNode, error) {
-	ret := &memoryDirNode{e: make(map[string]DirEntry)}
+	ret := &memoryDirNode{e: make(memoryDirEntryMap)}
 	ret.init(m)
 	return ret, nil
 }
@@ -58,56 +76,57 @@ type memoryNodeBase struct {
 	m *memory
 }
 
-type memoryDirNode struct {
-	memoryNodeBase
-	e DirEntryMap
-}
-
 func (m *memoryNodeBase) toMNB() *memoryNodeBase {
 	return m
 }
 
-func (m *memoryDirNode) Child(name string) (DirEntry, error) {
+type memoryDirNode struct {
+	memoryNodeBase
+	e memoryDirEntryMap
+}
+
+func (m *memoryDirNode) GetEntry(name string) (Node, error) {
 	defer m.rlock()()
 	e, ok := m.e[name]
 	if !ok {
-		return e, ErrNotFound
+		return nil, ErrEntryNotFound
 	}
-	return e.clone(false), nil
+	return e.n, nil
 }
 
-func (m *memoryDirNode) List() (entries DirEntryMap, err error) {
+func (m *memoryDirNode) HasEntry(name string) (bool, error) {
 	defer m.rlock()()
-	return m.e.clone(false), nil
+	_, ok := m.e[name]
+	return ok, nil
 }
 
-func (m *memoryDirNode) AttachChild(name string, entry DirEntry) (DirEntry, error) {
+func (m *memoryDirNode) SetEntry(name string, node Node) (Node, error) {
 
-	mnb, ok := entry.Node.(interface {
+	mnb, ok := node.(interface {
 		toMNB() *memoryNodeBase
 	})
 	if !ok || mnb.toMNB().m != m.m {
-		return DirEntry{}, ErrIncompatibleNode
+		return nil, ErrIncompatibleNode
 	}
 
 	defer m.lock()()
 	// TODO: Recursion check?
-	clone := entry.clone(true)
-	m.e[name] = clone
+	clone := node.clone()
+	m.e[name] = memoryDirEntry{n: clone}
 	return clone, nil
 }
 
-func (m *memoryDirNode) DetachChild(name string) error {
+func (m *memoryDirNode) DeleteEntry(name string) error {
 	defer m.lock()()
 	if _, ok := m.e[name]; !ok {
-		return ErrNotFound
+		return ErrEntryNotFound
 	}
 	delete(m.e, name)
 	return nil
 }
 
 func (m *memoryDirNode) clone() Node {
-	d := &memoryDirNode{e: m.e.clone(true)}
+	d := &memoryDirNode{e: m.e.clone()}
 	d.init(m.m)
 	return d
 }
