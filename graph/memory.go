@@ -125,10 +125,51 @@ func (m *memoryDirNode) DeleteEntry(name string) error {
 	return nil
 }
 
+func (m *memoryDirNode) ListEntries() EntriesIterator {
+	defer m.rlock()()
+	return memoryDirEntriesIteratorFromMap(m.e)
+}
+
 func (m *memoryDirNode) clone() Node {
 	d := &memoryDirNode{e: m.e.clone()}
 	d.init(m.m)
 	return d
+}
+
+type memoryDirEntriesIterator struct {
+	current int
+	nodes   []Node
+	names   []string
+}
+
+func memoryDirEntriesIteratorFromMap(m memoryDirEntryMap) *memoryDirEntriesIterator {
+	ret := memoryDirEntriesIterator{
+		current: -1,
+		nodes:   make([]Node, len(m)),
+		names:   make([]string, len(m)),
+	}
+	i := 0
+	for name, node := range m {
+		ret.nodes[i] = node.n
+		ret.names[i] = name
+		i++
+	}
+	return &ret
+}
+
+func (m *memoryDirEntriesIterator) Next() bool {
+	if m.current+1 >= len(m.nodes) {
+		return false
+	}
+	m.current++
+	return true
+}
+
+func (m *memoryDirEntriesIterator) GetEntry() (Node, string, error) {
+	if m.current < 0 || m.current >= len(m.nodes) {
+		return nil, "", io.EOF
+	}
+	return m.nodes[m.current], m.names[m.current], nil
 }
 
 type memoryFileNode struct {

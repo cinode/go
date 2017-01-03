@@ -67,6 +67,26 @@ type Node interface {
 	//GetParent() Node
 }
 
+// EntriesIterator does return an iterator that will list dir entries
+// Iterating over directory list entries should be done as follows:
+//
+//   for i := dir.List(...); i.Next(); {
+//	   node, name, err := i.GetEntry()
+//	   if err != nil {
+//       // Handle iteration error
+//     }
+//     ...
+//   }
+//
+type EntriesIterator interface {
+
+	// Advance to next element, this must be called for first element too
+	Next() bool
+
+	// Return current entry
+	GetEntry() (Node, string, error)
+}
+
 // DirNode represents a directory node which does gather other entries
 type DirNode interface {
 	Node
@@ -88,6 +108,9 @@ type DirNode interface {
 	// DeleteEntry removes given entry if found, ErrEntryNotFound is returned if
 	// entry does not exist
 	DeleteEntry(name string) error
+
+	// Get entries iterator
+	ListEntries() EntriesIterator
 }
 
 // FileNode represents just a blob of data

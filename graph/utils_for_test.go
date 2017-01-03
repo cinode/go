@@ -203,3 +203,18 @@ func ensureIsFile(t *testing.T, ep EntryPoint, path []string,
 	t.Fatalf("IsFile Not a file: %v", strings.Join(path, "/"))
 	return nil
 }
+
+func listAllEntries(t *testing.T, d DirNode) (map[string]Node, error) {
+	ret := make(map[string]Node)
+	for it := d.ListEntries(); it.Next(); {
+		node, name, err := it.GetEntry()
+		if err != nil {
+			return nil, nil
+		}
+		if _, found := ret[name]; found {
+			t.Fatalf("Duplicate dir entry name found: %s", name)
+		}
+		ret[name] = node
+	}
+	return ret, nil
+}

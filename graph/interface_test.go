@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -90,6 +91,7 @@ var blobs = []struct {
 	data []byte
 }{
 	{"empty", []byte{}},
+	{"onebyte", []byte{0xFF}},
 }
 
 func TestCreateFileOnRoot(t *testing.T) {
@@ -156,7 +158,7 @@ func TestIncompatibleNode(t *testing.T) {
 	})
 }
 
-func TestDetachNode(t *testing.T) {
+func TestDeleteNode(t *testing.T) {
 	allGr(func(ep EntryPoint) {
 		r, err := ep.Root()
 		errCheck(t, err, nil)
@@ -274,13 +276,12 @@ func TestAttachSubtree(t *testing.T) {
 	})
 }
 
-/*
 func TestListChildren(t *testing.T) {
 
 	allGr(func(ep EntryPoint) {
 		testList := func(path []string, entries []string) {
 			dir := ensureIsDir(t, ep, path)
-			list, err := dir.List()
+			list, err := listAllEntries(t, dir)
 			errCheck(t, err, nil)
 			if len(entries) != len(list) {
 				t.Fatalf("Incorrect number of entries in '%s', expeced %d, got %d",
@@ -303,7 +304,6 @@ func TestListChildren(t *testing.T) {
 	})
 
 }
-*/
 
 func TestSaveError(t *testing.T) {
 
