@@ -33,6 +33,10 @@ var (
 	// it would increase the number of metadata keys in one node to a value
 	// greater than MaxMetadataKeysInNode
 	ErrTooManyMetadataKeys = errors.New("Too many metadata keys in a node")
+
+	// ErrIterationCancelled is used to indicate that iteration of directory
+	// entries has been cancelled
+	ErrIterationCancelled = errors.New("Entries iteration has been cancelled")
 )
 
 const (
@@ -85,6 +89,11 @@ type EntriesIterator interface {
 
 	// Return current entry
 	GetEntry() (Node, string, error)
+
+	// Cancels iteration, if other thread/goroutine is currently waiting
+	// for the Next() call it must end immediately with true, next call to
+	// GetEntry() must return an error ErrIterationCancelled
+	Cancel()
 }
 
 // DirNode represents a directory node which does gather other entries

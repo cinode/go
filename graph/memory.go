@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
+	"sync/atomic"
 
 	"sync"
 )
@@ -137,16 +138,18 @@ func (m *memoryDirNode) clone() Node {
 }
 
 type memoryDirEntriesIterator struct {
-	current int
-	nodes   []Node
-	names   []string
+	cancelFlag int32
+	current    int
+	nodes      []Node
+	names      []string
 }
 
 func memoryDirEntriesIteratorFromMap(m memoryDirEntryMap) *memoryDirEntriesIterator {
 	ret := memoryDirEntriesIterator{
-		current: -1,
-		nodes:   make([]Node, len(m)),
-		names:   make([]string, len(m)),
+		cancelFlag: 0,
+		current:    -1,
+		nodes:      make([]Node, len(m)),
+		names:      make([]string, len(m)),
 	}
 	i := 0
 	for name, node := range m {
@@ -157,7 +160,14 @@ func memoryDirEntriesIteratorFromMap(m memoryDirEntryMap) *memoryDirEntriesItera
 	return &ret
 }
 
+func (m *memoryDirEntriesIterator) isCancelled() bool {
+	return atomic.LoadInt32(&m.cancelFlag) != 0
+}
+
 func (m *memoryDirEntriesIterator) Next() bool {
+	if m.isCancelled() {
+		return true
+	}
 	if m.current+1 >= len(m.nodes) {
 		return false
 	}
@@ -166,10 +176,17 @@ func (m *memoryDirEntriesIterator) Next() bool {
 }
 
 func (m *memoryDirEntriesIterator) GetEntry() (Node, string, error) {
+	if m.isCancelled() {
+		return nil, "", ErrIterationCancelled
+	}
 	if m.current < 0 || m.current >= len(m.nodes) {
 		return nil, "", io.EOF
 	}
 	return m.nodes[m.current], m.names[m.current], nil
+}
+
+func (m *memoryDirEntriesIterator) Cancel() {
+	atomic.StoreInt32(&m.cancelFlag, 1)
 }
 
 type memoryFileNode struct {

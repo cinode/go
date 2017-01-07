@@ -302,7 +302,94 @@ func TestListChildren(t *testing.T) {
 		testList([]string{"a", "b"}, []string{"c", "d"})
 		testList([]string{"a", "e"}, []string{"f"})
 	})
+}
 
+func TestListChildrenCancel(t *testing.T) {
+	allGr(func(ep EntryPoint) {
+		dir := ensureIsDir(t, ep, []string{})
+
+		i := dir.ListEntries()
+		i.Cancel()
+		if !i.Next() {
+			t.Fatal("After iteration has been cancelled, Next must succeed")
+		}
+		node, name, err := i.GetEntry()
+		errCheck(t, err, ErrIterationCancelled)
+		if node != nil || name != "" {
+			t.Fatal("Node or name returned in case of iteration error")
+		}
+
+		saveFile(t, ep, dir, "entry", []byte{}, nil)
+		i = dir.ListEntries()
+		if !i.Next() {
+			t.Fatal("Interation error")
+		}
+		node, name, err = i.GetEntry()
+		if name != "entry" {
+			t.Fatal("Invalid entry from the iteration")
+		}
+		if node == nil {
+			t.Fatal("Node must not be null")
+		}
+		errCheck(t, err, nil)
+
+		i.Cancel()
+		node, name, err = i.GetEntry()
+		errCheck(t, err, ErrIterationCancelled)
+		if node != nil || name != "" {
+			t.Fatal("Node or name returned in case of iteration error")
+		}
+
+		if !i.Next() {
+			t.Fatal("After iteration has been cancelled, Next must succeed")
+		}
+		node, name, err = i.GetEntry()
+		errCheck(t, err, ErrIterationCancelled)
+		if node != nil || name != "" {
+			t.Fatal("Node or name returned in case of iteration error")
+		}
+
+		// A small test for multithreaded interface
+		for j := 0; j < 100; j++ {
+			i = dir.ListEntries()
+			if !i.Next() {
+				t.Fatal("Interation error")
+			}
+
+			done := make(chan bool)
+			sync := make(chan bool)
+			go func() {
+				for {
+					select {
+					case <-done:
+						// Last chance test, GetEntry must return error
+						_, _, err = i.GetEntry()
+						errCheck(t, err, ErrIterationCancelled)
+						sync <- true
+						return
+
+					default:
+						_, _, err := i.GetEntry()
+						if err == ErrIterationCancelled {
+							<-done
+							sync <- true
+							return
+						}
+					}
+				}
+			}()
+
+			go func() {
+				i.Cancel()
+				done <- true
+			}()
+
+			<-sync
+			close(done)
+			close(sync)
+		}
+
+	})
 }
 
 func TestSaveError(t *testing.T) {
