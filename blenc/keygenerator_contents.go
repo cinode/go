@@ -15,7 +15,11 @@ func (k *keyDataGeneratorContents) GenerateKeyData(stream io.ReadCloser, keyData
 	equalStream io.ReadCloser, err error) {
 
 	// Ensure the stream is closed once we're out of here
-	defer stream.Close()
+	defer func() {
+		if stream != nil {
+			stream.Close()
+		}
+	}()
 
 	if len(keyData) > sha256.Size {
 		// This should not happen when called from within this package. We
@@ -37,6 +41,13 @@ func (k *keyDataGeneratorContents) GenerateKeyData(stream io.ReadCloser, keyData
 		return nil, err
 	}
 	hash := hasher.Sum(nil)
+
+	// Close the stream, report an error if it happens on close
+	err = stream.Close()
+	stream = nil
+	if err != nil {
+		return nil, err
+	}
 
 	// Use hash to fill the keyData array
 	copy(keyData, hash)

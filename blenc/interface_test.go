@@ -208,3 +208,5 @@ func TestOpenWrongKey(t *testing.T) {
 		}
 	})
 }
+
+// TODO: Test if keygenerator returns error if reader's close method returns one
