@@ -10,44 +10,16 @@ import (
 	"testing"
 )
 
-/*
-type memBEPersistance struct {
-	bid string
-	key string
-}
-
-func (p *memBEPersistance) Get() (bid, key string, err error) {
-	if p.bid == "" {
-		return "", "", ErrBERootTabulaRasa
-	}
-	return p.bid, p.key, nil
-}
-
-func (p *memBEPersistance) Set(bid, key string) error {
-	p.bid = bid
-	p.key = key
-	return nil
-}
-*/
-
 func allGrP(f func(newEp func() EntryPoint)) {
 
+	// f(func() EntryPoint {
+	// 	return InMemory()
+	// })
+
 	f(func() EntryPoint {
-		return InMemory()
+		return blencTest()
 	})
-	/*
-		f(func() EntryPoint {
-			ret, err := FromBE(
-				blenc.FromDatastore(
-					datastore.InMemory()),
-				&memBEPersistance{},
-			)
-			if err != nil {
-				panic("Can't create datastore-based EP")
-			}
-			return ret
-		})
-	*/
+
 }
 
 func allGr(f func(ep EntryPoint)) {
@@ -132,7 +104,7 @@ func TestCreateFileOnRoot(t *testing.T) {
 type dummyNode struct {
 }
 
-func (d *dummyNode) clone() Node {
+func (d *dummyNode) clone() (Node, error) {
 	panic("Should not be here")
 }
 
@@ -258,6 +230,9 @@ func TestAttachSubtree(t *testing.T) {
 
 		// Clone dir1 contents (a/b/c) into dir2 (d/e/f) using name g
 		// this should create d/e/f/g and d/e/f/g/file1
+		dumpEP(ep)
+		dump(dir1, "dir1", "")
+		dump(dir2, "dir2", "")
 		dir2.SetEntry("g", dir1)
 		ensureIsFile(t, ep, []string{"d", "e", "f", "g", "file1"}, contents1, attrs1)
 

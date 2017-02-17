@@ -2,10 +2,14 @@ package graph
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"strings"
 	"testing"
+
+	"github.com/cinode/go/blenc"
+	"github.com/cinode/go/datastore"
 )
 
 type helperReader struct {
@@ -115,22 +119,24 @@ func mkDir(t *testing.T, ep EntryPoint, path []string) DirNode {
 	return dir
 }
 
-func dump(n Node, name, ind string) string {
-	switch n.(type) {
+func dump(n Node, name, ind string) {
+	switch n := n.(type) {
 	case DirNode:
-		ret := ind + name + ":\n"
-		/*
-			list, _ := n.List()
-			for name, entry := range list {
-				ret += dump(entry.Node, name, ind+"  ")
-			}
-		*/
-		return ret
+		fmt.Println(ind + name + ":")
+		for i := n.ListEntries(); i.Next(); {
+			node, n, _ := i.GetEntry()
+			dump(node, n, ind+"| ")
+		}
 	case FileNode:
-		return ind + name + "\n"
+		fmt.Println(ind + name)
 	default:
-		return ind + "<unknown>\n"
+		fmt.Println(ind + "<unknown>")
 	}
+}
+
+func dumpEP(ep EntryPoint) {
+	root, _ := ep.Root()
+	dump(root, "/", "")
 }
 
 func ensureIsDir(t *testing.T, ep EntryPoint, path []string) DirNode {
@@ -177,6 +183,7 @@ func ensureIsFile(t *testing.T, ep EntryPoint, path []string,
 	dir := ensureIsDir(t, ep, path[:len(path)-1])
 	node, err := dir.GetEntry(path[len(path)-1])
 	if err == ErrEntryNotFound {
+		dumpEP(ep)
 		t.Fatalf("IsFile: %s does not exist", strings.Join(path, "/"))
 	}
 	/*
@@ -217,4 +224,31 @@ func listAllEntries(t *testing.T, d DirNode) (map[string]Node, error) {
 		ret[name] = node
 	}
 	return ret, nil
+}
+
+type memBEPersistance struct {
+	bid string
+	key string
+}
+
+func (p *memBEPersistance) Get() (bid, key string, err error) {
+	return p.bid, p.key, nil
+}
+
+func (p *memBEPersistance) Set(bid, key string) error {
+	p.bid = bid
+	p.key = key
+	return nil
+}
+
+func blencTest() *epBE {
+	ret, err := FromBE(
+		blenc.FromDatastore(
+			datastore.InMemory()),
+		&memBEPersistance{},
+	)
+	if err != nil {
+		panic("Can't create datastore-based EP")
+	}
+	return ret.(*epBE)
 }

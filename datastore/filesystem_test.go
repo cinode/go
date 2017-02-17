@@ -155,7 +155,6 @@ func TestFilesystemRenameFailure2(t *testing.T) {
 
 	fs, d := temporaryFS()
 	defer d()
-	_ = "breakpoint"
 
 	// Create file where final directory blob should be
 	fName, err := fs.getFileName(emptyBlobName)

@@ -60,7 +60,7 @@ const (
 // operation must be very cheap. A cloned node may be totally independent from
 // the original one if it's a static one (that includes node's children)
 type Node interface {
-	clone() Node
+	clone() (Node, error)
 
 	// TODO: Following functions would be interesting to have here:
 	// IsReadOnly() bool
