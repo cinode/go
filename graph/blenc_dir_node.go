@@ -3,8 +3,6 @@ package graph
 import (
 	"fmt"
 	"sync"
-
-	log "github.com/Sirupsen/logrus"
 )
 
 //go:generate stringer -type=beDirNodeState -output blenc_bedirnodestate.generated.go
@@ -45,18 +43,18 @@ type beDirNode struct {
 	loadFinishedCondition *sync.Cond
 	state                 beDirNodeState
 
-	// Set of epochs that this node and all it's children did not yet save,
-	// this includes changes being saved at the moment
-	unsavedGlobalEpochSet beEpochSet
+	// unsavedEpochSet contains all unsaved epoch set for this node and
+	// all it's children, including those changes which are currently
+	// saved
+	unsavedEpochSet beEpochSet
 
-	// Set of epochs that were changes made externally on this dir node (i.e.
-	// new entries added or removed), this does not include epoch sets inside
-	// children
-	unsavedLocalEpochSet beEpochSet
+	// unsavedPendingEpochSet contains set of unsaved epochs which are
+	// not currently being saved
+	unsavedPendingEpochSet beEpochSet
 
-	// Condition that broadcasts whenever the global epoch set in this node
-	// changes.
-	unsavedGlobalEpochChange *sync.Cond
+	// unsavedEpochSetReduced will broadcast whenever there's a chance
+	// that unsaved epoch set has been reduced
+	unsavedEpochSetReduced *sync.Cond
 }
 
 // rlockLoad prepares node's data for read. Once returned, we can be sure the
@@ -81,7 +79,6 @@ func (d *beDirNode) rlockLoad() (func(), error) {
 
 		case beDirNodeStateUnloaded,
 			beDirNodeStateLoading:
-			//log.Infof("rlockLoad: %s needs loading, state %s", d, d.state)
 
 			// Data not yet loaded, use wlockLoad to read the data / wait for
 			// the load first. Note we have to release the read lock first since
@@ -137,9 +134,7 @@ func (d *beDirNode) wlockLoad() (func(), error) {
 		case beDirNodeStateLoading:
 			// The data is being loaded in another thread now, let's wait for it
 			// to finish. We'll analyze loading result in next loop iteration.
-			log.Infof("lockLoad %v: waiting for load")
 			d.loadFinishedCondition.Wait()
-			log.Infof("lockLoad %v: waiting finished")
 
 		default:
 			panic(fmt.Sprintf("Invalid state: %v", d.state))
@@ -166,15 +161,10 @@ func (d *beDirNode) rlockSync() (func(), error) {
 	// should be MaxInt64 which should be greater than any epoch ever
 	// (it's very unlikely someone would run this software long enough to
 	// get even close to int64 boundary, solar system my die sooner)
-	epochsToClear := d.unsavedGlobalEpochSet
+	epochsToClear := d.unsavedEpochSet
 
-	//log.Infof("rlockSync: %v unsavedEpochSet: %v", d, d.unsavedEpochSet)
-	for d.unsavedGlobalEpochSet.overlaps(&epochsToClear) {
-		log.Infof("rlockSync: %v waiting for sync, "+
-			"epochToClear: %v, unsavedGlobalEpochSet: %v",
-			d, epochsToClear, d.unsavedGlobalEpochSet)
-		d.unsavedGlobalEpochChange.Wait()
-		log.Infof("rlockSync: %v got signal", d)
+	for d.unsavedEpochSet.overlaps(epochsToClear) {
+		d.unsavedEpochSetReduced.Wait()
 	}
 
 	return unlock, err
@@ -281,11 +271,12 @@ func (d *beDirNode) SetEntry(name string, node Node) (Node, error) {
 			return nil, nil, err
 		}
 		epoch := d.ep.generateEpoch()
-		if err = d.parent.propagateUnsavedEpoch(epoch); err != nil {
+		d.unsavedEpochSet.add(epoch)
+		d.unsavedPendingEpochSet.add(epoch)
+
+		if err = d.parent.propagateUnsavedEpoch(epoch, d, d.unsavedEpochSet); err != nil {
 			return nil, nil, err
 		}
-		d.unsavedLocalEpochSet.add(epoch)
-		d.unsavedGlobalEpochSet.add(epoch)
 
 		// Note: Don't have to lock clone to change it, we're the only owner now
 		cloneBase := toBase(clone)
@@ -304,7 +295,7 @@ func (d *beDirNode) SetEntry(name string, node Node) (Node, error) {
 		entry.node = clone
 		entry.bid = cloneBase.bid
 		entry.key = cloneBase.key
-		entry.unsavedEpochSet.clear()
+		entry.unsavedEpochSet = beEpochSetEmpty
 
 		d.nodeToName[clone] = name
 
@@ -335,10 +326,12 @@ func (d *beDirNode) DeleteEntry(name string) error {
 		}
 
 		epoch := d.ep.generateEpoch()
-		if err = d.parent.propagateUnsavedEpoch(epoch); err != nil {
+		d.unsavedEpochSet.add(epoch)
+		d.unsavedPendingEpochSet.add(epoch)
+
+		if err = d.parent.propagateUnsavedEpoch(epoch, d, d.unsavedEpochSet); err != nil {
 			return nil, err
 		}
-		d.unsavedLocalEpochSet.add(epoch)
 
 		delete(d.nodeToName, entry.node)
 		delete(d.entries, name)
@@ -399,16 +392,16 @@ func beDirNodeNew(ep *epBE) *beDirNode {
 		beNodeBase: beNodeBase{
 			ep: ep,
 		},
-		state: beDirNodeStateUnloaded,
-		unsavedGlobalEpochSet: beEpochSetEmpty,
-		unsavedLocalEpochSet:  beEpochSetEmpty,
+		state:                  beDirNodeStateUnloaded,
+		unsavedEpochSet:        beEpochSetEmpty,
+		unsavedPendingEpochSet: beEpochSetEmpty,
 	}
 	ret.loadFinishedCondition = sync.NewCond(&ret.mutex)
-	ret.unsavedGlobalEpochChange = sync.NewCond(ret.mutex.RLocker())
+	ret.unsavedEpochSetReduced = sync.NewCond(ret.mutex.RLocker())
 	return ret
 }
 
-func (d *beDirNode) persistChildChange(n Node, b *beNodeBase, pendingUnsavedEpoch *beEpochSet) error {
+func (d *beDirNode) persistChildChange(n Node, b *beNodeBase, unsavedEpochSet beEpochSet) error {
 	f, err := d.wlockLoad()
 	defer f()
 	if err != nil {
@@ -424,7 +417,16 @@ func (d *beDirNode) persistChildChange(n Node, b *beNodeBase, pendingUnsavedEpoc
 	entry := d.entries[name]
 	entry.bid = b.bid
 	entry.key = b.key
-	entry.unsavedEpochSet = *pendingUnsavedEpoch
+	entry.unsavedEpochSet = unsavedEpochSet
+
+	// this function may only be called as a result of child
+	// bid/key update. This means that child's unsavedEpochSet
+	// could only reduce or remain the same, it can not extend.
+	// This means we should already know about this changes
+	if !d.unsavedEpochSet.contains(unsavedEpochSet) ||
+		!d.unsavedPendingEpochSet.contains(unsavedEpochSet) {
+		panic("Consistency error, epoch set assumptions were wrong")
+	}
 
 	d.scheduleUpdate()
 	return nil
@@ -461,21 +463,27 @@ func (d *beDirNode) scheduleUpdate() {
 func (d *beDirNode) save() {
 
 	defer d.wlock()()
-	log.Infof("startUpdate: %v starting update, unsavedEpochSet: %v",
-		d, d.unsavedGlobalEpochSet)
 
 	if d.state != beDirNodeStateSaveRequested {
 		panic(fmt.Sprintf("Invalid state: %v", d.state))
 	}
 
-	// Clear local pending change epoch range, all local changes are being
-	// persisted right now, let other local changes be added while we're saving
-	d.unsavedLocalEpochSet.clear()
-
 	// Inform that we're saving and there are no other pending changes to save
 	d.state = beDirNodeStateSaving
 
-	// Prepare blob data reader
+	// Recalculate pending epoch set - we're starting new save and we'll gather
+	// all changes we know so far. The only stuff currently left is what's
+	// still unsaved in children
+	d.unsavedPendingEpochSet = beEpochSetEmpty
+	for _, e := range d.entries {
+		d.unsavedPendingEpochSet.addSet(e.unsavedEpochSet)
+	}
+	// Check invariant
+	if !d.unsavedEpochSet.contains(d.unsavedPendingEpochSet) {
+		panic("beDirNode::unsavedEpochSet invariant failure")
+	}
+
+	// Prepare blob data writer
 	rdr, err := beDirBlobFormatSerialize(d.entries)
 	if err != nil {
 		// TODO: Support this, maybe some retries?
@@ -485,26 +493,21 @@ func (d *beDirNode) save() {
 	// Save the blob with mutex unlocked, we already did the reservation by
 	// changing the state to beDirNodeStateSaving so nobody else can start
 	// saving goroutine to save this node.
-	//d.mutex.Unlock()
+	d.mutex.Unlock()
 	bid, key, err := d.ep.be.Save(rdr, d.ep.kg)
-	//d.mutex.Lock()
+	d.mutex.Lock()
 	if err != nil {
 		// TODO: Support this, maybe some retries?
 		panic(fmt.Sprintf("Couldn't save dir blob contents: %v", err))
 	}
 
-	// Have to recalculate current blob's global epoch set. To recalculate this,
-	// we have to consider all sets from children and all those changes in
-	// current dir blob which were scheduled during the update.
-	d.unsavedGlobalEpochSet.clear()
-	d.unsavedGlobalEpochSet.addSet(&d.unsavedLocalEpochSet)
-	for _, de := range d.entries {
-		d.unsavedGlobalEpochSet.addSet(&de.unsavedEpochSet)
-	}
-	defer d.unsavedGlobalEpochChange.Broadcast()
+	// Update current unsavedEpochSet - it will be the value of unsavedPendingEpochSet
+	// when we started the save + all changes queued for save while we were saving blob
+	d.unsavedEpochSet = d.unsavedPendingEpochSet
+	defer d.unsavedEpochSetReduced.Broadcast()
 
 	// Notify that there's new persisted blob
-	err = d.blobUpdated(d, bid, key, &d.unsavedGlobalEpochSet)
+	err = d.blobUpdated(d, bid, key, d.unsavedEpochSet)
 	if err != nil {
 		// TODO: Support this, maybe some retries?
 		panic(fmt.Sprintf("Couldn't save dir blob contents: %v", err))
@@ -524,7 +527,7 @@ func (d *beDirNode) save() {
 	}
 }
 
-func (d *beDirNode) propagateUnsavedEpoch(epoch int64) error {
+func (d *beDirNode) propagateUnsavedEpoch(epoch int64, n Node, unsavedEpochSet beEpochSet) error {
 	if d == nil {
 		return nil
 	}
@@ -533,6 +536,23 @@ func (d *beDirNode) propagateUnsavedEpoch(epoch int64) error {
 	if err != nil {
 		return err
 	}
-	d.unsavedGlobalEpochSet.add(epoch)
-	return d.parent.propagateUnsavedEpoch(epoch)
+
+	name, ok := d.nodeToName[n]
+	if !ok {
+		// Node during deletion, treat as detached
+		return nil
+	}
+
+	d.unsavedEpochSet.add(epoch)
+	d.unsavedPendingEpochSet.add(epoch)
+
+	d.entries[name].unsavedEpochSet = unsavedEpochSet
+
+	if !d.unsavedPendingEpochSet.contains(unsavedEpochSet) ||
+		!d.unsavedEpochSet.contains(unsavedEpochSet) ||
+		!d.unsavedEpochSet.contains(d.unsavedPendingEpochSet) {
+		panic("Epoch propagation invariant failed")
+	}
+
+	return d.parent.propagateUnsavedEpoch(epoch, d, d.unsavedEpochSet)
 }

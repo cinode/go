@@ -75,6 +75,10 @@ func beDirBlobFormatDeserialize(rawReader io.Reader, ep *epBE) (beEntriesMap, er
 			return nil, ErrMalformedDirectoryBlob
 		}
 
+		nodeBase := toBase(node)
+		nodeBase.bid = bid
+		nodeBase.key = key
+
 		entry := beDirNodeEntry{
 			bid:             bid,
 			key:             key,

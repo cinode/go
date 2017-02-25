@@ -15,7 +15,7 @@ var beEpochSetEmpty = beEpochSet{min: math.MaxInt64, max: math.MinInt64}
 //  * in all other cases: min <= max and min != MinInt64 and max != MaxInt64,
 //    this implies that neither MinInt64 nor MaxInt64 can be a valid epoch
 // TODO: This could be converted to a fine-grained set, investigate if there's
-//       enough advantage of using it
+//       enough advantage of using it, bloom filters maybe ?
 type beEpochSet struct {
 	min int64
 	max int64
@@ -46,7 +46,7 @@ func (s *beEpochSet) add(epoch int64) {
 }
 
 // addSet includes other set in the current one
-func (s *beEpochSet) addSet(other *beEpochSet) {
+func (s *beEpochSet) addSet(other beEpochSet) {
 	if other.max > s.max {
 		s.max = other.max
 	}
@@ -71,7 +71,8 @@ func (s *beEpochSet) hasEpoch(epoch int64) bool {
 	return epoch >= s.min && epoch <= s.max
 }
 
-func (s *beEpochSet) overlaps(o *beEpochSet) bool {
+func (s *beEpochSet) overlaps(o beEpochSet) bool {
+
 	min := s.min
 	if o.min > min {
 		min = o.min
@@ -83,4 +84,9 @@ func (s *beEpochSet) overlaps(o *beEpochSet) bool {
 	}
 
 	return min <= max
+}
+
+func (s *beEpochSet) contains(o beEpochSet) bool {
+	return o.min >= s.min &&
+		o.max <= s.max
 }

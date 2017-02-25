@@ -3,8 +3,6 @@ package graph
 import (
 	"io"
 	"sync"
-
-	log "github.com/Sirupsen/logrus"
 )
 
 // beNodeBase is a base class representing a node stored in blenc layer.
@@ -61,11 +59,8 @@ func toBase(instance interface{}) *beNodeBase {
 // rlock locks node's mutext for read, returns functor that will unlock the
 // mutext when called
 func (n *beNodeBase) rlock() func() {
-	log.Infof("rlock start: %v", n)
 	n.mutex.RLock()
-	log.Infof("rlock acquired: %v", n)
 	return func() {
-		log.Infof("runlock: %v", n)
 		n.mutex.RUnlock()
 	}
 }
@@ -73,11 +68,8 @@ func (n *beNodeBase) rlock() func() {
 // wlock locks node's mutext for write, returns functor that will unlock the
 // mutext when called
 func (n *beNodeBase) wlock() func() {
-	log.Infof("wlock start: %v", n)
 	n.mutex.Lock()
-	log.Infof("wlock acquired: %v", n)
 	return func() {
-		log.Infof("wunlock: %v", n)
 		n.mutex.Unlock()
 	}
 }
@@ -91,14 +83,11 @@ func (n *beNodeBase) isEmpty() bool {
 
 // rawReader opens raw reader object for this blob
 func (n *beNodeBase) rawReader() (io.ReadCloser, error) {
-	//log.Infof("rawReader: %v %s %s", n, n.bid, n.key)
 	return n.ep.be.Open(n.bid, n.key)
 }
 
 // blobUpdated is called to notify that the blob of this node has been updated
-func (n *beNodeBase) blobUpdated(node Node, bid string, key string, pendingUnsavedEpoch *beEpochSet) error {
-
-	log.Infof("blobUpdated: %v %s %s %s", n, bid, key, *pendingUnsavedEpoch)
+func (n *beNodeBase) blobUpdated(node Node, bid string, key string, unsavedEpochSet beEpochSet) error {
 
 	// Save bid and key in the blob structure
 	n.bid, n.key = bid, key
@@ -110,7 +99,7 @@ func (n *beNodeBase) blobUpdated(node Node, bid string, key string, pendingUnsav
 
 	if n.parent != nil {
 		// Non-root node does persist itself in parent directory node
-		return n.parent.persistChildChange(node, n, pendingUnsavedEpoch)
+		return n.parent.persistChildChange(node, n, unsavedEpochSet)
 	}
 
 	// Detached node, nothing else to do

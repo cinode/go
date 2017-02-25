@@ -36,14 +36,14 @@ func (b *beFileNode) Save(r io.ReadCloser) error {
 		// changes are immediate without a state when there's some unsaved
 		// contents
 		epoch := b.ep.generateEpoch()
-		if err = b.parent.propagateUnsavedEpoch(epoch); err != nil {
+		if err = b.parent.propagateUnsavedEpoch(epoch, b, beEpochSetEmpty); err != nil {
 			return err
 		}
 	}
 
 	// Immediately notify that out contents changed, the remaining set of
 	// unsaved epochs is always empty for file nodes
-	return b.blobUpdated(b, bid, key, &beEpochSetEmpty)
+	return b.blobUpdated(b, bid, key, beEpochSetEmpty)
 }
 
 func (b *beFileNode) clone() (Node, error) {

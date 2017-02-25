@@ -12,9 +12,9 @@ import (
 
 func allGrP(f func(newEp func() EntryPoint)) {
 
-	// f(func() EntryPoint {
-	// 	return InMemory()
-	// })
+	f(func() EntryPoint {
+		return InMemory()
+	})
 
 	f(func() EntryPoint {
 		return blencTest()
