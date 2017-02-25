@@ -6,23 +6,23 @@ import (
 	"io"
 )
 
-func newBeReader(r io.Reader) *beReader {
-	return &beReader{r: bufio.NewReader(r), err: nil}
+func newBlencReader(r io.Reader) *blencReader {
+	return &blencReader{r: bufio.NewReader(r), err: nil}
 }
 
-type beReader struct {
+type blencReader struct {
 	r   *bufio.Reader
 	err error
 }
 
-func (s *beReader) setErr(err error) bool {
+func (s *blencReader) setErr(err error) bool {
 	if err != nil && s.err == nil {
 		s.err = err
 	}
 	return s.err == nil
 }
 
-func (s *beReader) UInt() uint64 {
+func (s *blencReader) UInt() uint64 {
 	if s.err != nil {
 		return 0
 	}
@@ -35,12 +35,12 @@ func (s *beReader) UInt() uint64 {
 	return ret
 }
 
-func (s *beReader) Buff(b []byte) {
+func (s *blencReader) Buff(b []byte) {
 	_, err := s.r.Read(b)
 	s.setErr(err)
 }
 
-func (s *beReader) String(maxLen uint64) string {
+func (s *blencReader) String(maxLen uint64) string {
 	l := s.UInt()
 	if l > maxLen {
 		s.setErr(ErrMalformedDirectoryBlob)

@@ -241,7 +241,7 @@ func (p *memBEPersistance) Set(bid, key string) error {
 	return nil
 }
 
-func blencTest() *epBE {
+func blencTest() *blencEP {
 	ret, err := FromBE(
 		blenc.FromDatastore(
 			datastore.InMemory()),
@@ -250,5 +250,5 @@ func blencTest() *epBE {
 	if err != nil {
 		panic("Can't create datastore-based EP")
 	}
-	return ret.(*epBE)
+	return ret.(*blencEP)
 }

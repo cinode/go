@@ -6,9 +6,9 @@ import (
 	"io/ioutil"
 )
 
-func beDirBlobFormatSerialize(entries beEntriesMap) (io.ReadCloser, error) {
+func blencDirBlobFormatSerialize(entries blencEntriesMap) (io.ReadCloser, error) {
 	b := bytes.Buffer{}
-	s := newBeWriter(&b)
+	s := newBlencWriter(&b)
 
 	if entries == nil {
 		s.UInt(uint64(0))
@@ -17,7 +17,7 @@ func beDirBlobFormatSerialize(entries beEntriesMap) (io.ReadCloser, error) {
 
 		for n, de := range entries {
 			s.String(n)
-			s.UInt(beNodeType(de.node))
+			s.UInt(blencNodeType(de.node))
 			s.String(de.bid)
 			s.UInt(beKeyInfoTypeValue)
 			s.String(de.key)
@@ -41,15 +41,15 @@ func beDirBlobFormatSerialize(entries beEntriesMap) (io.ReadCloser, error) {
 	return ioutil.NopCloser(bytes.NewReader(b.Bytes())), nil
 }
 
-func beDirBlobFormatDeserialize(rawReader io.Reader, ep *epBE) (beEntriesMap, error) {
-	r := newBeReader(rawReader)
+func blencDirBlobFormatDeserialize(rawReader io.Reader, ep *blencEP) (blencEntriesMap, error) {
+	r := newBlencReader(rawReader)
 
 	// Get number of entries and validate them
 	entriesCnt := r.UInt()
-	if entriesCnt > beDirMaxEntries {
+	if entriesCnt > blencDirMaxEntries {
 		return nil, ErrMalformedDirectoryBlob
 	}
-	entries := make(beEntriesMap)
+	entries := make(blencEntriesMap)
 
 	for ; entriesCnt > 0; entriesCnt-- {
 
@@ -61,29 +61,29 @@ func beDirBlobFormatDeserialize(rawReader io.Reader, ep *epBE) (beEntriesMap, er
 
 		// Create subnode instance
 		nodeType := r.UInt()
-		bid := r.String(beMaxBlobNameLen)
+		bid := r.String(blencMaxBlobNameLen)
 
 		// KeyInfo is limited to a directly embedded key now
 		keyInfoType := r.UInt()
 		if keyInfoType != beKeyInfoTypeValue {
 			return nil, ErrMalformedDirectoryBlob
 		}
-		key := r.String(beMaxKeyLen)
+		key := r.String(blencMaxKeyLen)
 
-		node := beNewNode(nodeType, ep)
+		node := blencNewNode(nodeType, ep)
 		if node == nil {
 			return nil, ErrMalformedDirectoryBlob
 		}
 
-		nodeBase := toBase(node)
+		nodeBase := toBlencNodeBase(node)
 		nodeBase.bid = bid
 		nodeBase.key = key
 
-		entry := beDirNodeEntry{
+		entry := blencDirNodeEntry{
 			bid:             bid,
 			key:             key,
 			node:            node,
-			unsavedEpochSet: beEpochSetEmpty,
+			unsavedEpochSet: blencEpochSetEmpty,
 		}
 		metaCount := r.UInt()
 		if metaCount > 0 {

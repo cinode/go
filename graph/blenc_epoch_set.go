@@ -5,25 +5,25 @@ import (
 	"math"
 )
 
-var beEpochSetEmpty = beEpochSet{min: math.MaxInt64, max: math.MinInt64}
+var blencEpochSetEmpty = blencEpochSet{min: math.MaxInt64, max: math.MinInt64}
 
-// beEpochSet holds a set of unsaved epochs, in contains only the min and max
+// blencEpochSet holds a set of unsaved epochs, in contains only the min and max
 // vale which is enough to hold unsaved epoch set
 // Some rules:
-//  * if beEpochSet is empty, min == MaxInt64 and max = MinInt64, this
+//  * if blencEpochSet is empty, min == MaxInt64 and max = MinInt64, this
 //    eliminates a lot of special cases
 //  * in all other cases: min <= max and min != MinInt64 and max != MaxInt64,
 //    this implies that neither MinInt64 nor MaxInt64 can be a valid epoch
 // TODO: This could be converted to a fine-grained set, investigate if there's
 //       enough advantage of using it, bloom filters maybe ?
-type beEpochSet struct {
+type blencEpochSet struct {
 	min int64
 	max int64
 }
 
 // String returns human-readable set representation considering special cases
 // into account
-func (s beEpochSet) String() string {
+func (s blencEpochSet) String() string {
 	if s.min > s.max {
 		return "{ }"
 	}
@@ -31,12 +31,12 @@ func (s beEpochSet) String() string {
 }
 
 // clear resets the set to empty one
-func (s *beEpochSet) clear() {
-	*s = beEpochSetEmpty
+func (s *blencEpochSet) clear() {
+	*s = blencEpochSetEmpty
 }
 
 // add ensures given epoch is a part of the set
-func (s *beEpochSet) add(epoch int64) {
+func (s *blencEpochSet) add(epoch int64) {
 	if epoch > s.max {
 		s.max = epoch
 	}
@@ -46,7 +46,7 @@ func (s *beEpochSet) add(epoch int64) {
 }
 
 // addSet includes other set in the current one
-func (s *beEpochSet) addSet(other beEpochSet) {
+func (s *blencEpochSet) addSet(other blencEpochSet) {
 	if other.max > s.max {
 		s.max = other.max
 	}
@@ -55,23 +55,23 @@ func (s *beEpochSet) addSet(other beEpochSet) {
 	}
 }
 
-func (s *beEpochSet) isEmpty() bool {
+func (s *blencEpochSet) isEmpty() bool {
 	return s.max < s.min
 }
 
-func (s *beEpochSet) getMinEpoch() int64 {
+func (s *blencEpochSet) getMinEpoch() int64 {
 	return s.min
 }
 
-func (s *beEpochSet) getMaxEpoch() int64 {
+func (s *blencEpochSet) getMaxEpoch() int64 {
 	return s.max
 }
 
-func (s *beEpochSet) hasEpoch(epoch int64) bool {
+func (s *blencEpochSet) hasEpoch(epoch int64) bool {
 	return epoch >= s.min && epoch <= s.max
 }
 
-func (s *beEpochSet) overlaps(o beEpochSet) bool {
+func (s *blencEpochSet) overlaps(o blencEpochSet) bool {
 
 	min := s.min
 	if o.min > min {
@@ -86,7 +86,7 @@ func (s *beEpochSet) overlaps(o beEpochSet) bool {
 	return min <= max
 }
 
-func (s *beEpochSet) contains(o beEpochSet) bool {
+func (s *blencEpochSet) contains(o blencEpochSet) bool {
 	return o.min >= s.min &&
 		o.max <= s.max
 }

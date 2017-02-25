@@ -8,7 +8,7 @@ import (
 )
 
 func dumpBe(n Node) {
-	bn := toBase(n)
+	bn := toBlencNodeBase(n)
 	fmt.Printf("Node: %s, bid: %s\n", bn, bn.bid)
 	if bn.isEmpty() {
 		fmt.Printf("Empty blob")
@@ -19,7 +19,7 @@ func dumpBe(n Node) {
 		fmt.Printf("Blob:\n%s\n", hex.Dump(blobData))
 	}
 	switch n := n.(type) {
-	case *beDirNode:
+	case *blencDirNode:
 		for i := n.ListEntries(); i.Next(); {
 			child, _, _ := i.GetEntry()
 			dumpBe(child)
@@ -28,7 +28,7 @@ func dumpBe(n Node) {
 	}
 }
 
-func TestBeSimpleSerialization(t *testing.T) {
+func TestBlencSimpleSerialization(t *testing.T) {
 	for _, paths := range [][][]string{
 		{{"a"}},
 		{{"a", "b"}},
@@ -42,7 +42,7 @@ func TestBeSimpleSerialization(t *testing.T) {
 		}
 		errCheck(t, ep.sync(), nil)
 		ep2a, err := FromBE(ep.be, ep.p)
-		ep2, _ := ep2a.(*epBE)
+		ep2, _ := ep2a.(*blencEP)
 		errCheck(t, err, nil)
 		for _, p := range paths {
 			ensureIsDir(t, ep2, p)

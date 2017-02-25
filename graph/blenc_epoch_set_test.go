@@ -2,16 +2,16 @@ package graph
 
 import "testing"
 
-func TestBeEpochSetClear(t *testing.T) {
-	set := beEpochSet{}
+func TestBlencEpochSetClear(t *testing.T) {
+	set := blencEpochSet{}
 	set.clear()
 	if !set.isEmpty() {
 		t.Fatal("beEpochSet is not empty after reset")
 	}
 }
 
-func TestBeEpochSetSingleEpoch(t *testing.T) {
-	set := beEpochSet{}
+func TestBlencEpochSetSingleEpoch(t *testing.T) {
+	set := blencEpochSet{}
 	set.clear()
 
 	set.add(7)
@@ -32,10 +32,10 @@ func TestBeEpochSetSingleEpoch(t *testing.T) {
 	}
 }
 
-func TestBeEpochSetMultipleEpochs(t *testing.T) {
+func TestBlencEpochSetMultipleEpochs(t *testing.T) {
 	epochs := []int64{7, 11, 17}
 
-	set := beEpochSet{}
+	set := blencEpochSet{}
 	set.clear()
 
 	for _, e := range epochs {
@@ -61,22 +61,22 @@ func TestBeEpochSetMultipleEpochs(t *testing.T) {
 	}
 }
 
-func TestBeEpochSetAddOtherSet(t *testing.T) {
+func TestBlencEpochSetAddOtherSet(t *testing.T) {
 	epochs1 := []int64{7, 11, 17}
 	epochs2 := []int64{13, 23, 27}
 	epochs3 := []int64{3, 5, 7}
 
-	set1 := beEpochSetEmpty
+	set1 := blencEpochSetEmpty
 	for _, e := range epochs1 {
 		set1.add(e)
 	}
 
-	set2 := beEpochSetEmpty
+	set2 := blencEpochSetEmpty
 	for _, e := range epochs2 {
 		set2.add(e)
 	}
 
-	set3 := beEpochSetEmpty
+	set3 := blencEpochSetEmpty
 	for _, e := range epochs3 {
 		set3.add(e)
 	}
@@ -113,7 +113,7 @@ func TestBeEpochSetAddOtherSet(t *testing.T) {
 	}
 }
 
-func TestBeEpochSetOverlaps(t *testing.T) {
+func TestBlencEpochSetOverlaps(t *testing.T) {
 	for _, d := range []struct {
 		s1, s2   []int64
 		overlaps bool
@@ -125,7 +125,7 @@ func TestBeEpochSetOverlaps(t *testing.T) {
 		{[]int64{1, 5, 7}, []int64{7, 15, 16}, true, "Single value overlap"},
 		{[]int64{1, 5, 7}, []int64{7, 5, 16}, true, "Multiple values overlap"},
 	} {
-		set1, set2 := beEpochSetEmpty, beEpochSetEmpty
+		set1, set2 := blencEpochSetEmpty, blencEpochSetEmpty
 		for _, e := range d.s1 {
 			set1.add(e)
 		}
@@ -146,7 +146,7 @@ func TestBeEpochSetOverlaps(t *testing.T) {
 	}
 }
 
-func TestBeEpochSetContains(t *testing.T) {
+func TestBlencEpochSetContains(t *testing.T) {
 	for _, d := range []struct {
 		s1, s2   []int64
 		contains bool
@@ -158,7 +158,7 @@ func TestBeEpochSetContains(t *testing.T) {
 		{[]int64{1, 5, 7}, []int64{7}, true, "Single value containment"},
 		{[]int64{1, 5, 7}, []int64{1, 5}, true, "Multiple values containment"},
 	} {
-		set1, set2 := beEpochSetEmpty, beEpochSetEmpty
+		set1, set2 := blencEpochSetEmpty, blencEpochSetEmpty
 		for _, e := range d.s1 {
 			set1.add(e)
 		}
@@ -174,8 +174,8 @@ func TestBeEpochSetContains(t *testing.T) {
 	}
 }
 
-func TestBeEpochSetString(t *testing.T) {
-	set := beEpochSetEmpty
+func TestBlencEpochSetString(t *testing.T) {
+	set := blencEpochSetEmpty
 	if set.String() != "{ }" {
 		t.Fatalf("Invalid string representation of empty set")
 	}

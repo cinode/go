@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-// beNodeBase is a base class representing a node stored in blenc layer.
+// blencNodeBase is a base class representing a node stored in blenc layer.
 //
 // Since this data structure must be highly concurrent and protected against
 // simultaneous use, it's important to clearify locking schemes here.
@@ -25,40 +25,40 @@ import (
 // updating blob name and encryption info is done inside parent node and while
 // holding lock of the parent.
 //
-type beNodeBase struct {
-	mutex  sync.RWMutex // Local mutex
-	ep     *epBE        // Entry point object, can not change after initialization
-	isRoot bool         // True if this is the root node for this entrypoint
-	parent *beDirNode   // Parent dir node
-	bid    string       // currently known bid of blob hosting node's data
-	key    string       // currently known key for the blob hosting node's data`
-	path   string       // Path of the node (for debug purposes)
+type blencNodeBase struct {
+	mutex  sync.RWMutex  // Local mutex
+	ep     *blencEP      // Entry point object, can not change after initialization
+	isRoot bool          // True if this is the root node for this entrypoint
+	parent *blencDirNode // Parent dir node
+	bid    string        // currently known bid of blob hosting node's data
+	key    string        // currently known key for the blob hosting node's data`
+	path   string        // Path of the node (for debug purposes)
 }
 
-func (n *beNodeBase) String() string {
+func (n *blencNodeBase) String() string {
 	return n.path
 }
 
-// toBase is a helper function to quickly convert to beNodeBase instance
-func (n *beNodeBase) toBase() *beNodeBase {
+// toBlencNodeBase is a helper function to quickly convert to beNodeBase instance
+func (n *blencNodeBase) toBlencNodeBase() *blencNodeBase {
 	return n
 }
 
-// toBase fetches beNodeBase object from the interface given, nil is returned
+// toBlencNodeBase fetches beNodeBase object from the interface given, nil is returned
 // if could not get beNodeBase pointer
-func toBase(instance interface{}) *beNodeBase {
+func toBlencNodeBase(instance interface{}) *blencNodeBase {
 	be, _ := instance.(interface {
-		toBase() *beNodeBase
+		toBlencNodeBase() *blencNodeBase
 	})
 	if be == nil {
 		return nil
 	}
-	return be.toBase()
+	return be.toBlencNodeBase()
 }
 
 // rlock locks node's mutext for read, returns functor that will unlock the
 // mutext when called
-func (n *beNodeBase) rlock() func() {
+func (n *blencNodeBase) rlock() func() {
 	n.mutex.RLock()
 	return func() {
 		n.mutex.RUnlock()
@@ -67,7 +67,7 @@ func (n *beNodeBase) rlock() func() {
 
 // wlock locks node's mutext for write, returns functor that will unlock the
 // mutext when called
-func (n *beNodeBase) wlock() func() {
+func (n *blencNodeBase) wlock() func() {
 	n.mutex.Lock()
 	return func() {
 		n.mutex.Unlock()
@@ -77,17 +77,17 @@ func (n *beNodeBase) wlock() func() {
 // isEmpty determines if this node is a special case empty node.
 // This should be fixed by using well-known empty bids / keys
 // Note: requires mutext to be rlocked
-func (n *beNodeBase) isEmpty() bool {
+func (n *blencNodeBase) isEmpty() bool {
 	return n.bid == ""
 }
 
 // rawReader opens raw reader object for this blob
-func (n *beNodeBase) rawReader() (io.ReadCloser, error) {
+func (n *blencNodeBase) rawReader() (io.ReadCloser, error) {
 	return n.ep.be.Open(n.bid, n.key)
 }
 
 // blobUpdated is called to notify that the blob of this node has been updated
-func (n *beNodeBase) blobUpdated(node Node, bid string, key string, unsavedEpochSet beEpochSet) error {
+func (n *blencNodeBase) blobUpdated(node Node, bid string, key string, unsavedEpochSet blencEpochSet) error {
 
 	// Save bid and key in the blob structure
 	n.bid, n.key = bid, key

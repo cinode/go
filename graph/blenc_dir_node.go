@@ -5,52 +5,52 @@ import (
 	"sync"
 )
 
-//go:generate stringer -type=beDirNodeState -output blenc_bedirnodestate.generated.go
-type beDirNodeState int
+//go:generate stringer -type=blencDirNodeState -output blencdirnodestate.generated.go
+type blencDirNodeState int
 
 const (
-	beDirNodeStateUnloaded beDirNodeState = iota
-	beDirNodeStateLoading
-	beDirNodeStateIdle
-	beDirNodeStateSaveRequested
-	beDirNodeStateSaving
-	beDirNodeStateLoadError
+	blencDirNodeStateUnloaded blencDirNodeState = iota
+	blencDirNodeStateLoading
+	blencDirNodeStateIdle
+	blencDirNodeStateSaveRequested
+	blencDirNodeStateSaving
+	blencDirNodeStateLoadError
 )
 
 const (
-	beDirMaxEntries  = 1024 // TODO: Take out, allow split directories
-	beMaxBlobNameLen = 128
-	beMaxKeyLen      = 1024
+	blencDirMaxEntries  = 1024 // TODO: Take out, allow split directories
+	blencMaxBlobNameLen = 128
+	blencMaxKeyLen      = 1024
 )
 
-type beDirNodeEntry struct {
+type blencDirNodeEntry struct {
 	bid             string
 	key             string
 	node            Node
-	unsavedEpochSet beEpochSet
+	unsavedEpochSet blencEpochSet
 	// TODO: Metadata
 }
 
-type beNodeToNameMap map[Node]string
-type beEntriesMap map[string]*beDirNodeEntry
+type blencNodeToNameMap map[Node]string
+type blencEntriesMap map[string]*blencDirNodeEntry
 
-type beDirNode struct {
-	beNodeBase
+type blencDirNode struct {
+	blencNodeBase
 
-	nodeToName beNodeToNameMap
-	entries    beEntriesMap
+	nodeToName blencNodeToNameMap
+	entries    blencEntriesMap
 
 	loadFinishedCondition *sync.Cond
-	state                 beDirNodeState
+	state                 blencDirNodeState
 
 	// unsavedEpochSet contains all unsaved epoch set for this node and
 	// all it's children, including those changes which are currently
 	// saved
-	unsavedEpochSet beEpochSet
+	unsavedEpochSet blencEpochSet
 
 	// unsavedPendingEpochSet contains set of unsaved epochs which are
 	// not currently being saved
-	unsavedPendingEpochSet beEpochSet
+	unsavedPendingEpochSet blencEpochSet
 
 	// unsavedEpochSetReduced will broadcast whenever there's a chance
 	// that unsaved epoch set has been reduced
@@ -61,24 +61,26 @@ type beDirNode struct {
 // data is either correctly loaded or an error happened. Returned functor is
 // an unlock routine that must always be called to unlock the node (even if
 // error is returned)
-func (d *beDirNode) rlockLoad() (func(), error) {
+func (d *blencDirNode) rlockLoad() (func(), error) {
 	for {
 		unlock := d.rlock()
 		switch d.state {
-		case beDirNodeStateIdle,
-			beDirNodeStateSaveRequested,
-			beDirNodeStateSaving:
+		case
+			blencDirNodeStateIdle,
+			blencDirNodeStateSaveRequested,
+			blencDirNodeStateSaving:
 			// We're already loaded (could be dirty, but that's not that
 			// important now), all done, can return
 			return unlock, nil
 
-		case beDirNodeStateLoadError:
+		case blencDirNodeStateLoadError:
 			// There was an error while loading blob, return the error to
 			// prevent further corruption of data
 			return unlock, ErrMalformedDirectoryBlob
 
-		case beDirNodeStateUnloaded,
-			beDirNodeStateLoading:
+		case
+			blencDirNodeStateUnloaded,
+			blencDirNodeStateLoading:
 
 			// Data not yet loaded, use wlockLoad to read the data / wait for
 			// the load first. Note we have to release the read lock first since
@@ -109,29 +111,30 @@ func (d *beDirNode) rlockLoad() (func(), error) {
 // data is either correctly loaded or an error happened. Returned functor is
 // an unlock routine that must always be called to unlock the node (even if
 // error is returned)
-func (d *beDirNode) wlockLoad() (func(), error) {
+func (d *blencDirNode) wlockLoad() (func(), error) {
 	unlock := d.wlock()
 	for {
 		switch d.state {
-		case beDirNodeStateIdle,
-			beDirNodeStateSaveRequested,
-			beDirNodeStateSaving:
+		case
+			blencDirNodeStateIdle,
+			blencDirNodeStateSaveRequested,
+			blencDirNodeStateSaving:
 			// We're already loaded (could be dirty, but that's not that
 			// important now), all done, can return
 			return unlock, nil
 
-		case beDirNodeStateLoadError:
+		case blencDirNodeStateLoadError:
 			// There was an error while loading blob, return the error to
 			// prevent further corruption of data
 			return unlock, ErrMalformedDirectoryBlob
 
-		case beDirNodeStateUnloaded:
+		case blencDirNodeStateUnloaded:
 			// The data has not been loaded yet, we're the first thread to
 			// notice that and hold write lock, let's start loading here.
 			// We'll analyze loading result in next loop iteration.
 			d.load()
 
-		case beDirNodeStateLoading:
+		case blencDirNodeStateLoading:
 			// The data is being loaded in another thread now, let's wait for it
 			// to finish. We'll analyze loading result in next loop iteration.
 			d.loadFinishedCondition.Wait()
@@ -145,7 +148,7 @@ func (d *beDirNode) wlockLoad() (func(), error) {
 // rlockSync does sync the state of current dir node - this means all changes
 // that were not saved at the time of entering the sync function must be
 // persisted in the existing bid/key
-func (d *beDirNode) rlockSync() (func(), error) {
+func (d *blencDirNode) rlockSync() (func(), error) {
 	// ensure blob is correctly loaded
 	unlock, err := d.rlockLoad()
 	if err != nil {
@@ -172,11 +175,11 @@ func (d *beDirNode) rlockSync() (func(), error) {
 
 // load tries to read the data from associated blob
 // Requires: wlock
-func (d *beDirNode) load() {
-	d.state = beDirNodeStateLoading
+func (d *blencDirNode) load() {
+	d.state = blencDirNodeStateLoading
 
-	entries := make(beEntriesMap)
-	nodeToName := make(beNodeToNameMap)
+	entries := make(blencEntriesMap)
+	nodeToName := make(blencNodeToNameMap)
 
 	err := func() error {
 		if d.isEmpty() {
@@ -194,14 +197,14 @@ func (d *beDirNode) load() {
 		}
 		defer rc.Close()
 
-		entries, err = beDirBlobFormatDeserialize(rc, d.ep)
+		entries, err = blencDirBlobFormatDeserialize(rc, d.ep)
 		if err != nil {
 			return err
 		}
 
 		for name, entry := range entries {
 			// Fill in missing data
-			base := toBase(entry.node)
+			base := toBlencNodeBase(entry.node)
 			base.parent = d
 			base.ep = d.ep
 			base.path = d.path + "/" + name
@@ -214,17 +217,17 @@ func (d *beDirNode) load() {
 	}()
 
 	if err != nil {
-		d.state = beDirNodeStateLoadError
+		d.state = blencDirNodeStateLoadError
 	} else {
 		d.entries = entries
 		d.nodeToName = nodeToName
-		d.state = beDirNodeStateIdle
+		d.state = blencDirNodeStateIdle
 	}
 	d.loadFinishedCondition.Broadcast()
 
 }
 
-func (d *beDirNode) GetEntry(name string) (Node, error) {
+func (d *blencDirNode) GetEntry(name string) (Node, error) {
 	f, err := d.rlockLoad()
 	defer f()
 	if err != nil {
@@ -239,7 +242,7 @@ func (d *beDirNode) GetEntry(name string) (Node, error) {
 	return ret.node, nil
 }
 
-func (d *beDirNode) HasEntry(name string) (bool, error) {
+func (d *blencDirNode) HasEntry(name string) (bool, error) {
 	f, err := d.rlockLoad()
 	defer f()
 	if err != nil {
@@ -250,11 +253,11 @@ func (d *beDirNode) HasEntry(name string) (bool, error) {
 	return ok, nil
 }
 
-func (d *beDirNode) SetEntry(name string, node Node) (Node, error) {
+func (d *blencDirNode) SetEntry(name string, node Node) (Node, error) {
 
-	clone, old, err := func() (Node, *beNodeBase, error) {
+	clone, old, err := func() (Node, *blencNodeBase, error) {
 
-		base := toBase(node)
+		base := toBlencNodeBase(node)
 		if base == nil || base.ep != d.ep {
 			return nil, nil, ErrIncompatibleNode
 		}
@@ -279,23 +282,23 @@ func (d *beDirNode) SetEntry(name string, node Node) (Node, error) {
 		}
 
 		// Note: Don't have to lock clone to change it, we're the only owner now
-		cloneBase := toBase(clone)
+		cloneBase := toBlencNodeBase(clone)
 		cloneBase.parent = d
 		cloneBase.path = d.path + "/" + name
 
-		var oldChild *beNodeBase
+		var oldChild *blencNodeBase
 		entry := d.entries[name]
 		if entry != nil {
-			oldChild = toBase(entry.node)
+			oldChild = toBlencNodeBase(entry.node)
 		} else {
-			entry = &beDirNodeEntry{}
+			entry = &blencDirNodeEntry{}
 			d.entries[name] = entry
 		}
 
 		entry.node = clone
 		entry.bid = cloneBase.bid
 		entry.key = cloneBase.key
-		entry.unsavedEpochSet = beEpochSetEmpty
+		entry.unsavedEpochSet = blencEpochSetEmpty
 
 		d.nodeToName[clone] = name
 
@@ -311,8 +314,8 @@ func (d *beDirNode) SetEntry(name string, node Node) (Node, error) {
 	return clone, err
 }
 
-func (d *beDirNode) DeleteEntry(name string) error {
-	node, err := func() (*beNodeBase, error) {
+func (d *blencDirNode) DeleteEntry(name string) error {
+	node, err := func() (*blencNodeBase, error) {
 		// This sub-scope is needed to automatically unlock the lock taken below
 		f, err := d.wlockLoad()
 		defer f()
@@ -337,7 +340,7 @@ func (d *beDirNode) DeleteEntry(name string) error {
 		delete(d.entries, name)
 
 		d.scheduleUpdate()
-		return toBase(entry.node), nil
+		return toBlencNodeBase(entry.node), nil
 	}()
 
 	if node != nil {
@@ -349,7 +352,7 @@ func (d *beDirNode) DeleteEntry(name string) error {
 	return err
 }
 
-func (d *beDirNode) ListEntries() EntriesIterator {
+func (d *blencDirNode) ListEntries() EntriesIterator {
 	f, err := d.rlockLoad()
 	defer f()
 	if err != nil {
@@ -368,7 +371,7 @@ func (d *beDirNode) ListEntries() EntriesIterator {
 	return newArrayEntriesIterator(nodes, names)
 }
 
-func (d *beDirNode) clone() (Node, error) {
+func (d *blencDirNode) clone() (Node, error) {
 	// sync and acquire read lock, sync is needed since we need to know the
 	// correct up-to-date (relative to the time sync was requested) bid and key
 	f, err := d.rlockSync()
@@ -377,7 +380,7 @@ func (d *beDirNode) clone() (Node, error) {
 		return nil, err
 	}
 
-	ret := beDirNodeNew(d.ep)
+	ret := blencDirNodeNew(d.ep)
 	ret.bid, ret.key = d.bid, d.key
 	// The clone ends up in state beDirNodeStateUnloaded so it'll have to be
 	// loaded on the first data access. Maybe we could optimize this
@@ -387,21 +390,19 @@ func (d *beDirNode) clone() (Node, error) {
 	return ret, nil
 }
 
-func beDirNodeNew(ep *epBE) *beDirNode {
-	ret := &beDirNode{
-		beNodeBase: beNodeBase{
-			ep: ep,
-		},
-		state:                  beDirNodeStateUnloaded,
-		unsavedEpochSet:        beEpochSetEmpty,
-		unsavedPendingEpochSet: beEpochSetEmpty,
+func blencDirNodeNew(ep *blencEP) *blencDirNode {
+	ret := &blencDirNode{
+		blencNodeBase:          blencNodeBase{ep: ep},
+		state:                  blencDirNodeStateUnloaded,
+		unsavedEpochSet:        blencEpochSetEmpty,
+		unsavedPendingEpochSet: blencEpochSetEmpty,
 	}
 	ret.loadFinishedCondition = sync.NewCond(&ret.mutex)
 	ret.unsavedEpochSetReduced = sync.NewCond(ret.mutex.RLocker())
 	return ret
 }
 
-func (d *beDirNode) persistChildChange(n Node, b *beNodeBase, unsavedEpochSet beEpochSet) error {
+func (d *blencDirNode) persistChildChange(n Node, b *blencNodeBase, unsavedEpochSet blencEpochSet) error {
 	f, err := d.wlockLoad()
 	defer f()
 	if err != nil {
@@ -436,23 +437,23 @@ func (d *beDirNode) persistChildChange(n Node, b *beNodeBase, unsavedEpochSet be
 // This function must consider scenarios when the update is currently
 // in progress, can also delay update process to gather more changes at once.
 // Note: requires wlock to be held
-func (d *beDirNode) scheduleUpdate() {
+func (d *blencDirNode) scheduleUpdate() {
 
 	switch d.state {
-	case beDirNodeStateIdle:
+	case blencDirNodeStateIdle:
 		// Nothing happening with the blob now, start saving immediately
 		// TODO: Shouldn't we add some small delay here to increase the
 		//       probability of gathering more changes at the same time?
-		d.state = beDirNodeStateSaveRequested
+		d.state = blencDirNodeStateSaveRequested
 		go d.save()
 
-	case beDirNodeStateSaving:
+	case blencDirNodeStateSaving:
 		// Save is in progress now, change the state so that if it ends,
 		// another update will be executed. Pending changes will be saved
 		// once the current save proces ends
-		d.state = beDirNodeStateSaveRequested
+		d.state = blencDirNodeStateSaveRequested
 
-	case beDirNodeStateSaveRequested:
+	case blencDirNodeStateSaveRequested:
 		// Ok, already waiting for the update
 
 	default:
@@ -460,21 +461,21 @@ func (d *beDirNode) scheduleUpdate() {
 	}
 }
 
-func (d *beDirNode) save() {
+func (d *blencDirNode) save() {
 
 	defer d.wlock()()
 
-	if d.state != beDirNodeStateSaveRequested {
+	if d.state != blencDirNodeStateSaveRequested {
 		panic(fmt.Sprintf("Invalid state: %v", d.state))
 	}
 
 	// Inform that we're saving and there are no other pending changes to save
-	d.state = beDirNodeStateSaving
+	d.state = blencDirNodeStateSaving
 
 	// Recalculate pending epoch set - we're starting new save and we'll gather
 	// all changes we know so far. The only stuff currently left is what's
 	// still unsaved in children
-	d.unsavedPendingEpochSet = beEpochSetEmpty
+	d.unsavedPendingEpochSet = blencEpochSetEmpty
 	for _, e := range d.entries {
 		d.unsavedPendingEpochSet.addSet(e.unsavedEpochSet)
 	}
@@ -484,7 +485,7 @@ func (d *beDirNode) save() {
 	}
 
 	// Prepare blob data writer
-	rdr, err := beDirBlobFormatSerialize(d.entries)
+	rdr, err := blencDirBlobFormatSerialize(d.entries)
 	if err != nil {
 		// TODO: Support this, maybe some retries?
 		panic(fmt.Sprintf("Couldn't gerenate dir blob contents: %v", err))
@@ -514,11 +515,11 @@ func (d *beDirNode) save() {
 	}
 
 	switch d.state {
-	case beDirNodeStateSaving:
+	case blencDirNodeStateSaving:
 		// All done, nothing has been scheduled while we were saving
-		d.state = beDirNodeStateIdle
+		d.state = blencDirNodeStateIdle
 
-	case beDirNodeStateSaveRequested:
+	case blencDirNodeStateSaveRequested:
 		// New change added while we were saving, reschedule another save
 		go d.save()
 
@@ -527,7 +528,7 @@ func (d *beDirNode) save() {
 	}
 }
 
-func (d *beDirNode) propagateUnsavedEpoch(epoch int64, n Node, unsavedEpochSet beEpochSet) error {
+func (d *blencDirNode) propagateUnsavedEpoch(epoch int64, n Node, unsavedEpochSet blencEpochSet) error {
 	if d == nil {
 		return nil
 	}
