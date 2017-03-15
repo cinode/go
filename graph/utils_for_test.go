@@ -96,11 +96,13 @@ func errCheck(t *testing.T, err error, expected error) {
 }
 
 func mkDir(t *testing.T, ep EntryPoint, path []string) DirNode {
-	dir, err := ep.Root()
+	root, err := ep.Root()
 	errCheck(t, err, nil)
+	return mkSubDir(t, ep, root, path)
+}
 
+func mkSubDir(t *testing.T, ep EntryPoint, dir DirNode, path []string) DirNode {
 	pathStr := ""
-
 	for _, p := range path {
 		pathStr = pathStr + p + "/"
 		node, err := dir.GetEntry(p)
@@ -142,6 +144,10 @@ func dumpEP(ep EntryPoint) {
 func ensureIsDir(t *testing.T, ep EntryPoint, path []string) DirNode {
 	dir, err := ep.Root()
 	errCheck(t, err, nil)
+	return ensureIsSubDir(t, ep, dir, path)
+}
+
+func ensureIsSubDir(t *testing.T, ep EntryPoint, dir DirNode, path []string) DirNode {
 
 	pathStr := ""
 	for _, p := range path {
@@ -179,13 +185,21 @@ func ensureMetadata(t *testing.T, de DirEntry, path []string, metaCheck map[stri
 
 func ensureIsFile(t *testing.T, ep EntryPoint, path []string,
 	contentsCheck []byte, metaCheck map[string]string) FileNode {
+	root, err := ep.Root()
+	errCheck(t, err, nil)
+	return ensureIsSubFile(t, ep, root, path, contentsCheck, metaCheck)
+}
 
-	dir := ensureIsDir(t, ep, path[:len(path)-1])
+func ensureIsSubFile(t *testing.T, ep EntryPoint, dir DirNode, path []string,
+	contentsCheck []byte, metaCheck map[string]string) FileNode {
+
+	dir = ensureIsSubDir(t, ep, dir, path[:len(path)-1])
 	node, err := dir.GetEntry(path[len(path)-1])
 	if err == ErrEntryNotFound {
 		dumpEP(ep)
 		t.Fatalf("IsFile: %s does not exist", strings.Join(path, "/"))
 	}
+
 	/*
 		if metaCheck != nil {
 			ensureMetadata(t, de, path, metaCheck)
@@ -194,6 +208,7 @@ func ensureIsFile(t *testing.T, ep EntryPoint, path []string,
 	*/
 	if f, ok := node.(FileNode); ok {
 		if contentsCheck != nil {
+
 			r, err := f.Open()
 			errCheck(t, err, nil)
 			defer r.Close()
@@ -251,4 +266,13 @@ func blencTest() *blencEP {
 		panic("Can't create datastore-based EP")
 	}
 	return ret.(*blencEP)
+}
+
+func mustPanic(t *testing.T, f func()) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("Did not panic")
+		}
+	}()
+	f()
 }

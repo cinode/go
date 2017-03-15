@@ -279,6 +279,39 @@ func TestListChildren(t *testing.T) {
 	})
 }
 
+func TestHasNode(t *testing.T) {
+	allGr(func(ep EntryPoint) {
+		mkDir(t, ep, []string{"a", "b"})
+		mkDir(t, ep, []string{"a", "c"})
+
+		d := mkDir(t, ep, []string{"a"})
+
+		for _, e := range []struct {
+			name   string
+			exists bool
+		}{
+			{"a", false},
+			{"b", true},
+			{"c", true},
+			{"d", false},
+		} {
+
+			ok, err := d.HasEntry(e.name)
+			errCheck(t, err, nil)
+			if e.exists {
+				if ok == false {
+					t.Fatal("HasEntry returned false for existing entry")
+				}
+			} else {
+				if ok == true {
+
+					t.Fatal("HasEntry returned true for non-existing entry")
+				}
+			}
+		}
+	})
+}
+
 func TestListChildrenCancel(t *testing.T) {
 	allGr(func(ep EntryPoint) {
 		dir := ensureIsDir(t, ep, []string{})
@@ -367,6 +400,20 @@ func TestListChildrenCancel(t *testing.T) {
 	})
 }
 
+func TestSaveOverwrite(t *testing.T) {
+
+	contents1 := []byte("test1")
+	contents2 := []byte("test2")
+
+	allGr(func(ep EntryPoint) {
+		dir := mkDir(t, ep, []string{"a", "b", "c"})
+		fl := saveFile(t, ep, dir, "d", contents1, nil)
+		ensureIsFile(t, ep, []string{"a", "b", "c", "d"}, contents1, nil)
+		errCheck(t, fl.Save(bReader(contents2, nil, nil, nil)), nil)
+		ensureIsFile(t, ep, []string{"a", "b", "c", "d"}, contents2, nil)
+	})
+}
+
 func TestSaveError(t *testing.T) {
 
 	contents1 := []byte("test1")
@@ -420,5 +467,79 @@ func TestSaveConcurrent(t *testing.T) {
 		}
 
 		wg.Wait()
+	})
+}
+
+func TestEmptyFileNode(t *testing.T) {
+	allGr(func(ep EntryPoint) {
+		f, err := ep.NewDetachedFileNode()
+		errCheck(t, err, nil)
+		r, err := f.Open()
+		errCheck(t, err, nil)
+		b, err := ioutil.ReadAll(r)
+		errCheck(t, err, nil)
+		errCheck(t, r.Close(), nil)
+
+		if len(b) != 0 {
+			t.Fatal("New file node contains non-empty data")
+		}
+	})
+}
+
+func TestEmptyDirNode(t *testing.T) {
+	allGr(func(ep EntryPoint) {
+		d, err := ep.NewDetachedDirNode()
+		errCheck(t, err, nil)
+		list, err := listAllEntries(t, d)
+		errCheck(t, err, nil)
+		if len(list) != 0 {
+			t.Fatal("New dir node is not empty")
+		}
+	})
+}
+
+func TestDetachedComplexStructure(t *testing.T) {
+	allGr(func(ep EntryPoint) {
+		d, err := ep.NewDetachedDirNode()
+		errCheck(t, err, nil)
+
+		dirs := []struct {
+			path []string
+		}{
+			{[]string{"b", "c", "d"}},
+			{[]string{"b", "e", "f"}},
+			{[]string{"b", "e", "g"}},
+		}
+
+		for _, e := range dirs {
+			mkSubDir(t, ep, d, e.path)
+		}
+
+		d2 := mkSubDir(t, ep, d, dirs[0].path)
+		for _, b := range blobs {
+			saveFile(t, ep, d2, b.name, b.data, nil)
+		}
+
+		// ---------------------
+		for _, e := range dirs {
+			ensureIsSubDir(t, ep, d, e.path)
+		}
+		for _, b := range blobs {
+			ensureIsSubFile(t, ep, d, []string{"b", "c", "d", b.name}, b.data, nil)
+		}
+
+		// ---------------------
+
+		// Attach new structure to root
+		d3 := mkDir(t, ep, []string{"x"})
+		_, err = d3.SetEntry("y", d)
+		errCheck(t, err, nil)
+
+		for _, e := range dirs {
+			ensureIsDir(t, ep, append([]string{"x", "y"}, e.path...))
+		}
+		for _, b := range blobs {
+			ensureIsFile(t, ep, []string{"x", "y", "b", "c", "d", b.name}, b.data, nil)
+		}
 	})
 }
