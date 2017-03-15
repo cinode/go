@@ -78,8 +78,11 @@ func (ep *blencEP) Root() (DirNode, error) {
 // only inside this EntryPoint
 func (ep *blencEP) NewDetachedDirNode() (DirNode, error) {
 	ret := blencDirNodeNew(ep)
-	ret.state = blencDirNodeStateIdle
 	ret.path = "@d"
+	// Skip loading phase by setting up empty dir
+	ret.state = blencDirNodeStateIdle
+	ret.entries = make(blencEntriesMap)
+	ret.nodeToName = make(blencNodeToNameMap)
 	return ret, nil
 }
 
