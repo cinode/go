@@ -49,3 +49,43 @@ func TestBlencSimpleSerialization(t *testing.T) {
 		}
 	}
 }
+
+func TestBlencNodeFactoryTypes(t *testing.T) {
+	ep := blencTest()
+
+	for _, ty := range []uint64{
+		dirTypeBasicDir,
+		dirTypeBasicFile,
+	} {
+		n := blencNewNode(ty, ep)
+		if n == nil {
+			t.Fatalf("Couldn't create node of type: %v", ty)
+		}
+
+		if blencNodeType(n) != ty {
+			t.Fatalf("Generated node type: %v is not correctly detected", ty)
+		}
+	}
+}
+
+func TestBlencNodeFactoryErrors(t *testing.T) {
+	ep := blencTest()
+
+	for _, ty := range []uint64{
+		0, 3, 100,
+	} {
+		n := blencNewNode(ty, ep)
+		if n != nil {
+			t.Fatalf("Created node of unknown type: %v", ty)
+		}
+	}
+
+	mustPanic(t, func() {
+		blencNodeType(nil)
+	})
+
+	mustPanic(t, func() {
+		blencNodeType(&dummyNode{})
+	})
+
+}

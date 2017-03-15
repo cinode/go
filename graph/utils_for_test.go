@@ -276,3 +276,10 @@ func mustPanic(t *testing.T, f func()) {
 	}()
 	f()
 }
+
+type dummyNode struct {
+}
+
+func (d *dummyNode) clone() (Node, error) {
+	panic("Should not be here")
+}

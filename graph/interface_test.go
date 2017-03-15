@@ -101,13 +101,6 @@ func TestCreateFileOnRoot(t *testing.T) {
 	})
 }
 
-type dummyNode struct {
-}
-
-func (d *dummyNode) clone() (Node, error) {
-	panic("Should not be here")
-}
-
 func TestIncompatibleNode(t *testing.T) {
 	allGrP(func(newEp func() EntryPoint) {
 		ep1 := newEp()
@@ -230,9 +223,9 @@ func TestAttachSubtree(t *testing.T) {
 
 		// Clone dir1 contents (a/b/c) into dir2 (d/e/f) using name g
 		// this should create d/e/f/g and d/e/f/g/file1
-		dumpEP(ep)
-		dump(dir1, "dir1", "")
-		dump(dir2, "dir2", "")
+		// dumpEP(ep)
+		// dump(dir1, "dir1", "")
+		// dump(dir2, "dir2", "")
 		dir2.SetEntry("g", dir1)
 		ensureIsFile(t, ep, []string{"d", "e", "f", "g", "file1"}, contents1, attrs1)
 
