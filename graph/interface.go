@@ -71,6 +71,17 @@ type Node interface {
 	//GetParent() Node
 }
 
+// MetadataMap does contain collection of item's metadata entries
+type MetadataMap map[string]string
+
+func (m MetadataMap) clone() MetadataMap {
+	ret := MetadataMap{}
+	for k, v := range m {
+		ret[k] = v
+	}
+	return ret
+}
+
 // EntriesIterator does return an iterator that will list dir entries
 // Iterating over directory list entries should be done as follows:
 //
@@ -82,37 +93,63 @@ type Node interface {
 //     ...
 //   }
 //
+// The iteration itself may not be thread safe - ensure to iterate
+// using one goroutine only or to use proper synchronization and locking.
+// Cancel() method is guaranteed to be thread-safe however and can be
+// called from any goroutine(s).
+//
 type EntriesIterator interface {
 
-	// Advance to next element, this must be called for first element too
+	// Next advance to next element, this must be called for first element too
 	Next() bool
 
-	// Return current entry
-	GetEntry() (Node, string, error)
+	// GetEntry return current entry
+	GetEntry() (node Node, name string, metadataMap MetadataMap, err error)
 
-	// Cancels iteration, if other thread/goroutine is currently waiting
-	// for the Next() call it must end immediately with true, next call to
-	// GetEntry() must return an error ErrIterationCancelled
+	// Cancel signals that the iteration should be stopped as soon as possible.
+	// This call is thread-safe. If other thread/goroutine is currently waiting
+	// on the Next() call, it should end with true, next call to GetEntry()
+	// must return ErrIterationCancelled.
 	Cancel()
+}
+
+// MetadataChange contains information on how to change metadata for given entry
+// during entry update
+type MetadataChange struct {
+	// DontClear set to true will ensure old metadata entries are not cleared before
+	// modifications
+	DontClear bool
+
+	// Clear contains list of metadata keys to clear, note this field will be irrelevant
+	// if DontClear is set to false
+	Clear []string
+
+	// Set contains set of metadata values to set
+	Set MetadataMap
 }
 
 // DirNode represents a directory node which does gather other entries
 type DirNode interface {
 	Node
 
-	// TODO: Add metatada operations
-
 	// GetEntry looks for one child entry of given name in this directory
 	// If given entry does not exist, ErrNotFound is returned
 	GetEntry(name string) (Node, error)
+
+	// GetEntryMetadataValue returns single metadata value for given entry
+	GetEntryMetadataValue(name string, metaName string) (string, error)
+
+	// GetEntryMetadataMap returns metadata map for given entry
+	GetEntryMetadataMap(name string) (MetadataMap, error)
 
 	// HasEntry returns true if given entry exists, false otherwise
 	HasEntry(name string) (bool, error)
 
 	// SetEntry creates new or updates existing entry, the node given will be
 	// cloned (according to node's clone strategy), the clone is returned back
-	// from this function
-	SetEntry(name string, node Node) (Node, error)
+	// from this function. If medatata is not nil, entry's metadata will be
+	// changed to the map provided, otherwise it will remain untouched.
+	SetEntry(name string, node Node, metadataChange *MetadataChange) (Node, error)
 
 	// DeleteEntry removes given entry if found, ErrEntryNotFound is returned if
 	// entry does not exist
