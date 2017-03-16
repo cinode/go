@@ -112,13 +112,13 @@ func TestIncompatibleNode(t *testing.T) {
 		f2, err := ep2.NewDetachedFileNode()
 		errCheck(t, err, nil)
 
-		_, err = d1.SetEntry("test", f2)
+		_, err = d1.SetEntry("test", f2, nil)
 		errCheck(t, err, ErrIncompatibleNode)
 
-		_, err = d1.SetEntry("test", &dummyNode{})
+		_, err = d1.SetEntry("test", &dummyNode{}, nil)
 		errCheck(t, err, ErrIncompatibleNode)
 
-		_, err = d1.SetEntry("test", nil)
+		_, err = d1.SetEntry("test", nil, nil)
 		errCheck(t, err, ErrIncompatibleNode)
 	})
 }
@@ -154,7 +154,7 @@ func TestSubDir(t *testing.T) {
 		d, err := ep.NewDetachedDirNode()
 		errCheck(t, err, nil)
 
-		_, err = r.SetEntry("d", d)
+		_, err = r.SetEntry("d", d, nil)
 		errCheck(t, err, nil)
 
 		node, err := r.GetEntry("d")
@@ -226,7 +226,7 @@ func TestAttachSubtree(t *testing.T) {
 		// dumpEP(ep)
 		// dump(dir1, "dir1", "")
 		// dump(dir2, "dir2", "")
-		dir2.SetEntry("g", dir1)
+		dir2.SetEntry("g", dir1, nil)
 		ensureIsFile(t, ep, []string{"d", "e", "f", "g", "file1"}, contents1, attrs1)
 
 		// Change original file, ensure the cloned one did not change
@@ -235,7 +235,7 @@ func TestAttachSubtree(t *testing.T) {
 		ensureIsFile(t, ep, []string{"a", "b", "c", "file1"}, contents2, attrs2)
 
 		// Clone file only, this must not propagate attributes
-		dir2.SetEntry("file1", fl)
+		dir2.SetEntry("file1", fl, nil)
 		ensureIsFile(t, ep, []string{"d", "e", "f", "file1"}, contents1, map[string]string{})
 
 		// Delete original file, ensure the clone is still there
@@ -314,10 +314,10 @@ func TestListChildrenCancel(t *testing.T) {
 		if !i.Next() {
 			t.Fatal("After iteration has been cancelled, Next must succeed")
 		}
-		node, name, err := i.GetEntry()
+		node, name, meta, err := i.GetEntry()
 		errCheck(t, err, ErrIterationCancelled)
-		if node != nil || name != "" {
-			t.Fatal("Node or name returned in case of iteration error")
+		if node != nil || name != "" || meta != nil {
+			t.Fatal("Node, name or metadata returned in case of iteration error")
 		}
 
 		saveFile(t, ep, dir, "entry", []byte{}, nil)
@@ -325,29 +325,32 @@ func TestListChildrenCancel(t *testing.T) {
 		if !i.Next() {
 			t.Fatal("Interation error")
 		}
-		node, name, err = i.GetEntry()
+		node, name, meta, err = i.GetEntry()
 		if name != "entry" {
 			t.Fatal("Invalid entry from the iteration")
 		}
 		if node == nil {
 			t.Fatal("Node must not be null")
 		}
+		if meta == nil {
+			t.Fatal("Metadata must be null")
+		}
 		errCheck(t, err, nil)
 
 		i.Cancel()
-		node, name, err = i.GetEntry()
+		node, name, meta, err = i.GetEntry()
 		errCheck(t, err, ErrIterationCancelled)
-		if node != nil || name != "" {
-			t.Fatal("Node or name returned in case of iteration error")
+		if node != nil || name != "" || meta != nil {
+			t.Fatal("Node, name or metadata returned in case of iteration error")
 		}
 
 		if !i.Next() {
 			t.Fatal("After iteration has been cancelled, Next must succeed")
 		}
-		node, name, err = i.GetEntry()
+		node, name, meta, err = i.GetEntry()
 		errCheck(t, err, ErrIterationCancelled)
-		if node != nil || name != "" {
-			t.Fatal("Node or name returned in case of iteration error")
+		if node != nil || name != "" || meta != nil {
+			t.Fatal("Node, name or metadata returned in case of iteration error")
 		}
 
 		// A small test for multithreaded interface
@@ -364,13 +367,13 @@ func TestListChildrenCancel(t *testing.T) {
 					select {
 					case <-done:
 						// Last chance test, GetEntry must return error
-						_, _, err = i.GetEntry()
+						_, _, _, err = i.GetEntry()
 						errCheck(t, err, ErrIterationCancelled)
 						sync <- true
 						return
 
 					default:
-						_, _, err := i.GetEntry()
+						_, _, _, err := i.GetEntry()
 						if err == ErrIterationCancelled {
 							<-done
 							sync <- true
@@ -525,7 +528,7 @@ func TestDetachedComplexStructure(t *testing.T) {
 
 		// Attach new structure to root
 		d3 := mkDir(t, ep, []string{"x"})
-		_, err = d3.SetEntry("y", d)
+		_, err = d3.SetEntry("y", d, nil)
 		errCheck(t, err, nil)
 
 		for _, e := range dirs {

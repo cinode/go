@@ -10,14 +10,20 @@ type arrayEntriesIterator struct {
 	current    int
 	nodes      []Node
 	names      []string
+	metadata   []MetadataMap
 }
 
-func newArrayEntriesIterator(nodes []Node, names []string) EntriesIterator {
+func newArrayEntriesIterator(
+	nodes []Node,
+	names []string,
+	metadata []MetadataMap,
+) EntriesIterator {
 	return &arrayEntriesIterator{
 		cancelFlag: 0,
 		current:    -1,
 		nodes:      nodes,
 		names:      names,
+		metadata:   metadata,
 	}
 }
 
@@ -36,14 +42,17 @@ func (m *arrayEntriesIterator) Next() bool {
 	return true
 }
 
-func (m *arrayEntriesIterator) GetEntry() (Node, string, error) {
+func (m *arrayEntriesIterator) GetEntry() (Node, string, MetadataMap, error) {
 	if m.isCancelled() {
-		return nil, "", ErrIterationCancelled
+		return nil, "", nil, ErrIterationCancelled
 	}
 	if m.current < 0 || m.current >= len(m.nodes) {
-		return nil, "", io.EOF
+		return nil, "", nil, io.EOF
 	}
-	return m.nodes[m.current], m.names[m.current], nil
+	return m.nodes[m.current],
+		m.names[m.current],
+		m.metadata[m.current],
+		nil
 }
 
 func (m *arrayEntriesIterator) Cancel() {
@@ -64,8 +73,8 @@ func (e *errorEntriesIterator) Next() bool {
 	return true
 }
 
-func (e *errorEntriesIterator) GetEntry() (Node, string, error) {
-	return nil, "", e.err
+func (e *errorEntriesIterator) GetEntry() (Node, string, MetadataMap, error) {
+	return nil, "", nil, e.err
 }
 
 func (e *errorEntriesIterator) Cancel() {

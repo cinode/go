@@ -10,6 +10,7 @@ import (
 
 type memoryDirEntry struct {
 	n Node
+	m MetadataMap
 }
 
 func (m *memoryDirEntry) clone() memoryDirEntry {
@@ -17,7 +18,10 @@ func (m *memoryDirEntry) clone() memoryDirEntry {
 	if err != nil {
 		panic("Memory-based nodes must not return errors while cloning")
 	}
-	return memoryDirEntry{n: n}
+	return memoryDirEntry{
+		n: n,
+		m: m.m.clone(),
+	}
 }
 
 type memoryDirEntryMap map[string]memoryDirEntry
@@ -98,13 +102,35 @@ func (m *memoryDirNode) GetEntry(name string) (Node, error) {
 	return e.n, nil
 }
 
+func (m *memoryDirNode) GetEntryMetadataValue(name string, metaName string) (string, error) {
+	defer m.rlock()()
+	e, ok := m.e[name]
+	if !ok {
+		return "", ErrEntryNotFound
+	}
+	v, ok := e.m[metaName]
+	if !ok {
+		return "", ErrMetadataKeyNotFound
+	}
+	return v, nil
+}
+
+func (m *memoryDirNode) GetEntryMetadataMap(name string) (MetadataMap, error) {
+	defer m.rlock()()
+	e, ok := m.e[name]
+	if !ok {
+		return nil, ErrEntryNotFound
+	}
+	return e.m.clone(), nil
+}
+
 func (m *memoryDirNode) HasEntry(name string) (bool, error) {
 	defer m.rlock()()
 	_, ok := m.e[name]
 	return ok, nil
 }
 
-func (m *memoryDirNode) SetEntry(name string, node Node) (Node, error) {
+func (m *memoryDirNode) SetEntry(name string, node Node, metadataChange *MetadataChange) (Node, error) {
 
 	mnb, ok := node.(interface {
 		toMNB() *memoryNodeBase
@@ -114,9 +140,12 @@ func (m *memoryDirNode) SetEntry(name string, node Node) (Node, error) {
 	}
 
 	defer m.lock()()
-	// TODO: Recursion check?
 	clone, _ := node.clone()
-	m.e[name] = memoryDirEntry{n: clone}
+	newMeta := metadataChangesApplied(m.e[name].m, metadataChange)
+	m.e[name] = memoryDirEntry{
+		n: clone,
+		m: newMeta,
+	}
 	return clone, nil
 }
 
@@ -134,14 +163,17 @@ func (m *memoryDirNode) ListEntries() EntriesIterator {
 
 	nodes := make([]Node, len(m.e))
 	names := make([]string, len(m.e))
+	metadata := make([]MetadataMap, len(m.e))
 
 	i := 0
 	for name, node := range m.e {
 		nodes[i] = node.n
 		names[i] = name
+		// We have to clone here since metadata may be altering while we iterate
+		metadata[i] = node.m.clone()
 		i++
 	}
-	return newArrayEntriesIterator(nodes, names)
+	return newArrayEntriesIterator(nodes, names, metadata)
 }
 
 func (m *memoryDirNode) clone() (Node, error) {

@@ -73,7 +73,7 @@ func saveFile(t *testing.T, ep EntryPoint, dir DirNode, name string, b []byte, m
 	if dir == nil {
 		return fn
 	}
-	node, err := dir.SetEntry(name, fn)
+	node, err := dir.SetEntry(name, fn, nil)
 	errCheck(t, err, nil)
 	if node, ok := node.(FileNode); ok {
 		return node
@@ -109,7 +109,7 @@ func mkSubDir(t *testing.T, ep EntryPoint, dir DirNode, path []string) DirNode {
 		if err == ErrEntryNotFound {
 			newDir, err2 := ep.NewDetachedDirNode()
 			errCheck(t, err2, nil)
-			node, err = dir.SetEntry(p, newDir)
+			node, err = dir.SetEntry(p, newDir, nil)
 		}
 		errCheck(t, err, nil)
 		if d, ok := node.(DirNode); !ok {
@@ -126,7 +126,7 @@ func dump(n Node, name, ind string) {
 	case DirNode:
 		fmt.Println(ind + name + ":")
 		for i := n.ListEntries(); i.Next(); {
-			node, n, _ := i.GetEntry()
+			node, n, _, _ := i.GetEntry()
 			dump(node, n, ind+"| ")
 		}
 	case FileNode:
@@ -229,7 +229,7 @@ func ensureIsSubFile(t *testing.T, ep EntryPoint, dir DirNode, path []string,
 func listAllEntries(t *testing.T, d DirNode) (map[string]Node, error) {
 	ret := make(map[string]Node)
 	for it := d.ListEntries(); it.Next(); {
-		node, name, err := it.GetEntry()
+		node, name, _, err := it.GetEntry()
 		if err != nil {
 			return nil, nil
 		}
