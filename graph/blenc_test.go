@@ -89,3 +89,37 @@ func TestBlencNodeFactoryErrors(t *testing.T) {
 	})
 
 }
+
+func TestBlencMetadataLoading(t *testing.T) {
+	ep := blencTest()
+
+	root, err := ep.Root()
+	errCheck(t, err, nil)
+
+	d := mkDir(t, ep, []string{"a"})
+
+	root.SetEntry("a", d, &MetadataChange{
+		Set: MetadataMap{
+			"k1": "v1",
+			"k2": "v2",
+			"k3": "v3",
+			"k4": "v4",
+		},
+	})
+
+	errCheck(t, ep.sync(), nil)
+
+	ep2a, err := FromBE(ep.be, ep.p)
+	ep2, _ := ep2a.(*blencEP)
+	errCheck(t, err, nil)
+
+	ensureIsDir(t, ep2, []string{"a"})
+	root2, err := ep2.Root()
+	errCheck(t, err, nil)
+	ensureMetadata(t, root2, "a", []string{"a"}, MetadataMap{
+		"k1": "v1",
+		"k2": "v2",
+		"k3": "v3",
+		"k4": "v4",
+	})
+}

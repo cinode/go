@@ -141,7 +141,10 @@ func (m *memoryDirNode) SetEntry(name string, node Node, metadataChange *Metadat
 
 	defer m.lock()()
 	clone, _ := node.clone()
-	newMeta := metadataChangesApplied(m.e[name].m, metadataChange)
+	newMeta, err := metadataChange.apply(m.e[name].m)
+	if err != nil {
+		return nil, err
+	}
 	m.e[name] = memoryDirEntry{
 		n: clone,
 		m: newMeta,

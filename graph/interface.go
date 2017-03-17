@@ -116,9 +116,9 @@ type EntriesIterator interface {
 // MetadataChange contains information on how to change metadata for given entry
 // during entry update
 type MetadataChange struct {
-	// DontClear set to true will ensure old metadata entries are not cleared before
+	// KeepOld set to true will ensure old metadata entries are not cleared before
 	// modifications
-	DontClear bool
+	KeepOld bool
 
 	// Clear contains list of metadata keys to clear, note this field will be irrelevant
 	// if DontClear is set to false

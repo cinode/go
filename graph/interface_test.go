@@ -539,8 +539,8 @@ func TestMetadataSet(t *testing.T) {
 		errCheck(t, err, ErrEntryNotFound)
 
 		d.SetEntry("b", f, &MetadataChange{
-			DontClear: true,
-			Set:       MetadataMap{"k3": "v3"},
+			KeepOld: true,
+			Set:     MetadataMap{"k3": "v3"},
 		})
 
 		ensureMetadata(t, d, "b", []string{"a", "b"}, MetadataMap{
@@ -550,13 +550,107 @@ func TestMetadataSet(t *testing.T) {
 		})
 
 		d.SetEntry("b", f, &MetadataChange{
-			DontClear: true,
-			Clear:     []string{"k1"},
+			KeepOld: true,
+			Clear:   []string{"k1"},
 		})
 
 		ensureMetadata(t, d, "b", []string{"a", "b"}, MetadataMap{
 			"k2": "v2",
 			"k3": "v3",
 		})
+	})
+}
+
+func TestMetadataLimits(t *testing.T) {
+	allGr(func(ep EntryPoint) {
+		r := ensureIsDir(t, ep, []string{})
+		f, err := ep.NewDetachedFileNode()
+		errCheck(t, err, nil)
+
+		for _, d := range []struct {
+			set MetadataMap
+			err error
+		}{
+			{ // Metadata key can not be empty
+				MetadataMap{"": "v"},
+				ErrInvalidMetadataKey,
+			},
+			{ // Metadata key of one character is ok
+				MetadataMap{"k": "v"},
+				nil,
+			},
+			{ // Metadata key at maximum length
+				MetadataMap{strings.Repeat("a", MaxMetadataKeyLength): "v"},
+				nil,
+			},
+			{ // Metadata key over maximum length
+				MetadataMap{strings.Repeat("a", MaxMetadataKeyLength+1): "v"},
+				ErrInvalidMetadataKey,
+			},
+			{ // Metadata value of zero length
+				MetadataMap{"k": ""},
+				nil,
+			},
+			{ // Metadata value at maximum length
+				MetadataMap{"k": strings.Repeat("a", MaxMetadataValueLength)},
+				nil,
+			},
+			{ // Metadata value over maximum length
+				MetadataMap{"k": strings.Repeat("a", MaxMetadataValueLength+1)},
+				ErrInvalidMetadataValue,
+			},
+			{ // Max metadata entries
+				func() MetadataMap {
+					ret := MetadataMap{}
+					for i := 0; i < MaxMetadataKeysInNode; i++ {
+						ret[fmt.Sprintf("k%d", i)] = fmt.Sprintf("v%d", i)
+					}
+					return ret
+				}(),
+				nil,
+			},
+			{ // More than max metadata values
+				func() MetadataMap {
+					ret := MetadataMap{}
+					for i := 0; i < MaxMetadataKeysInNode+1; i++ {
+						ret[fmt.Sprintf("k%d", i)] = fmt.Sprintf("v%d", i)
+					}
+					return ret
+				}(),
+				ErrTooManyMetadataKeys,
+			},
+			{ // Maximum metadata usage
+				func() MetadataMap {
+					ret := MetadataMap{}
+					for i := 0; i < MaxMetadataKeysInNode; i++ {
+						keybuf := fmt.Sprintf("k%d", i) + strings.Repeat("k", MaxMetadataKeyLength)
+						valbuf := fmt.Sprintf("v%d", i) + strings.Repeat("v", MaxMetadataValueLength)
+						ret[keybuf[:MaxMetadataKeyLength]] = valbuf[:MaxMetadataValueLength]
+					}
+					return ret
+				}(),
+				nil,
+			},
+		} {
+			_, err = r.SetEntry("f", f, &MetadataChange{Set: d.set})
+			errCheck(t, err, d.err)
+		}
+
+		// Updating metadata can not introduce to many keys
+		_, err = r.SetEntry("f", f, &MetadataChange{Set: func() MetadataMap {
+			ret := MetadataMap{}
+			for i := 0; i < MaxMetadataKeysInNode; i++ {
+				ret[fmt.Sprintf("k%d", i)] = fmt.Sprintf("v%d", i)
+			}
+			return ret
+		}()})
+		errCheck(t, err, nil)
+		_, err = r.SetEntry("f", f, &MetadataChange{
+			KeepOld: true,
+			Set: MetadataMap{
+				"oneMoreKey": "oneMoreValue",
+			},
+		})
+		errCheck(t, err, ErrTooManyMetadataKeys)
 	})
 }

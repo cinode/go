@@ -28,22 +28,23 @@ func TestMetadataMapChange(t *testing.T) {
 		"DontClearAndNewKeyOnMapWithEntries": {
 			MetadataMap{"k1": "v1", "k2": "v2"},
 			&MetadataChange{
-				DontClear: true,
-				Set:       MetadataMap{"k3": "v3", "k4": "v4"},
+				KeepOld: true,
+				Set:     MetadataMap{"k3": "v3", "k4": "v4"},
 			},
 			MetadataMap{"k1": "v1", "k2": "v2", "k3": "v3", "k4": "v4"},
 		},
 		"DontClearAndClearEntriesAndNewKeyOnMapWithEntries": {
 			MetadataMap{"k1": "v1", "k2": "v2"},
 			&MetadataChange{
-				DontClear: true,
-				Clear:     []string{"k2", "k3"},
-				Set:       MetadataMap{"k3": "v3", "k4": "v4"},
+				KeepOld: true,
+				Clear:   []string{"k2", "k3"},
+				Set:     MetadataMap{"k3": "v3", "k4": "v4"},
 			},
 			MetadataMap{"k1": "v1", "k3": "v3", "k4": "v4"},
 		},
 	} {
-		applied := metadataChangesApplied(d.orig, d.change)
+		applied, err := d.change.apply(d.orig)
+		errCheck(t, err, nil)
 		for k, v := range applied {
 			v2, ok := d.result[k]
 			if !ok {

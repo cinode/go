@@ -308,6 +308,18 @@ func (d *blencDirNode) SetEntry(name string, node Node, metaChange *MetadataChan
 		if err != nil {
 			return nil, nil, err
 		}
+
+		// Test first if metadata updates are ok, don't do any change
+		// if there will be an error
+		oldMeta := (MetadataMap)(nil)
+		if d.entries[name] != nil {
+			oldMeta = d.entries[name].metadata
+		}
+		newMetadataMap, err := metaChange.apply(oldMeta)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		epoch := d.ep.generateEpoch()
 		d.unsavedEpochSet.add(epoch)
 		d.unsavedPendingEpochSet.add(epoch)
@@ -334,7 +346,7 @@ func (d *blencDirNode) SetEntry(name string, node Node, metaChange *MetadataChan
 		entry.bid = cloneBase.bid
 		entry.key = cloneBase.key
 		entry.unsavedEpochSet = blencEpochSetEmpty
-		entry.metadata = metadataChangesApplied(entry.metadata, metaChange)
+		entry.metadata = newMetadataMap
 
 		d.nodeToName[clone] = name
 
