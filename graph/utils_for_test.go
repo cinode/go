@@ -65,7 +65,7 @@ func (h *helperReader) Close() error {
 	return h.onClose()
 }
 
-func saveFile(t *testing.T, ep EntryPoint, dir DirNode, name string, b []byte, meta map[string]string) FileNode {
+func saveFile(t *testing.T, ep EntryPoint, dir DirNode, name string, b []byte, meta MetadataMap) FileNode {
 	fn, err := ep.NewDetachedFileNode()
 	errCheck(t, err, nil)
 	err = fn.Save(bReader(b, nil, nil, nil))
@@ -73,7 +73,7 @@ func saveFile(t *testing.T, ep EntryPoint, dir DirNode, name string, b []byte, m
 	if dir == nil {
 		return fn
 	}
-	node, err := dir.SetEntry(name, fn, nil)
+	node, err := dir.SetEntry(name, fn, &MetadataChange{Set: meta})
 	errCheck(t, err, nil)
 	if node, ok := node.(FileNode); ok {
 		return node
@@ -167,21 +167,39 @@ func ensureIsSubDir(t *testing.T, ep EntryPoint, dir DirNode, path []string) Dir
 	return dir
 }
 
-/*
-func ensureMetadata(t *testing.T, de DirEntry, path []string, metaCheck map[string]string) {
+func ensureMetadata(
+	t *testing.T,
+	d DirNode,
+	entry string,
+	path []string,
+	metaCheck map[string]string,
+) {
+	metadata, err := d.GetEntryMetadataMap(entry)
+	errCheck(t, err, nil)
 
-	if len(metaCheck) != len(de.Metadata) {
-		t.Fatalf("IsFile: %s has invalid metadata (count does not match)",
+	if len(metaCheck) != len(metadata) {
+		t.Fatalf("ensureMetadata: %s has invalid metadata (count does not match)",
 			strings.Join(path, "/"))
 	}
 	for k, v := range metaCheck {
-		if vc, ok := de.Metadata[k]; !ok || v != vc {
-			t.Fatalf("IsFile: %s has invalid metadata (value does not exist or does not match)",
-				strings.Join(path, "/"))
+		vc, ok := metadata[k]
+		if !ok {
+			t.Fatalf("ensureMetadata: %s has invalid metadata (value under key '%s' does not exist or does not exist)",
+				strings.Join(path, "/"), k)
+		}
+		if vc != v {
+			t.Fatalf("ensureMetadata: %s has invalid metadata (value under key '%s' is incorrect, is '%s', should be '%s')",
+				strings.Join(path, "/"), k, vc, v)
+		}
+	}
+
+	for k := range metadata {
+		if _, ok := metaCheck[k]; !ok {
+			t.Fatalf("ensureMetadata: %s has invalid metadata (extra key '%s')",
+				strings.Join(path, "/"), k)
 		}
 	}
 }
-*/
 
 func ensureIsFile(t *testing.T, ep EntryPoint, path []string,
 	contentsCheck []byte, metaCheck map[string]string) FileNode {
@@ -200,12 +218,11 @@ func ensureIsSubFile(t *testing.T, ep EntryPoint, dir DirNode, path []string,
 		t.Fatalf("IsFile: %s does not exist", strings.Join(path, "/"))
 	}
 
-	/*
-		if metaCheck != nil {
-			ensureMetadata(t, de, path, metaCheck)
-			errCheck(t, err, nil)
-		}
-	*/
+	if metaCheck != nil {
+		ensureMetadata(t, dir, path[len(path)-1], path, metaCheck)
+		errCheck(t, err, nil)
+	}
+
 	if f, ok := node.(FileNode); ok {
 		if contentsCheck != nil {
 

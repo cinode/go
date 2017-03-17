@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
+	"sort"
 )
 
 func blencDirBlobFormatSerialize(entries blencEntriesMap) (io.ReadCloser, error) {
@@ -22,15 +23,17 @@ func blencDirBlobFormatSerialize(entries blencEntriesMap) (io.ReadCloser, error)
 			s.UInt(beKeyInfoTypeValue)
 			s.String(de.key)
 
-			// TODO: Metadata
-			s.UInt(0)
-			/*
-			   s.UInt(uint64(len(de.Metadata)))
-			   for k, v := range de.Metadata {
-			       s.String(k)
-			       s.String(v)
-			   }
-			*/
+			// Metadata, always store in sorted (utf-8 bytewise) order
+			s.UInt(uint64(len(de.metadata)))
+			keys := []string{}
+			for k := range de.metadata {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				s.String(k)
+				s.String(de.metadata[k])
+			}
 		}
 	}
 
@@ -83,24 +86,26 @@ func blencDirBlobFormatDeserialize(rawReader io.Reader, ep *blencEP) (blencEntri
 			bid:             bid,
 			key:             key,
 			node:            node,
+			metadata:        MetadataMap{},
 			unsavedEpochSet: blencEpochSetEmpty,
 		}
+
+		// prevMetaKey will be used to find out if
+		// items are stored in sorted order and to
+		// prevent empty keys
+		prevMetaKey := ""
 		metaCount := r.UInt()
-		if metaCount > 0 {
+		if metaCount > MaxMetadataKeysInNode {
 			return nil, ErrMalformedDirectoryBlob
 		}
-		/*
-		   if metaCount > maxMetaEntries {
-		       return ErrMalformedDirectoryBlob
-		   }
-		   for ; metaCount > 0; metaCount-- {
-		       key := r.String(maxMetaKeyLen)
-		       if _, exists := entry.Metadata[key]; exists || key == "" {
-		           return ErrMalformedDirectoryBlob
-		       }
-		       entry.Metadata[key] = r.String(maxMetaValueLen)
-		   }
-		*/
+		for i := metaCount; i > 0; i-- {
+			key := r.String(MaxMetadataKeyLength)
+			if key <= prevMetaKey {
+				return nil, ErrMalformedDirectoryBlob
+			}
+			prevMetaKey = key // Save for next iteration
+			entry.metadata[key] = r.String(MaxMetadataValueLength)
+		}
 
 		entries[name] = &entry
 	}

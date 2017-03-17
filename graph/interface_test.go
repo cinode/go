@@ -166,42 +166,6 @@ func TestSubDir(t *testing.T) {
 	})
 }
 
-/*
-func TestModifyEntriesMap(t *testing.T) {
-
-	meta := map[string]string{
-		"meta1key": "meta1value",
-		"meta2key": "meta2value",
-		"meta3key": "meta3value",
-	}
-
-	allGr(func(ep EntryPoint) {
-		d, err := ep.Root()
-		errCheck(t, err, nil)
-		saveFile(t, ep, d, "file", []byte("file"), meta)
-
-		// Metadata entries in Child()-returned value must not propagate
-		entry, err := d.GetEntry("file")
-		errCheck(t, err, nil)
-		entry.Metadata["meta4key"] = "meta4value"
-		ensureIsFile(t, ep, []string{"file"}, nil, meta)
-
-		// Metadata entries in List()-returned value must not propagate
-		ls, err := d.List()
-		errCheck(t, err, nil)
-		ls["file"].Metadata["meta5key"] = "meta5value"
-		ensureIsFile(t, ep, []string{"file"}, nil, meta)
-
-		// Changing map returned from List() must not propagate
-		ls, err = d.List()
-		errCheck(t, err, nil)
-		ls["file2"] = ls["file"]
-		_, err = d.GetEntry("file2")
-		errCheck(t, err, ErrNotFound)
-	})
-}
-*/
-
 func TestAttachSubtree(t *testing.T) {
 	allGr(func(ep EntryPoint) {
 
@@ -537,5 +501,62 @@ func TestDetachedComplexStructure(t *testing.T) {
 		for _, b := range blobs {
 			ensureIsFile(t, ep, []string{"x", "y", "b", "c", "d", b.name}, b.data, nil)
 		}
+	})
+}
+
+func TestMetadataSet(t *testing.T) {
+	allGr(func(ep EntryPoint) {
+		d := mkDir(t, ep, []string{"a"})
+		f := saveFile(t, ep, d, "b", []byte("test"), MetadataMap{
+			"k1": "v1",
+			"k2": "v2",
+		})
+
+		ensureMetadata(t, d, "b", []string{"a", "b"}, MetadataMap{
+			"k1": "v1",
+			"k2": "v2",
+		})
+
+		v, err := d.GetEntryMetadataValue("b", "k1")
+		errCheck(t, err, nil)
+		if v != "v1" {
+			t.Fatalf("Invalid metadata value")
+		}
+
+		v, err = d.GetEntryMetadataValue("b", "k3")
+		errCheck(t, err, ErrMetadataKeyNotFound)
+		if v != "" {
+			t.Fatalf("Non-empty string returned for non-existing key")
+		}
+
+		v, err = d.GetEntryMetadataValue("a", "k1")
+		errCheck(t, err, ErrEntryNotFound)
+		if v != "" {
+			t.Fatalf("Non-empty string returned for non-existing key")
+		}
+
+		_, err = d.GetEntryMetadataMap("a")
+		errCheck(t, err, ErrEntryNotFound)
+
+		d.SetEntry("b", f, &MetadataChange{
+			DontClear: true,
+			Set:       MetadataMap{"k3": "v3"},
+		})
+
+		ensureMetadata(t, d, "b", []string{"a", "b"}, MetadataMap{
+			"k1": "v1",
+			"k2": "v2",
+			"k3": "v3",
+		})
+
+		d.SetEntry("b", f, &MetadataChange{
+			DontClear: true,
+			Clear:     []string{"k1"},
+		})
+
+		ensureMetadata(t, d, "b", []string{"a", "b"}, MetadataMap{
+			"k2": "v2",
+			"k3": "v3",
+		})
 	})
 }

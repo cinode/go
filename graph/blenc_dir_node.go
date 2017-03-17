@@ -28,7 +28,7 @@ type blencDirNodeEntry struct {
 	key             string
 	node            Node
 	unsavedEpochSet blencEpochSet
-	// TODO: Metadata
+	metadata        MetadataMap
 }
 
 type blencNodeToNameMap map[Node]string
@@ -242,6 +242,41 @@ func (d *blencDirNode) GetEntry(name string) (Node, error) {
 	return ret.node, nil
 }
 
+func (d *blencDirNode) GetEntryMetadataValue(name string, metaName string) (string, error) {
+	f, err := d.rlockLoad()
+	defer f()
+	if err != nil {
+		return "", err
+	}
+
+	entry, ok := d.entries[name]
+	if !ok {
+		return "", ErrEntryNotFound
+	}
+
+	value, ok := entry.metadata[metaName]
+	if !ok {
+		return "", ErrMetadataKeyNotFound
+	}
+
+	return value, nil
+}
+
+func (d *blencDirNode) GetEntryMetadataMap(name string) (MetadataMap, error) {
+	f, err := d.rlockLoad()
+	defer f()
+	if err != nil {
+		return nil, err
+	}
+
+	entry, ok := d.entries[name]
+	if !ok {
+		return nil, ErrEntryNotFound
+	}
+
+	return entry.metadata.clone(), nil
+}
+
 func (d *blencDirNode) HasEntry(name string) (bool, error) {
 	f, err := d.rlockLoad()
 	defer f()
@@ -253,7 +288,7 @@ func (d *blencDirNode) HasEntry(name string) (bool, error) {
 	return ok, nil
 }
 
-func (d *blencDirNode) SetEntry(name string, node Node) (Node, error) {
+func (d *blencDirNode) SetEntry(name string, node Node, metaChange *MetadataChange) (Node, error) {
 
 	clone, old, err := func() (Node, *blencNodeBase, error) {
 
@@ -299,6 +334,7 @@ func (d *blencDirNode) SetEntry(name string, node Node) (Node, error) {
 		entry.bid = cloneBase.bid
 		entry.key = cloneBase.key
 		entry.unsavedEpochSet = blencEpochSetEmpty
+		entry.metadata = metadataChangesApplied(entry.metadata, metaChange)
 
 		d.nodeToName[clone] = name
 
@@ -361,14 +397,16 @@ func (d *blencDirNode) ListEntries() EntriesIterator {
 
 	nodes := make([]Node, len(d.entries))
 	names := make([]string, len(d.entries))
+	metadata := make([]MetadataMap, len(d.entries))
 	i := 0
 	for name, node := range d.entries {
 		nodes[i] = node.node
 		names[i] = name
+		metadata[i] = node.metadata.clone()
 		i++
 	}
 
-	return newArrayEntriesIterator(nodes, names)
+	return newArrayEntriesIterator(nodes, names, metadata)
 }
 
 func (d *blencDirNode) clone() (Node, error) {

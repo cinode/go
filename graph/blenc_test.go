@@ -21,7 +21,7 @@ func dumpBe(n Node) {
 	switch n := n.(type) {
 	case *blencDirNode:
 		for i := n.ListEntries(); i.Next(); {
-			child, _, _ := i.GetEntry()
+			child, _, _, _ := i.GetEntry()
 			dumpBe(child)
 		}
 	default:
