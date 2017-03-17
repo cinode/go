@@ -15,11 +15,11 @@ type blencReader struct {
 	err error
 }
 
-func (s *blencReader) setErr(err error) bool {
+func (s *blencReader) setErr(err error) error {
 	if err != nil && s.err == nil {
 		s.err = err
 	}
-	return s.err == nil
+	return s.err
 }
 
 func (s *blencReader) UInt() uint64 {
@@ -28,7 +28,7 @@ func (s *blencReader) UInt() uint64 {
 	}
 
 	ret, err := binary.ReadUvarint(s.r)
-	if !s.setErr(err) {
+	if s.setErr(err) != nil {
 		return 0
 	}
 
@@ -40,10 +40,10 @@ func (s *blencReader) Buff(b []byte) {
 	s.setErr(err)
 }
 
-func (s *blencReader) String(maxLen uint64) string {
+func (s *blencReader) String(maxLen uint64, maxLenErr error) string {
 	l := s.UInt()
 	if l > maxLen {
-		s.setErr(ErrMalformedDirectoryBlob)
+		s.setErr(maxLenErr)
 		return ""
 	}
 	b := make([]byte, l)

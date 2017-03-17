@@ -2,38 +2,49 @@ package graph
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"io/ioutil"
 	"sort"
+)
+
+var (
+	errBlencToManyDirEntries      = errors.New("To many directory entries")
+	errBlencEntryNameToLong       = errors.New("Entry name to long")
+	errBlencIncorectEntryType     = errors.New("Incorrect entry type")
+	errBlencEmptyEntryName        = errors.New("Empty entry name")
+	errBlencIncorectKeyInfoType   = errors.New("Incorrect key info type")
+	errBlencBlobNameToLong        = errors.New("Blob name to long")
+	errBlencBlobKeyToLong         = errors.New("Blob key to long")
+	errBlencDuplicatedEntry       = errors.New("Duplicated entry name")
+	errBlencEmptyMetadataKey      = errors.New("Empty metadata key")
+	errBlencDuplicatedMetadataKey = errors.New("Duplicated metadata key")
+	errBlencUnorderedMetadataKeys = errors.New("Metadata keys are not correctly ordered")
 )
 
 func blencDirBlobFormatSerialize(entries blencEntriesMap) (io.ReadCloser, error) {
 	b := bytes.Buffer{}
 	s := newBlencWriter(&b)
 
-	if entries == nil {
-		s.UInt(uint64(0))
-	} else {
-		s.UInt(uint64(len(entries)))
+	s.UInt(uint64(len(entries)))
 
-		for n, de := range entries {
-			s.String(n)
-			s.UInt(blencNodeType(de.node))
-			s.String(de.bid)
-			s.UInt(beKeyInfoTypeValue)
-			s.String(de.key)
+	for n, de := range entries {
+		s.String(n)
+		s.UInt(blencNodeType(de.node))
+		s.String(de.bid)
+		s.UInt(beKeyInfoTypeValue)
+		s.String(de.key)
 
-			// Metadata, always store in sorted (utf-8 bytewise) order
-			s.UInt(uint64(len(de.metadata)))
-			keys := []string{}
-			for k := range de.metadata {
-				keys = append(keys, k)
-			}
-			sort.Strings(keys)
-			for _, k := range keys {
-				s.String(k)
-				s.String(de.metadata[k])
-			}
+		// Metadata, always store in sorted (utf-8 bytewise) order
+		s.UInt(uint64(len(de.metadata)))
+		keys := []string{}
+		for k := range de.metadata {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			s.String(k)
+			s.String(de.metadata[k])
 		}
 	}
 
@@ -50,32 +61,35 @@ func blencDirBlobFormatDeserialize(rawReader io.Reader, ep *blencEP) (blencEntri
 	// Get number of entries and validate them
 	entriesCnt := r.UInt()
 	if entriesCnt > blencDirMaxEntries {
-		return nil, ErrMalformedDirectoryBlob
+		return nil, r.setErr(errBlencToManyDirEntries)
 	}
 	entries := make(blencEntriesMap)
 
 	for ; entriesCnt > 0; entriesCnt-- {
 
 		// Get the name and validate it
-		name := r.String(MaxEntryNameLength)
-		if _, found := entries[name]; found || name == "" {
-			return nil, ErrMalformedDirectoryBlob
+		name := r.String(MaxEntryNameLength, errBlencEntryNameToLong)
+		if name == "" {
+			return nil, r.setErr(errBlencEmptyEntryName)
+		}
+		if _, found := entries[name]; found {
+			return nil, r.setErr(errBlencDuplicatedEntry)
 		}
 
 		// Create subnode instance
 		nodeType := r.UInt()
-		bid := r.String(blencMaxBlobNameLen)
+		bid := r.String(blencMaxBlobNameLen, errBlencBlobNameToLong)
 
 		// KeyInfo is limited to a directly embedded key now
 		keyInfoType := r.UInt()
 		if keyInfoType != beKeyInfoTypeValue {
-			return nil, ErrMalformedDirectoryBlob
+			return nil, r.setErr(errBlencIncorectKeyInfoType)
 		}
-		key := r.String(blencMaxKeyLen)
+		key := r.String(blencMaxKeyLen, errBlencBlobKeyToLong)
 
 		node := blencNewNode(nodeType, ep)
 		if node == nil {
-			return nil, ErrMalformedDirectoryBlob
+			return nil, r.setErr(errBlencIncorectEntryType)
 		}
 
 		nodeBase := toBlencNodeBase(node)
@@ -96,15 +110,21 @@ func blencDirBlobFormatDeserialize(rawReader io.Reader, ep *blencEP) (blencEntri
 		prevMetaKey := ""
 		metaCount := r.UInt()
 		if metaCount > MaxMetadataKeysInNode {
-			return nil, ErrMalformedDirectoryBlob
+			return nil, r.setErr(ErrTooManyMetadataKeys)
 		}
 		for i := metaCount; i > 0; i-- {
-			key := r.String(MaxMetadataKeyLength)
+			key := r.String(MaxMetadataKeyLength, ErrInvalidMetadataKey)
 			if key <= prevMetaKey {
-				return nil, ErrMalformedDirectoryBlob
+				if key == "" {
+					return nil, r.setErr(errBlencEmptyMetadataKey)
+				}
+				if key == prevMetaKey {
+					return nil, r.setErr(errBlencDuplicatedMetadataKey)
+				}
+				return nil, r.setErr(errBlencUnorderedMetadataKeys)
 			}
 			prevMetaKey = key // Save for next iteration
-			entry.metadata[key] = r.String(MaxMetadataValueLength)
+			entry.metadata[key] = r.String(MaxMetadataValueLength, ErrInvalidMetadataValue)
 		}
 
 		entries[name] = &entry

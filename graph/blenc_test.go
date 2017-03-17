@@ -1,8 +1,10 @@
 package graph
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"testing"
 )
@@ -122,4 +124,75 @@ func TestBlencMetadataLoading(t *testing.T) {
 		"k3": "v3",
 		"k4": "v4",
 	})
+}
+
+func TestMalformedBlencDirBlobs(t *testing.T) {
+	ep := blencTest()
+	for _, d := range []struct {
+		hex string
+		err error
+	}{
+		{ // Empty blob - no entries count value
+			"", io.EOF,
+		},
+		{ // Empty directory - valid one`
+			"00", nil,
+		},
+		{ // Missing directory entries
+			"01", io.EOF,
+		},
+		{ // To many directory entries
+			"FFFFFF0F", errBlencToManyDirEntries,
+		},
+		{ // Correct single-entry direcotry
+			"0101610100010000", nil,
+		},
+		{ // Incorrect entry type
+			"0101617F00010000", errBlencIncorectEntryType,
+		},
+		{ // Incorrect key info type
+			"0101610100000000", errBlencIncorectKeyInfoType,
+		},
+		{ // Empty entry name
+			"01000100000000", errBlencEmptyEntryName,
+		},
+		{ // Entry name to long
+			"01FFFFFFFF7F", errBlencEntryNameToLong,
+		},
+		{ // Duplicated entry name
+			"020161010001000001610100010000", errBlencDuplicatedEntry,
+		},
+		{ // Correct dir with two entries
+			"020161010001000001620100010000", nil,
+		},
+		{ // Correct dir with one metadata value
+			"0101610100010001016100", nil,
+		},
+		{ // Empty metadata key
+			"01016101000100010000", errBlencEmptyMetadataKey,
+		},
+		{ // Duplicated metadata key
+			"0101610100010002016100016100", errBlencDuplicatedMetadataKey,
+		},
+		{ // Correct two metadata entries
+			"0101610100010002016100016200", nil,
+		},
+		{ // Incorrectly ordered metadata keys
+			"0101610100010002016200016100", errBlencUnorderedMetadataKeys,
+		},
+		{ // Too many metadata keys
+			"01016101000100FFFFFFFF7F", ErrTooManyMetadataKeys,
+		},
+		{ // Metadata key to long
+			"0101610100010001FFFFFFFF7F", ErrInvalidMetadataKey,
+		},
+		{ // Metadata value to long
+			"01016101000100010161FFFFFFFF7F", ErrInvalidMetadataValue,
+		},
+	} {
+		b, err := hex.DecodeString(d.hex)
+		errCheck(t, err, nil)
+		_, err = blencDirBlobFormatDeserialize(bytes.NewReader(b), ep)
+		errCheck(t, err, d.err)
+	}
 }
