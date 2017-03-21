@@ -36,8 +36,10 @@ func (s *blencReader) UInt() uint64 {
 }
 
 func (s *blencReader) Buff(b []byte) {
-	_, err := s.r.Read(b)
-	s.setErr(err)
+	if s.err == nil {
+		_, err := s.r.Read(b)
+		s.setErr(err)
+	}
 }
 
 func (s *blencReader) String(maxLen uint64, maxLenErr error) string {
