@@ -21,15 +21,18 @@ func (s *blencWriter) setErr(err error) bool {
 	return s.err != nil
 }
 
+func (s *blencWriter) Buff(b []byte) {
+	if s.err != nil {
+		return
+	}
+	_, err := s.w.Write(b)
+	s.setErr(err)
+}
+
 func (s *blencWriter) UInt(i uint64) {
 	buff := make([]byte, 16)
 	n := binary.PutUvarint(buff, i)
 	s.Buff(buff[:n])
-}
-
-func (s *blencWriter) Buff(b []byte) {
-	_, err := s.w.Write(b)
-	s.setErr(err)
 }
 
 func (s *blencWriter) String(str string) {
