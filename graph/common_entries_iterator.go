@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"io"
 	"sync/atomic"
 )
 
@@ -35,19 +34,25 @@ func (m *arrayEntriesIterator) Next() bool {
 	if m.isCancelled() {
 		return true
 	}
-	if m.current+1 >= len(m.nodes) {
-		return false
-	}
 	m.current++
-	return true
+	if m.current < len(m.nodes) {
+		return true
+	} else if m.current == len(m.nodes) {
+		return false
+	} else {
+		panic("EntriesIterator: Next() called after previous Next() returned false")
+	}
 }
 
 func (m *arrayEntriesIterator) GetEntry() (Node, string, MetadataMap, error) {
 	if m.isCancelled() {
 		return nil, "", nil, ErrIterationCancelled
 	}
-	if m.current < 0 || m.current >= len(m.nodes) {
-		return nil, "", nil, io.EOF
+	if m.current < 0 {
+		panic("EntriesIterator: GetEntry() called before Next()")
+	}
+	if m.current >= len(m.nodes) {
+		panic("EntriesIterator: GetEntry() called after Next() returned false")
 	}
 	return m.nodes[m.current],
 		m.names[m.current],
