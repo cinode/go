@@ -654,3 +654,23 @@ func TestMetadataLimits(t *testing.T) {
 		errCheck(t, err, ErrTooManyMetadataKeys)
 	})
 }
+
+func TestRecursiveAttachment(t *testing.T) {
+	allGr(func(ep EntryPoint) {
+
+		saveFile(t, ep, mkDir(t, ep, []string{"a", "b", "c", "d"}), "fl1", []byte("TestFile1"), nil)
+		saveFile(t, ep, mkDir(t, ep, []string{"a", "b", "e"}), "fl2", []byte("TestFile2"), nil)
+
+		childDir := ensureIsDir(t, ep, []string{"a", "b", "e"})
+		parentDir := ensureIsDir(t, ep, []string{"a"})
+
+		_, err := childDir.SetEntry("at", parentDir, nil)
+		errCheck(t, err, nil)
+
+		ensureIsFile(t, ep, []string{"a", "b", "e", "at", "b", "c", "d", "fl1"}, []byte("TestFile1"), nil)
+		ensureIsFile(t, ep, []string{"a", "b", "e", "at", "b", "e", "fl2"}, []byte("TestFile2"), nil)
+
+		_, err = ensureIsDir(t, ep, []string{"a", "b", "e", "at", "b", "e"}).GetEntry("at")
+		errCheck(t, err, ErrEntryNotFound)
+	})
+}
