@@ -15,9 +15,7 @@ type memoryDirEntry struct {
 
 func (m *memoryDirEntry) clone() memoryDirEntry {
 	n, err := m.n.clone()
-	if err != nil {
-		panic("Memory-based nodes must not return errors while cloning")
-	}
+	panicOn(err != nil, "Memory-based nodes must not return errors while cloning")
 	return memoryDirEntry{
 		n: n,
 		m: m.m.clone(),

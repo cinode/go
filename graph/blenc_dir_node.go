@@ -474,10 +474,10 @@ func (d *blencDirNode) persistChildChange(n Node, b *blencNodeBase, unsavedEpoch
 	// bid/key update. This means that child's unsavedEpochSet
 	// could only reduce or remain the same, it can not extend.
 	// This means we should already know about this changes
-	if !d.unsavedEpochSet.contains(unsavedEpochSet) ||
-		!d.unsavedPendingEpochSet.contains(unsavedEpochSet) {
-		panic("Consistency error, epoch set assumptions were wrong")
-	}
+	panicOn(
+		!d.unsavedEpochSet.contains(unsavedEpochSet) ||
+			!d.unsavedPendingEpochSet.contains(unsavedEpochSet),
+		"Consistency error, epoch set assumptions were wrong")
 
 	d.scheduleUpdate()
 	return nil
@@ -515,9 +515,8 @@ func (d *blencDirNode) save() {
 
 	defer d.wlock()()
 
-	if d.state != blencDirNodeStateSaveRequested {
-		panic(fmt.Sprintf("Invalid state: %v", d.state))
-	}
+	panicOn(d.state != blencDirNodeStateSaveRequested,
+		fmt.Sprintf("Invalid state: %v", d.state))
 
 	// Inform that we're saving and there are no other pending changes to save
 	d.state = blencDirNodeStateSaving
@@ -530,9 +529,8 @@ func (d *blencDirNode) save() {
 		d.unsavedPendingEpochSet.addSet(e.unsavedEpochSet)
 	}
 	// Check invariant
-	if !d.unsavedEpochSet.contains(d.unsavedPendingEpochSet) {
-		panic("beDirNode::unsavedEpochSet invariant failure")
-	}
+	panicOn(!d.unsavedEpochSet.contains(d.unsavedPendingEpochSet),
+		"beDirNode::unsavedEpochSet invariant failure")
 
 	// Prepare blob data writer
 	rdr, err := blencDirBlobFormatSerialize(d.entries)
@@ -599,11 +597,11 @@ func (d *blencDirNode) propagateUnsavedEpoch(epoch int64, n Node, unsavedEpochSe
 
 	d.entries[name].unsavedEpochSet = unsavedEpochSet
 
-	if !d.unsavedPendingEpochSet.contains(unsavedEpochSet) ||
-		!d.unsavedEpochSet.contains(unsavedEpochSet) ||
-		!d.unsavedEpochSet.contains(d.unsavedPendingEpochSet) {
-		panic("Epoch propagation invariant failed")
-	}
+	panicOn(
+		!d.unsavedPendingEpochSet.contains(unsavedEpochSet) ||
+			!d.unsavedEpochSet.contains(unsavedEpochSet) ||
+			!d.unsavedEpochSet.contains(d.unsavedPendingEpochSet),
+		"Epoch propagation invariant failed")
 
 	return d.parent.propagateUnsavedEpoch(epoch, d, d.unsavedEpochSet)
 }

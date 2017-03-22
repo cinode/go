@@ -48,12 +48,8 @@ func (m *arrayEntriesIterator) GetEntry() (Node, string, MetadataMap, error) {
 	if m.isCancelled() {
 		return nil, "", nil, ErrIterationCancelled
 	}
-	if m.current < 0 {
-		panic("EntriesIterator: GetEntry() called before Next()")
-	}
-	if m.current >= len(m.nodes) {
-		panic("EntriesIterator: GetEntry() called after Next() returned false")
-	}
+	panicOn(m.current < 0, "EntriesIterator: GetEntry() called before Next()")
+	panicOn(m.current >= len(m.nodes), "EntriesIterator: GetEntry() called after Next() returned false")
 	return m.nodes[m.current],
 		m.names[m.current],
 		m.metadata[m.current],
