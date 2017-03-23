@@ -207,7 +207,6 @@ func (d *blencDirNode) load() {
 			base := toBlencNodeBase(entry.node)
 			base.parent = d
 			base.ep = d.ep
-			base.path = d.path + "/" + name
 
 			// Build reverse map
 			nodeToName[entry.node] = name
@@ -331,7 +330,6 @@ func (d *blencDirNode) SetEntry(name string, node Node, metaChange *MetadataChan
 		// Note: Don't have to lock clone to change it, we're the only owner now
 		cloneBase := toBlencNodeBase(clone)
 		cloneBase.parent = d
-		cloneBase.path = d.path + "/" + name
 
 		var oldChild *blencNodeBase
 		entry := d.entries[name]

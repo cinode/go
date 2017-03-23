@@ -32,11 +32,6 @@ type blencNodeBase struct {
 	parent *blencDirNode // Parent dir node
 	bid    string        // currently known bid of blob hosting node's data
 	key    string        // currently known key for the blob hosting node's data`
-	path   string        // Path of the node (for debug purposes)
-}
-
-func (n *blencNodeBase) String() string {
-	return n.path
 }
 
 // toBlencNodeBase is a helper function to quickly convert to beNodeBase instance

@@ -51,7 +51,6 @@ func FromBE(be blenc.BE, p BlencRootPersistence) (EntryPoint, error) {
 
 	root := blencDirNodeNew(ep)
 	root.isRoot = true
-	root.path = "@r"
 	root.bid, root.key = bid, key
 
 	ep.root = root
@@ -78,7 +77,6 @@ func (ep *blencEP) Root() (DirNode, error) {
 // only inside this EntryPoint
 func (ep *blencEP) NewDetachedDirNode() (DirNode, error) {
 	ret := blencDirNodeNew(ep)
-	ret.path = "@d"
 	// Skip loading phase by setting up empty dir
 	ret.state = blencDirNodeStateIdle
 	ret.entries = make(blencEntriesMap)
@@ -90,7 +88,6 @@ func (ep *blencEP) NewDetachedDirNode() (DirNode, error) {
 // only inside this EntryPoint instance.
 func (ep *blencEP) NewDetachedFileNode() (FileNode, error) {
 	ret := blencFileNodeNew(ep)
-	ret.path = "@d"
 	return ret, nil
 }
 
