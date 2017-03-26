@@ -11,7 +11,7 @@ import (
 
 func dumpBe(n Node) {
 	bn := toBlencNodeBase(n)
-	fmt.Printf("Node: %s, bid: %s\n", bn, bn.bid)
+	fmt.Printf("Node: %v, bid: %s\n", bn, bn.bid)
 	if bn.isEmpty() {
 		fmt.Printf("Empty blob")
 	} else {
