@@ -435,7 +435,8 @@ func TestSimultaneousReads(t *testing.T) {
 				for n := 0; n < readCnt; n++ {
 					b := testBlobs[(i+n)%len(testBlobs)]
 					if !bytes.Equal(b.data, getBlob(b.name, c)) {
-						t.Fatalf("Datastore %s: Did read invalid data", c.Kind())
+						t.Errorf("Datastore %s: Did read invalid data", c.Kind())
+						break
 					}
 				}
 			}(i)
@@ -470,7 +471,8 @@ func TestSimultaneousSaves(t *testing.T) {
 
 					// Blob must not exist now
 					if exists(c, b.name) {
-						t.Fatalf("Datastore %s: Blob exists although no writter finished yet", c.Kind())
+						t.Errorf("Datastore %s: Blob exists although no writter finished yet", c.Kind())
+						return nil
 					}
 
 					// Wait for all writes to start
@@ -483,7 +485,7 @@ func TestSimultaneousSaves(t *testing.T) {
 				errPanic(err)
 
 				if !exists(c, b.name) {
-					t.Fatalf("Datastore %s: Blob does not exist yet", c.Kind())
+					t.Errorf("Datastore %s: Blob does not exist yet", c.Kind())
 				}
 
 				wg2.Done()
