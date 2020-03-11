@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/yawning/chacha20"
+	"golang.org/x/crypto/chacha20"
 )
 
 type secureTempBuffer struct {
@@ -31,8 +31,8 @@ func newSecureTempBuffer() (*secureTempBuffer, error) {
 		return nil, err
 	}
 
-	cc1, _ := chacha20.NewCipher(key, nonce)
-	cc2, _ := chacha20.NewCipher(key, nonce)
+	cc1, _ := chacha20.NewUnauthenticatedCipher(key, nonce)
+	cc2, _ := chacha20.NewUnauthenticatedCipher(key, nonce)
 
 	return &secureTempBuffer{
 		file: tempFile,
