@@ -6,7 +6,7 @@ import (
 	"errors"
 	"io"
 
-	base58 "github.com/jbenet/go-base58"
+	"github.com/jbenet/go-base58"
 	"golang.org/x/crypto/chacha20"
 )
 
