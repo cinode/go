@@ -6,8 +6,8 @@ import (
 	"errors"
 	"io"
 
-	base58 "github.com/jbenet/go-base58"
-	"github.com/yawning/chacha20"
+	"github.com/jbenet/go-base58"
+	"golang.org/x/crypto/chacha20"
 )
 
 // ErrInvalidKey is used as an error when given string representation if the
@@ -84,7 +84,7 @@ func streamCipherReaderForKeyData(keyType byte, keyData []byte, r io.ReadCloser)
 		var nonce [chacha20.NonceSize]byte
 		// Ignore error below, chacha20 will fail only if the size of key or
 		// nonce are invalid. We fully control those and pass valid values.
-		stream, _ := chacha20.NewCipher(keyData, nonce[:])
+		stream, _ := chacha20.NewUnauthenticatedCipher(keyData, nonce[:])
 		return &streamReader{cipher.StreamReader{S: stream, R: r}}, nil
 
 	default:
