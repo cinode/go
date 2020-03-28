@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+option go_package = ".;structure";
+
+// Directory represents a content of a static directory
+message Directory {
+    message Entry {
+        string bid = 1;
+        string key = 2;
+        string mimeType = 3;
+    }
+    map<string, Entry> entries = 1;
+}
