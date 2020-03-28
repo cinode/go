@@ -133,7 +133,11 @@ func server(datastoreDir string) {
 			return
 		}
 
-		handleDir(be, epBID, epKEY, w, r, r.URL.Path[1:])
+		if strings.HasPrefix(r.URL.Path, "/") {
+			r.URL.Path = r.URL.Path[1:]
+		}
+
+		handleDir(be, epBID, epKEY, w, r, r.URL.Path)
 	})
 
 	fmt.Println("Listening on http://localhost:8080/")
