@@ -3,11 +3,14 @@ package cmd
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 
 	"github.com/cinode/go/blenc"
 	"github.com/cinode/go/datastore"
@@ -116,17 +119,20 @@ func compileDir(p string, be blenc.BE) (string, string, error) {
 		}
 		contentType := "application/cinode-dir"
 		if !e.IsDir() {
-			file, err := os.Open(subPath)
-			if err != nil {
-				return "", "", fmt.Errorf("Can not detect mime type for %v: %w", subPath, err)
+			contentType = mime.TypeByExtension(filepath.Ext(e.Name()))
+			if contentType == "" {
+				file, err := os.Open(subPath)
+				if err != nil {
+					return "", "", fmt.Errorf("Can not detect content type for %v: %w", subPath, err)
+				}
+				buffer := make([]byte, 512)
+				n, err := io.ReadFull(file, buffer)
+				file.Close()
+				if err != nil && err != io.ErrUnexpectedEOF {
+					return "", "", fmt.Errorf("Can not detect content type for %v: %w", subPath, err)
+				}
+				contentType = http.DetectContentType(buffer[:n])
 			}
-			buffer := make([]byte, 512)
-			n, err := file.Read(buffer)
-			file.Close()
-			if err != nil {
-				return "", "", fmt.Errorf("Can not detect mime type for %v: %w", subPath, err)
-			}
-			contentType = http.DetectContentType(buffer[:n])
 		}
 		dirStruct.Entries[e.Name()] = &structure.Directory_Entry{
 			Bid:      name,
