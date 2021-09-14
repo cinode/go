@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
 )
 
 const (
@@ -21,7 +20,7 @@ var testBlobs = []struct {
 }
 
 func emptyBlobReader() io.ReadCloser {
-	return ioutil.NopCloser(bytes.NewBuffer([]byte{}))
+	return io.NopCloser(bytes.NewBuffer([]byte{}))
 }
 
 type errorOnExists struct {
@@ -102,7 +101,7 @@ func putBlob(n string, b []byte, c DS) {
 func getBlob(n string, c DS) []byte {
 	r, e := c.Open(n)
 	errPanic(e)
-	d, e := ioutil.ReadAll(r)
+	d, e := io.ReadAll(r)
 	errPanic(e)
 	e = r.Close()
 	errPanic(e)
@@ -112,7 +111,7 @@ func getBlob(n string, c DS) []byte {
 func exists(c DS, n string) bool {
 	exists, err := c.Exists(n)
 	if err != nil {
-		panic("Invalid error detected when testing blob's existance: " + err.Error())
+		panic("Invalid error detected when testing blob's existence: " + err.Error())
 	}
 	return exists
 }
@@ -130,7 +129,7 @@ func (m *memoryNoConsistencyCheck) Open(n string) (io.ReadCloser, error) {
 		return nil, ErrNotFound
 	}
 
-	return ioutil.NopCloser(bytes.NewReader(b)), nil
+	return io.NopCloser(bytes.NewReader(b)), nil
 }
 
 func newMemoryNoConsistencyCheck() *memoryNoConsistencyCheck {

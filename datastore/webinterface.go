@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	errNoData = errors.New("No upload data")
+	errNoData = errors.New("no upload data")
 )
 
 // WebInterface provides simple web interface for given Datastore

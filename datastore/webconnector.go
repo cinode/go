@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 )
 
@@ -78,7 +77,7 @@ func (w *webConnector) SaveAutoNamed(r io.ReadCloser) (string, error) {
 		return "", err
 	}
 	defer res.Body.Close()
-	name, err := ioutil.ReadAll(res.Body)
+	name, err := io.ReadAll(res.Body)
 	if err != nil {
 		return "", err
 	}
@@ -107,7 +106,7 @@ func (w *webConnector) Save(name string, r io.ReadCloser) error {
 	if err != nil {
 		return err
 	}
-	io.Copy(ioutil.Discard, res.Body)
+	io.Copy(io.Discard, res.Body)
 	res.Body.Close()
 	return w.errCheck(res)
 }
@@ -117,7 +116,7 @@ func (w *webConnector) Exists(name string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	io.Copy(ioutil.Discard, res.Body)
+	io.Copy(io.Discard, res.Body)
 	res.Body.Close()
 	err = w.errCheck(res)
 	if err == ErrNotFound {
@@ -138,7 +137,7 @@ func (w *webConnector) Delete(name string) error {
 	if err != nil {
 		return err
 	}
-	io.Copy(ioutil.Discard, res.Body)
+	io.Copy(io.Discard, res.Body)
 	res.Body.Close()
 	return w.errCheck(res)
 }
@@ -152,7 +151,7 @@ func (w *webConnector) errCheck(res *http.Response) error {
 	}
 	if res.StatusCode >= 400 {
 		return errServerConnection(fmt.Errorf(
-			"Response status code: %v (%v)", res.StatusCode, res.Status))
+			"response status code: %v (%v)", res.StatusCode, res.Status))
 	}
 	return nil
 }

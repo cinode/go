@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"mime"
 	"net/http"
@@ -104,7 +103,7 @@ func compileFile(path string, be blenc.BE) (string, string, error) {
 }
 
 func compileDir(p string, be blenc.BE) (string, string, error) {
-	fileList, err := ioutil.ReadDir(p)
+	fileList, err := os.ReadDir(p)
 	if err != nil {
 		return "", "", fmt.Errorf("Couldn't read contents of dir %v: %w", p, err)
 	}
@@ -146,5 +145,5 @@ func compileDir(p string, be blenc.BE) (string, string, error) {
 		return "", "", fmt.Errorf("Can not serialize directory %v: %w", p, err)
 	}
 
-	return be.Save(ioutil.NopCloser(bytes.NewReader(data)), blenc.ContentsHashKey())
+	return be.Save(io.NopCloser(bytes.NewReader(data)), blenc.ContentsHashKey())
 }

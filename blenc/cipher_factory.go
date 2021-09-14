@@ -12,7 +12,7 @@ import (
 
 // ErrInvalidKey is used as an error when given string representation if the
 // key can not be interpreted
-var ErrInvalidKey = errors.New("Invalid encryption key")
+var ErrInvalidKey = errors.New("invalid encryption key")
 
 const (
 	keyTypeAES      = 0x01

@@ -1,7 +1,7 @@
 package datastore
 
 import (
-	"io/ioutil"
+	"io"
 	"testing"
 )
 
@@ -17,7 +17,7 @@ func TestMemoryDataManipulation(t *testing.T) {
 	r, err := ds.Open(blob.name)
 	errPanic(err)
 
-	_, err = ioutil.ReadAll(r)
+	_, err = io.ReadAll(r)
 	r.Close()
 	if err != ErrNameMismatch {
 		t.Fatalf("Didn't detect local file manipulation, got error: %v instead of %v",

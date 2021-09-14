@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
 	"strings"
 	"testing"
 
@@ -58,7 +57,7 @@ func TestNewBE(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Couldn't open data for reading: %v", err)
 			}
-			data, err := ioutil.ReadAll(stream)
+			data, err := io.ReadAll(stream)
 			if err != nil {
 				t.Fatalf("Couldn't read data: %v", err)
 			}

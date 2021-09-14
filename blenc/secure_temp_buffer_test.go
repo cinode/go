@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"errors"
-	"io/ioutil"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -31,7 +31,7 @@ func TestSecureTempBufferReadback(t *testing.T) {
 		}
 
 		rdr := stb.Reader()
-		readBack, err := ioutil.ReadAll(rdr)
+		readBack, err := io.ReadAll(rdr)
 		errPanic(err)
 
 		if !bytes.Equal(readBack, d.data) {
@@ -48,7 +48,7 @@ func TestSecureTempBufferEarlyClose(t *testing.T) {
 	errPanic(err)
 	fName := stb.file.Name()
 	if _, err := os.Stat(fName); err != nil {
-		t.Fatalf("Couldn't ensure file's existance: %v", err)
+		t.Fatalf("Couldn't ensure file's existence: %v", err)
 	}
 	stb.Close()
 	if _, err := os.Stat(fName); !os.IsNotExist(err) {
@@ -61,13 +61,13 @@ func TestSecureTempBufferReaderClose(t *testing.T) {
 	errPanic(err)
 	fName := stb.file.Name()
 	if _, err := os.Stat(fName); err != nil {
-		t.Fatalf("Couldn't ensure file's existance: %v", err)
+		t.Fatalf("Couldn't ensure file's existence: %v", err)
 	}
 	rdr := stb.Reader()
 	stb.Close()
 	// If there's a reader, Close won't remove the file
 	if _, err := os.Stat(fName); err != nil {
-		t.Fatalf("Couldn't ensure file's existance: %v", err)
+		t.Fatalf("Couldn't ensure file's existence: %v", err)
 	}
 	rdr.Close()
 	if _, err := os.Stat(fName); !os.IsNotExist(err) {
@@ -82,7 +82,7 @@ func TestSecureTempBufferData(t *testing.T) {
 	fName := stb.file.Name()
 	stb.Write(data)
 
-	storedData, err := ioutil.ReadFile(fName)
+	storedData, err := os.ReadFile(fName)
 	errPanic(err)
 
 	if bytes.Equal(storedData, data) {

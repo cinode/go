@@ -3,7 +3,6 @@ package datastore
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"sync"
 )
 
@@ -36,7 +35,7 @@ func (m *memory) Open(n string) (io.ReadCloser, error) {
 		return nil, ErrNotFound
 	}
 
-	return hashValidatingReader(ioutil.NopCloser(bytes.NewReader(b)), n), nil
+	return hashValidatingReader(io.NopCloser(bytes.NewReader(b)), n), nil
 }
 
 func (m *memory) saveInternal(r io.ReadCloser, checkName func(string) bool) (string, error) {

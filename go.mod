@@ -1,14 +1,13 @@
 module github.com/cinode/go
 
-go 1.14
+go 1.17
 
 require (
-	github.com/golang/protobuf v1.4.0-rc.4
+	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jbenet/go-base58 v0.0.0-20150317085156-6237cf65f3a6
-	github.com/mitchellh/go-homedir v1.1.0
-	github.com/spf13/cobra v0.0.6
-	github.com/spf13/viper v1.4.0
-	golang.org/x/crypto v0.0.0-20200320181102-891825fb96df
-	golang.org/x/sys v0.0.0-20200320181252-af34d8274f85 // indirect
-	google.golang.org/protobuf v1.20.1
+	github.com/spf13/cobra v1.2.1
+	github.com/spf13/pflag v1.0.5 // indirect
+	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5
+	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
+	google.golang.org/protobuf v1.27.1
 )

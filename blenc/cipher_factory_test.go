@@ -2,7 +2,7 @@ package blenc
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"strings"
 	"testing"
 )
@@ -20,7 +20,7 @@ func TestStreamCipherReaderForKey(t *testing.T) {
 		{"eJEA1E4dRcx3zy59mu4BcD25kf86n5ydSEuDAojhQu3F", nil, "Valid chacha20 key"},
 	} {
 		sc, err := streamCipherReaderForKey(
-			d.key, ioutil.NopCloser(bytes.NewReader([]byte{})))
+			d.key, io.NopCloser(bytes.NewReader([]byte{})))
 		if d.err != err {
 			t.Fatalf("In test for %v: Invalid error returned, expected %v, got %v",
 				d.desc, d.err, err)
@@ -51,7 +51,7 @@ func TestStreamCipherReaderForKeyData(t *testing.T) {
 		{keyTypeInvalid, []byte(strings.Repeat("*", 32)), ErrInvalidKey, "Invalid key type"},
 	} {
 		rc, err := streamCipherReaderForKeyData(d.keyType, d.keyData,
-			ioutil.NopCloser(bytes.NewReader([]byte{})))
+			io.NopCloser(bytes.NewReader([]byte{})))
 		if err != d.err {
 			t.Fatalf("In test for %v: Invalid error received, expected %v, got %v",
 				d.desc, d.err, err)
