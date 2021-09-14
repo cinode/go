@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -74,7 +73,7 @@ func handleDir(be blenc.BE, bid, key string, w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	dirBytes, err := ioutil.ReadAll(dirData)
+	dirBytes, err := io.ReadAll(dirData)
 	dirData.Close()
 	if err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)

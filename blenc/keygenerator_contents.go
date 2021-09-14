@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-var errKeyDataToLarge = errors.New("Key data to large")
+var errKeyDataToLarge = errors.New("key data too large")
 
 type keyDataGeneratorContents struct {
 }

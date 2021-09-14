@@ -1,7 +1,7 @@
 package datastore
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -82,7 +82,7 @@ func TestWebConnectorDetectInvalidBlobRead(t *testing.T) {
 	r, err := ds2.Open(blob.name)
 	errPanic(err)
 
-	_, err = ioutil.ReadAll(r)
+	_, err = io.ReadAll(r)
 	r.Close()
 	if err != ErrNameMismatch {
 		t.Fatalf("Didn't detect local file manipulation, got error: %v instead of %v",

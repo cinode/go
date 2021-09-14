@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,7 +21,7 @@ func allDS(f func(c DS)) {
 
 	func() {
 		// Test basic filesystem storage
-		path, err := ioutil.TempDir("", "cinodetest")
+		path, err := os.MkdirTemp("", "cinodetest")
 		if err != nil {
 			panic(fmt.Sprintf("Error while creating temporary directory: %s", err))
 		}
@@ -110,7 +110,7 @@ func TestSaveSuccessful(t *testing.T) {
 			if e != nil {
 				t.Fatalf("Datastore %s: Couldn't open blob for reading: %s", c.Kind(), e)
 			}
-			d, e := ioutil.ReadAll(r)
+			d, e := io.ReadAll(r)
 			if e != nil {
 				t.Fatalf("Datastore %s: Couldn't read blob data: %s", c.Kind(), e)
 			}

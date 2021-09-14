@@ -7,7 +7,7 @@ import (
 	"io"
 )
 
-var errHashValidationError = errors.New("Hash of the data does not match the expected value")
+var errHashValidationError = errors.New("hash of the data does not match the expected value")
 
 type readerHashValidator struct {
 	rc   io.ReadCloser

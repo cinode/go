@@ -4,7 +4,6 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"io"
-	"io/ioutil"
 	"os"
 
 	"golang.org/x/crypto/chacha20"
@@ -26,7 +25,7 @@ func newSecureTempBuffer() (*secureTempBuffer, error) {
 
 	key, nonce := randData[:chacha20.KeySize], randData[chacha20.KeySize:]
 
-	tempFile, err := ioutil.TempFile("", "cinodeupload")
+	tempFile, err := os.CreateTemp("", "cinodeupload")
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +72,7 @@ func (s *secureTempBuffer) Reader() io.ReadCloser {
 		file: s.file,
 		sr:   s.sr,
 	}
-	s.file.Seek(0, os.SEEK_SET)
+	s.file.Seek(0, io.SeekStart)
 	s.file, s.sw, s.sr = nil, nil, nil
 	return reader
 }

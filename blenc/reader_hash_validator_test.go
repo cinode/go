@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
 	"testing"
 )
 
@@ -21,7 +20,7 @@ func TestReaderHashValidatorResults(t *testing.T) {
 	} {
 		hash, _ := hex.DecodeString(d.hash)
 		rdr := newReaderHashValidator(
-			ioutil.NopCloser(bytes.NewReader([]byte(d.data))),
+			io.NopCloser(bytes.NewReader([]byte(d.data))),
 			sha256.New(),
 			hash,
 		)

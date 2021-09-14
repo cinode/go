@@ -7,10 +7,10 @@ import (
 
 var (
 	// ErrNotFound will be used when blob with given name was not found in datastore
-	ErrNotFound = errors.New("Data not found")
+	ErrNotFound = errors.New("data not found")
 	// ErrNameMismatch will be used to indicate that blob's name does not match
 	// blob's contents
-	ErrNameMismatch = errors.New("Data name mismatch")
+	ErrNameMismatch = errors.New("data name mismatch")
 )
 
 // DS interface contains the public interface of any conformant datastore
@@ -44,7 +44,7 @@ type DS interface {
 	// Exists does check whether blob of given name exists in datastore.
 	// Partially written blobs are equal to non-existing ones. Boolean value
 	// returned indicates whether the blob exists or not, if error is not nil,
-	// there was an error while trying to check blob's existance.
+	// there was an error while trying to check blob's existence.
 	Exists(name string) (bool, error)
 
 	// Delete tries to remove blob with given name. If blob does not exist

@@ -1,14 +1,14 @@
 package datastore
 
 import (
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
 func temporaryFS() (*fileSystem, func()) {
-	tmpPath, err := ioutil.TempDir("", "cinode_filesystem_test")
+	tmpPath, err := os.MkdirTemp("", "cinode_filesystem_test")
 	errPanic(err)
 	return &fileSystem{path: tmpPath},
 		func() { os.RemoveAll(tmpPath) }
@@ -139,10 +139,10 @@ func TestFilesystemRenameFailure(t *testing.T) {
 	defer d()
 
 	// Create directory where blob should be
-	fName, err := fs.getFileName(emptyBlobName)
+	fName, _ := fs.getFileName(emptyBlobName)
 	os.MkdirAll(fName, 0777)
 
-	err = fs.Save(emptyBlobName, emptyBlobReader())
+	err := fs.Save(emptyBlobName, emptyBlobReader())
 	if err == nil {
 		t.Fatal("Did not get error while trying to save blob")
 	}
@@ -158,12 +158,12 @@ func TestFilesystemRenameFailure2(t *testing.T) {
 	_ = "breakpoint"
 
 	// Create file where final directory blob should be
-	fName, err := fs.getFileName(emptyBlobName)
+	fName, _ := fs.getFileName(emptyBlobName)
 	fName = filepath.Dir(fName)
 	os.Mkdir(filepath.Dir(fName), 0777)
 	touchFile(fName)
 
-	_, err = fs.SaveAutoNamed(emptyBlobReader())
+	_, err := fs.SaveAutoNamed(emptyBlobReader())
 	if err == nil {
 		t.Fatal("Did not get error while trying to save blob")
 	}
@@ -178,11 +178,11 @@ func TestFilesystemDeleteFailure(t *testing.T) {
 	defer d()
 
 	// Create directory where blob should be with some file inside
-	fName, err := fs.getFileName(emptyBlobName)
+	fName, _ := fs.getFileName(emptyBlobName)
 	os.MkdirAll(fName, 0777)
 	touchFile(fName + "/keep.me")
 
-	err = fs.Delete(emptyBlobName)
+	err := fs.Delete(emptyBlobName)
 	if err == nil {
 		t.Fatal("Did not get error while trying to save blob")
 	}
@@ -244,7 +244,7 @@ func TestFilesystemPreventLocalFilesManipulation(t *testing.T) {
 	r, err := fs.Open(blob.name)
 	errPanic(err)
 
-	_, err = ioutil.ReadAll(r)
+	_, err = io.ReadAll(r)
 	r.Close()
 	if err != ErrNameMismatch {
 		t.Fatalf("Didn't detect local file manipulation, got error: %v instead of %v",

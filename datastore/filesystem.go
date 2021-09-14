@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -13,7 +12,7 @@ import (
 const fileSystemMaxSimultaneousUploads = 0x100
 
 var (
-	errToManySimultaneousUploads = errors.New("To many simultaneous uploads")
+	errToManySimultaneousUploads = errors.New("too many simultaneous uploads")
 )
 
 type fileSystem struct {
@@ -81,7 +80,7 @@ func (fs *fileSystem) Save(name string, r io.ReadCloser) error {
 	destName, err := fs.getFileName(name)
 	if err != nil {
 		// Act as if we didn't know the name is incorrect
-		io.Copy(ioutil.Discard, r)
+		io.Copy(io.Discard, r)
 		r.Close()
 		return ErrNameMismatch
 	}

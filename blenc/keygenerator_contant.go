@@ -5,7 +5,7 @@ import (
 	"io"
 )
 
-var errInsufficientKeyData = errors.New("Insufficient key data")
+var errInsufficientKeyData = errors.New("insufficient key data")
 
 type keyDataGeneratorConstant struct {
 	keyData []byte
