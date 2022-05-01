@@ -18,6 +18,8 @@ jobs:
           go-version: ${{ matrix.go-version }}
       - uses: actions/checkout@v3
       - run: go vet ./...
+      - if: ${{ runner.os == 'Windows' }}
+        run: go get .cov
       - run: go test -v -coverprofile=profile.cov ./...
       - uses: shogo82148/actions-goveralls@v1
         with:
