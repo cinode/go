@@ -1,0 +1,23 @@
+name: Tests
+on: [push]
+jobs:
+  tests:
+    strategy:
+      matrix:
+        env:
+          - os: ubuntu-latest
+            coverage: true
+          - os: macos-latest
+          - os: windows-latest
+            continue-on-error: true
+    runs-on: ${{ matrix.env.os }}
+    steps:
+      - uses: actions/setup-go@v3
+      - uses: actions/checkout@v3
+      - run: go vet ./...
+      - run: go test -v ${{ matrix.env.coverage && '-coverprofile=profile.cov' }} ./...
+        continue-on-error: ${{ matrix.env.continue-on-error }}
+      - uses: shogo82148/actions-goveralls@v1
+        if: ${{ matrix.env.coverage }}
+        with:
+          path-to-profile: profile.cov
