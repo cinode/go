@@ -1,6 +1,7 @@
 package datastore
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"mime/multipart"
@@ -30,8 +31,6 @@ func (i *webInterface) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		i.serveGet(w, r)
 	case http.MethodPut:
 		i.servePut(w, r)
-	case http.MethodPost:
-		i.servePost(w, r)
 	case http.MethodDelete:
 		i.serveDelete(w, r)
 	case http.MethodHead:
@@ -41,34 +40,48 @@ func (i *webInterface) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (i *webInterface) getName(w http.ResponseWriter, r *http.Request) (string, bool) {
-
+func (i *webInterface) getName(w http.ResponseWriter, r *http.Request) (BlobName, error) {
 	// Don't allow url queries and require path to start with '/'
 	if r.URL.Path[0] != '/' || r.URL.RawQuery != "" {
-		http.NotFound(w, r)
-		return "", false
+		return nil, ErrInvalidBlobName
 	}
 
-	return r.URL.Path[1:], true
+	bn, err := BlobNameFromString(r.URL.Path[1:])
+	if err != nil {
+		return nil, err
+	}
+
+	return bn, nil
 }
 
+func (i *webInterface) sendName(name BlobName, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-type", "application/json")
+	json.NewEncoder(w).Encode(&webNameResponse{
+		Name: name.String(),
+	})
+}
+
+func (i *webInterface) sendError(w http.ResponseWriter, httpCode int, code string, message string) {
+	w.Header().Set("Content-type", "application/json")
+	w.WriteHeader(httpCode)
+	json.NewEncoder(w).Encode(&webErrResponse{
+		Code:    code,
+		Message: message,
+	})
+}
 func (i *webInterface) checkErr(err error, w http.ResponseWriter, r *http.Request) bool {
-
-	switch err {
-
-	case nil:
+	if err == nil {
 		return true
+	}
 
-	case ErrNotFound:
+	if errors.Is(err, ErrNotFound) {
 		http.NotFound(w, r)
 		return false
+	}
 
-	case ErrNameMismatch:
-		http.Error(w, "Name mismatch", http.StatusBadRequest)
-		return false
-
-	case errNoData:
-		http.Error(w, "No form file field", http.StatusBadRequest)
+	code := webErrToCode(err)
+	if code != "" {
+		i.sendError(w, http.StatusBadRequest, code, err.Error())
 		return false
 	}
 
@@ -76,26 +89,16 @@ func (i *webInterface) checkErr(err error, w http.ResponseWriter, r *http.Reques
 	return false
 }
 
-func (i *webInterface) sendName(name string, w http.ResponseWriter, r *http.Request) {
-	// TODO: Support multiple result encodings
-	w.Write([]byte(name))
-}
-
 func (i *webInterface) serveGet(w http.ResponseWriter, r *http.Request) {
-
-	name, ok := i.getName(w, r)
-	if !ok {
-		return
-	}
-
-	blob, err := i.ds.Open(name)
+	name, err := i.getName(w, r)
 	if !i.checkErr(err, w, r) {
 		return
 	}
-	defer blob.Close()
 
-	_, err = io.Copy(w, blob)
-	i.checkErr(err, w, r)
+	err = i.ds.Read(name, w)
+	if !i.checkErr(err, w, r) {
+		return
+	}
 }
 
 type partReader struct {
@@ -148,35 +151,9 @@ func (i *webInterface) getUploadReader(r *http.Request) (io.ReadCloser, error) {
 	}
 }
 
-func (i *webInterface) servePost(w http.ResponseWriter, r *http.Request) {
-
-	path, ok := i.getName(w, r)
-	if !ok {
-		return
-	}
-
-	// Posting allowed onto root only
-	if path != "" {
-		http.NotFound(w, r)
-		return
-	}
-
-	reader, err := i.getUploadReader(r)
-	if !i.checkErr(err, w, r) {
-		return
-	}
-
-	name, err := i.ds.SaveAutoNamed(reader)
-	if !i.checkErr(err, w, r) {
-		return
-	}
-
-	i.sendName(name, w, r)
-}
-
 func (i *webInterface) servePut(w http.ResponseWriter, r *http.Request) {
-	name, ok := i.getName(w, r)
-	if !ok {
+	name, err := i.getName(w, r)
+	if !i.checkErr(err, w, r) {
 		return
 	}
 
@@ -184,8 +161,9 @@ func (i *webInterface) servePut(w http.ResponseWriter, r *http.Request) {
 	if !i.checkErr(err, w, r) {
 		return
 	}
+	defer reader.Close()
 
-	err = i.ds.Save(name, reader)
+	err = i.ds.Update(name, reader)
 	if !i.checkErr(err, w, r) {
 		return
 	}
@@ -195,12 +173,12 @@ func (i *webInterface) servePut(w http.ResponseWriter, r *http.Request) {
 
 func (i *webInterface) serveDelete(w http.ResponseWriter, r *http.Request) {
 
-	name, ok := i.getName(w, r)
-	if !ok {
+	name, err := i.getName(w, r)
+	if !i.checkErr(err, w, r) {
 		return
 	}
 
-	err := i.ds.Delete(name)
+	err = i.ds.Delete(name)
 	if !i.checkErr(err, w, r) {
 		return
 	}
@@ -209,16 +187,16 @@ func (i *webInterface) serveDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (i *webInterface) serveHead(w http.ResponseWriter, r *http.Request) {
-	name, ok := i.getName(w, r)
-	if !ok {
+	name, err := i.getName(w, r)
+	if !i.checkErr(err, w, r) {
 		return
 	}
 
 	exists, err := i.ds.Exists(name)
-	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	if !i.checkErr(err, w, r) {
 		return
 	}
+
 	if !exists {
 		http.NotFound(w, r)
 	}

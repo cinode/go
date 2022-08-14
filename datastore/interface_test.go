@@ -2,615 +2,390 @@ package datastore
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-func allDS(f func(c DS)) {
+func allTestInterfaces(t *testing.T) []DS {
 
-	func() {
-		// Test raw memory stream
-		f(InMemory())
-	}()
+	// Test web interface and web connector
+	server := httptest.NewServer(WebInterface(InMemory()))
+	t.Cleanup(func() { server.Close() })
 
-	func() {
-		// Test basic filesystem storage
-		path, err := os.MkdirTemp("", "cinodetest")
-		if err != nil {
-			panic(fmt.Sprintf("Error while creating temporary directory: %s", err))
-		}
-		defer os.RemoveAll(path)
-		f(InFileSystem(path))
-	}()
-
-	func() {
-		// Test web interface and web connector
-		server := httptest.NewServer(WebInterface(InMemory()))
-		defer server.Close()
-
-		f(FromWeb(server.URL+"/", &http.Client{}))
-
-	}()
-
+	return []DS{
+		InMemory(),
+		InFileSystem(t.TempDir()),
+		FromWeb(server.URL+"/", &http.Client{}),
+	}
 }
 
 func TestOpenNonExisting(t *testing.T) {
-	allDS(func(c DS) {
+	for _, ds := range allTestInterfaces(t) {
+		t.Run(ds.Kind(), func(t *testing.T) {
+			err := ds.Read(emptyBlobName, bytes.NewBuffer(nil))
+			require.ErrorIs(t, err, ErrNotFound)
+		})
+	}
+}
 
-		s, e := c.Open("nonexistingname")
-		if s != nil {
-			t.Fatalf("Datastore %s: Opened non-existing blob", c.Kind())
-		}
-		if e != ErrNotFound {
-			t.Fatalf("Datastore %s: Invalid error returned for non-existing blob: %s", c.Kind(), e)
-		}
-	})
+func TestOpenInvalidBlobType(t *testing.T) {
+	for _, ds := range allTestInterfaces(t) {
+		t.Run(ds.Kind(), func(t *testing.T) {
+			bn, err := BlobNameFromHashAndType(sha256.New().Sum(nil), 0xFF)
+			require.NoError(t, err)
+
+			err = ds.Read(bn, bytes.NewBuffer(nil))
+			require.ErrorIs(t, err, ErrUnknownBlobType)
+
+			err = ds.Update(bn, bytes.NewBuffer(nil))
+			require.ErrorIs(t, err, ErrUnknownBlobType)
+		})
+	}
 }
 
 func TestSaveNameMismatch(t *testing.T) {
-	allDS(func(c DS) {
-		e := c.Save("invalidname", bReader([]byte("Test"), nil, nil, nil))
-		if e == nil || e != ErrNameMismatch {
-			t.Fatalf("Datastore %s: Didn't detect name mismatch: %v", c.Kind(), e)
-		}
-	})
+	for _, ds := range allTestInterfaces(t) {
+		t.Run(ds.Kind(), func(t *testing.T) {
+			err := ds.Update(emptyBlobName, bytes.NewReader([]byte("test")))
+			require.ErrorIs(t, err, ErrValidationFailed)
+		})
+	}
 }
 
 func TestSaveSuccessful(t *testing.T) {
-	allDS(func(c DS) {
-		for _, b := range testBlobs {
+	for _, ds := range allTestInterfaces(t) {
+		t.Run(ds.Kind(), func(t *testing.T) {
 
-			if exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob should not exist", c.Kind())
-			}
+			for _, b := range testBlobs {
 
-			closeCalledCnt := 0
+				exists, err := ds.Exists(b.name)
+				require.NoError(t, err)
+				require.False(t, exists)
 
-			rdr := bReader(b.data, func() error {
-				if closeCalledCnt > 0 {
-					t.Fatalf("Datastore %s: Read after Close()", c.Kind())
-				}
-				if exists(c, b.name) {
-					t.Fatalf("Datastore %s: Blob should not exist before saving data", c.Kind())
-				}
-				return nil
-			}, func() error {
-				if closeCalledCnt > 0 {
-					t.Fatalf("Datastore %s: EOF after Close()", c.Kind())
-				}
-				if exists(c, b.name) {
-					t.Fatalf("Datastore %s: Blob should not exist before saving data", c.Kind())
-				}
-				return nil
-			}, func() error {
-				closeCalledCnt++
-				return nil
-			})
+				err = ds.Update(b.name, bytes.NewReader(b.data))
+				require.NoError(t, err)
 
-			e := c.Save(b.name, rdr)
-			if e != nil {
-				t.Fatalf("Datastore %s: Couldn't write Datastore data: %s", c.Kind(), e)
-			}
+				exists, err = ds.Exists(b.name)
+				require.NoError(t, err)
+				require.True(t, exists)
 
-			if closeCalledCnt == 0 {
-				t.Fatalf("Datastore %s: Stream was not closed", c.Kind())
-			}
-			if closeCalledCnt > 1 {
-				t.Fatalf("Datastore %s: Stream was closed multiple times (%d)", c.Kind(), closeCalledCnt)
-			}
+				// Overwrite with the same data must be fine
+				err = ds.Update(b.name, bytes.NewReader(b.data))
+				require.NoError(t, err)
 
-			// Reading blob
-			r, e := c.Open(b.name)
-			if e != nil {
-				t.Fatalf("Datastore %s: Couldn't open blob for reading: %s", c.Kind(), e)
+				exists, err = ds.Exists(b.name)
+				require.NoError(t, err)
+				require.True(t, exists)
+
+				// Overwrite with wrong data must fail
+				err = ds.Update(b.name, bytes.NewReader(append([]byte{0x00}, b.data...)))
+				require.ErrorIs(t, err, ErrValidationFailed)
+
+				exists, err = ds.Exists(b.name)
+				require.NoError(t, err)
+				require.True(t, exists)
+
+				data := bytes.NewBuffer(nil)
+				err = ds.Read(b.name, data)
+				require.NoError(t, err)
+				require.Equal(t, b.data, data.Bytes())
 			}
-			d, e := io.ReadAll(r)
-			if e != nil {
-				t.Fatalf("Datastore %s: Couldn't read blob data: %s", c.Kind(), e)
-			}
-			if !bytes.Equal(b.data, d) {
-				t.Fatalf("Datastore %s: Did read invalid data", c.Kind())
-			}
-		}
-	})
+		})
+	}
 }
 
-func TestCancelWhileSaving(t *testing.T) {
-	allDS(func(c DS) {
-		for _, b := range testBlobs {
-			errRet := errors.New("Test error")
-			e := c.Save(b.name, bReader(b.data, func() error {
+func TestErrorWhileUpdating(t *testing.T) {
+	for _, ds := range allTestInterfaces(t) {
+		t.Run(ds.Kind(), func(t *testing.T) {
+			for _, b := range testBlobs {
+				errRet := errors.New("Test error")
+				err := ds.Update(b.name, bReader(b.data, func() error {
+					return errRet
+				}, nil))
+				require.ErrorIs(t, err, errRet)
+
+				exists, err := ds.Exists(b.name)
+				require.NoError(t, err)
+				require.False(t, exists)
+			}
+		})
+	}
+}
+
+func TestErrorWhileOverwriting(t *testing.T) {
+	for _, ds := range allTestInterfaces(t) {
+		t.Run(ds.Kind(), func(t *testing.T) {
+			b := testBlobs[0]
+
+			err := ds.Update(b.name, bytes.NewReader(b.data))
+			require.NoError(t, err)
+
+			errRet := errors.New("cancel")
+
+			err = ds.Update(b.name, bReader(b.data, func() error {
+				exists, err := ds.Exists(b.name)
+				require.NoError(t, err)
+				require.True(t, exists)
+
 				return errRet
-			}, nil, nil))
-			if e == nil {
-				t.Fatalf("Datastore %s: No error returned", c.Kind())
-			}
-			if exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob should not exist", c.Kind())
-			}
-		}
-	})
-}
+			}, nil))
 
-func TestCancelWhileClosingSave(t *testing.T) {
-	allDS(func(c DS) {
-		for _, b := range testBlobs {
-			errRet := errors.New("Test error")
-			e := c.Save(b.name, bReader(b.data, nil, nil, func() error {
-				return errRet
-			}))
-			if e == nil {
-				t.Fatalf("Datastore %s: No error returned", c.Kind())
-			}
-			if exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob should not exist", c.Kind())
-			}
-		}
-	})
-}
+			require.ErrorIs(t, err, errRet)
 
-func TestCancelWhileSavingAutoNamed(t *testing.T) {
-	allDS(func(c DS) {
-		for _, b := range testBlobs {
-			errRet := errors.New("Test error")
-			n, e := c.SaveAutoNamed(bReader(b.data, func() error {
-				return errRet
-			}, nil, nil))
-			if e == nil {
-				t.Fatalf("Datastore %s: No error returned", c.Kind())
-			}
-			if n != "" {
-				t.Fatalf("Datastore %s: Should get empty name, got '%s'", c.Kind(), n)
-			}
-			if exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob should not exist", c.Kind())
-			}
-		}
-	})
-}
+			exists, err := ds.Exists(b.name)
+			require.NoError(t, err)
+			require.True(t, exists)
 
-func TestCancelWhileClosingAutoNamed(t *testing.T) {
-	allDS(func(c DS) {
-		for _, b := range testBlobs {
-			errRet := errors.New("Test error")
-			n, e := c.SaveAutoNamed(bReader(b.data, nil, nil, func() error {
-				return errRet
-			}))
-			if e == nil {
-				t.Fatalf("Datastore %s: No error returned", c.Kind())
-			}
-			if n != "" {
-				t.Fatalf("Datastore %s: Should get empty name, got '%s'", c.Kind(), n)
-			}
-			if exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-			}
-		}
-	})
-}
-
-func TestOverwriteValidContents(t *testing.T) {
-	allDS(func(c DS) {
-
-		b := testBlobs[0]
-		putBlob(b.name, b.data, c)
-
-		e := c.Save(b.name, bReader(b.data, func() error {
-			if !exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-			}
-			return nil
-		}, func() error {
-			if !exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-			}
-			return nil
-		}, nil))
-
-		if e != nil {
-			t.Fatalf("Datastore %s: Couldn't save correct blob: %s", c.Kind(), e)
-		}
-
-		if !exists(c, b.name) {
-			t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-		}
-
-		if !bytes.Equal(b.data, getBlob(b.name, c)) {
-			t.Fatalf("Datastore %s: Did read invalid data", c.Kind())
-		}
-	})
-}
-
-func TestOverwriteInvalidContents(t *testing.T) {
-	allDS(func(c DS) {
-
-		b := testBlobs[0]
-		putBlob(b.name, b.data, c)
-
-		e := c.Save(b.name, bReader(append(b.data, []byte("extra")...), func() error {
-
-			if !exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-			}
-			return nil
-		}, func() error {
-
-			if !exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-			}
-			return nil
-		}, nil))
-
-		if e != ErrNameMismatch {
-			t.Fatalf("Datastore %s: Saved incorrect blob: %s", c.Kind(), e)
-		}
-
-		if !exists(c, b.name) {
-			t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-		}
-
-		if !bytes.Equal(b.data, getBlob(b.name, c)) {
-			t.Fatalf("Datastore %s: Did read invalid data", c.Kind())
-		}
-	})
-}
-
-func TestCancelWhileOverwriting(t *testing.T) {
-	allDS(func(c DS) {
-
-		b := testBlobs[0]
-		putBlob(b.name, b.data, c)
-
-		e := c.Save(b.name, bReader(b.data, func() error {
-			if !exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-			}
-			return errors.New("Cancel")
-		}, nil, nil))
-
-		if e == nil {
-			t.Fatalf("Datastore %s: Didn't get error although cancelled", c.Kind())
-		}
-
-		if !exists(c, b.name) {
-			t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-		}
-
-		if !bytes.Equal(b.data, getBlob(b.name, c)) {
-			t.Fatalf("Datastore %s: Did read invalid data", c.Kind())
-		}
-	})
-}
-
-func TestCancelCloseWhileOverwriting(t *testing.T) {
-	allDS(func(c DS) {
-
-		b := testBlobs[0]
-		putBlob(b.name, b.data, c)
-
-		e := c.Save(b.name, bReader(b.data, nil, nil, func() error {
-			if !exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-			}
-			return errors.New("Cancel")
-		}))
-
-		if e == nil {
-			t.Fatalf("Datastore %s: Didn't get error although cancelled", c.Kind())
-		}
-
-		if !exists(c, b.name) {
-			t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-		}
-
-		if !bytes.Equal(b.data, getBlob(b.name, c)) {
-			t.Fatalf("Datastore %s: Did read invalid data", c.Kind())
-		}
-	})
-}
-
-func TestOverwriteWhileDeleting(t *testing.T) {
-	allDS(func(c DS) {
-
-		b := testBlobs[0]
-		putBlob(b.name, b.data, c)
-
-		e := c.Save(b.name, bReader(b.data, func() error {
-			if !exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-			}
-			return nil
-		}, func() error {
-
-			if !exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-			}
-
-			err := c.Delete(b.name)
-			if err != nil {
-				t.Fatalf("Datastore %s: Couldn't delete blob: %v", c.Kind(), err)
-			}
-
-			if exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob should not exist", c.Kind())
-			}
-
-			return nil
-		}, nil))
-
-		if e != nil {
-			t.Fatalf("Datastore %s: Couldn't save correct blob: %s", c.Kind(), e)
-		}
-
-		if !exists(c, b.name) {
-			t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-		}
-
-		if !bytes.Equal(b.data, getBlob(b.name, c)) {
-			t.Fatalf("Datastore %s: Did read invalid data", c.Kind())
-		}
-	})
+			data := bytes.NewBuffer(nil)
+			err = ds.Read(b.name, data)
+			require.NoError(t, err)
+			require.Equal(t, b.data, data.Bytes())
+		})
+	}
 }
 
 func TestDeleteNonExisting(t *testing.T) {
-	allDS(func(c DS) {
+	for _, ds := range allTestInterfaces(t) {
+		t.Run(ds.Kind(), func(t *testing.T) {
+			b := testBlobs[0]
 
-		b := testBlobs[0]
-		putBlob(b.name, b.data, c)
+			err := ds.Update(b.name, bytes.NewReader(b.data))
+			require.NoError(t, err)
 
-		err := c.Delete("non-existing")
-		if err != ErrNotFound {
-			t.Fatalf("Datastore %s: Did not get ErrNotFound while deleting non-existing blob: %v", c.Kind(), err)
-		}
+			err = ds.Delete(testBlobs[1].name)
+			require.ErrorIs(t, err, ErrNotFound)
 
-	})
+			exists, err := ds.Exists(b.name)
+			require.NoError(t, err)
+			require.True(t, exists)
+		})
+	}
 }
 
-func TestDeleteExisting(t *testing.T) {
-	allDS(func(c DS) {
+// func TestDeleteExisting(t *testing.T) {
+// 	allDS(func(c DS) {
 
-		b := testBlobs[0]
-		putBlob(b.name, b.data, c)
+// 		b := testBlobs[0]
+// 		putBlob(b.name, b.data, c)
 
-		if !exists(c, b.name) {
-			t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-		}
+// 		if !exists(c, b.name) {
+// 			t.Fatalf("Datastore %s: Blob should exist", c.Kind())
+// 		}
 
-		if !bytes.Equal(b.data, getBlob(b.name, c)) {
-			t.Fatalf("Datastore %s: Did read invalid data", c.Kind())
-		}
+// 		if !bytes.Equal(b.data, getBlob(b.name, c)) {
+// 			t.Fatalf("Datastore %s: Did read invalid data", c.Kind())
+// 		}
 
-		err := c.Delete(b.name)
-		if err != nil {
-			t.Fatalf("Datastore %s: Couldn't delete blob: %v", c.Kind(), err)
-		}
+// 		err := c.Delete(b.name)
+// 		if err != nil {
+// 			t.Fatalf("Datastore %s: Couldn't delete blob: %v", c.Kind(), err)
+// 		}
 
-		if exists(c, b.name) {
-			t.Fatalf("Datastore %s: Blob should not exist", c.Kind())
-		}
+// 		if exists(c, b.name) {
+// 			t.Fatalf("Datastore %s: Blob should not exist", c.Kind())
+// 		}
 
-		r, err := c.Open(b.name)
-		if err != ErrNotFound {
-			t.Fatalf("Datastore %s: Did not get ErrNotFound error after blob deletion", c.Kind())
-		}
-		if r != nil {
-			t.Fatalf("Datastore %s: Got reader for deleted blob", c.Kind())
-		}
+// 		r, err := c.Open(b.name)
+// 		if err != ErrNotFound {
+// 			t.Fatalf("Datastore %s: Did not get ErrNotFound error after blob deletion", c.Kind())
+// 		}
+// 		if r != nil {
+// 			t.Fatalf("Datastore %s: Got reader for deleted blob", c.Kind())
+// 		}
 
-	})
-}
+// 	})
+// }
 
-func TestGetKind(t *testing.T) {
-	allDS(func(c DS) {
-		k := c.Kind()
-		if len(k) == 0 {
-			t.Fatalf("Invalid kind - empty string")
-		}
-	})
-}
+// func TestGetKind(t *testing.T) {
+// 	allDS(func(c DS) {
+// 		k := c.Kind()
+// 		if len(k) == 0 {
+// 			t.Fatalf("Invalid kind - empty string")
+// 		}
+// 	})
+// }
 
-func TestSimultaneousReads(t *testing.T) {
-	threadCnt := 10
-	readCnt := 200
+// func TestSimultaneousReads(t *testing.T) {
+// 	threadCnt := 10
+// 	readCnt := 200
 
-	allDS(func(c DS) {
+// 	allDS(func(c DS) {
 
-		// Prepare data
-		for _, b := range testBlobs {
-			putBlob(b.name, b.data, c)
-		}
+// 		// Prepare data
+// 		for _, b := range testBlobs {
+// 			putBlob(b.name, b.data, c)
+// 		}
 
-		wg := sync.WaitGroup{}
-		wg.Add(threadCnt)
+// 		wg := sync.WaitGroup{}
+// 		wg.Add(threadCnt)
 
-		for i := 0; i < threadCnt; i++ {
-			go func(i int) {
-				defer wg.Done()
-				for n := 0; n < readCnt; n++ {
-					b := testBlobs[(i+n)%len(testBlobs)]
-					if !bytes.Equal(b.data, getBlob(b.name, c)) {
-						t.Errorf("Datastore %s: Did read invalid data", c.Kind())
-						break
-					}
-				}
-			}(i)
-		}
+// 		for i := 0; i < threadCnt; i++ {
+// 			go func(i int) {
+// 				defer wg.Done()
+// 				for n := 0; n < readCnt; n++ {
+// 					b := testBlobs[(i+n)%len(testBlobs)]
+// 					if !bytes.Equal(b.data, getBlob(b.name, c)) {
+// 						t.Errorf("Datastore %s: Did read invalid data", c.Kind())
+// 						break
+// 					}
+// 				}
+// 			}(i)
+// 		}
 
-		wg.Wait()
-	})
-}
+// 		wg.Wait()
+// 	})
+// }
 
-func TestSimultaneousSaves(t *testing.T) {
-	threadCnt := 3
+// func TestSimultaneousSaves(t *testing.T) {
+// 	threadCnt := 3
 
-	allDS(func(c DS) {
+// 	allDS(func(c DS) {
 
-		b := testBlobs[0]
+// 		b := testBlobs[0]
 
-		wg := sync.WaitGroup{}
-		wg.Add(threadCnt)
+// 		wg := sync.WaitGroup{}
+// 		wg.Add(threadCnt)
 
-		wg2 := sync.WaitGroup{}
-		wg2.Add(threadCnt)
+// 		wg2 := sync.WaitGroup{}
+// 		wg2.Add(threadCnt)
 
-		for i := 0; i < threadCnt; i++ {
-			go func(i int) {
-				firstTime := true
-				err := c.Save(b.name, bReader(b.data, func() error {
+// 		for i := 0; i < threadCnt; i++ {
+// 			go func(i int) {
+// 				firstTime := true
+// 				err := c.Save(b.name, bReader(b.data, func() error {
 
-					if !firstTime {
-						return nil
-					}
-					firstTime = false
+// 					if !firstTime {
+// 						return nil
+// 					}
+// 					firstTime = false
 
-					// Blob must not exist now
-					if exists(c, b.name) {
-						t.Errorf("Datastore %s: Blob exists although no writter finished yet", c.Kind())
-						return nil
-					}
+// 					// Blob must not exist now
+// 					if exists(c, b.name) {
+// 						t.Errorf("Datastore %s: Blob exists although no writter finished yet", c.Kind())
+// 						return nil
+// 					}
 
-					// Wait for all writes to start
-					wg.Done()
-					wg.Wait()
+// 					// Wait for all writes to start
+// 					wg.Done()
+// 					wg.Wait()
 
-					return nil
+// 					return nil
 
-				}, nil, nil))
-				errPanic(err)
+// 				}, nil, nil))
+// 				errPanic(err)
 
-				if !exists(c, b.name) {
-					t.Errorf("Datastore %s: Blob does not exist yet", c.Kind())
-				}
+// 				if !exists(c, b.name) {
+// 					t.Errorf("Datastore %s: Blob does not exist yet", c.Kind())
+// 				}
 
-				wg2.Done()
-			}(i)
-		}
+// 				wg2.Done()
+// 			}(i)
+// 		}
 
-		wg2.Wait()
-	})
-}
+// 		wg2.Wait()
+// 	})
+// }
 
-// Invalid names behave just as if there was no blob with such name.
-// Writing such blob would always fail on close (similarly to how invalid name
-// when writing behaves)
-var invalidNames = []string{
-	"",
-	"short",
-	"invalid-character",
-}
+// // Invalid names behave just as if there was no blob with such name.
+// // Writing such blob would always fail on close (similarly to how invalid name
+// // when writing behaves)
+// var invalidNames = []string{
+// 	"",
+// 	"short",
+// 	"invalid-character",
+// }
 
-func TestOpenInvalidName(t *testing.T) {
-	allDS(func(c DS) {
-		for _, n := range invalidNames {
-			_, e := c.Open(n)
-			if e != ErrNotFound {
-				t.Fatalf("Datastore %s: Incorrect error for invalid name: %v", c.Kind(), e)
-			}
-		}
-	})
-}
+// func TestOpenInvalidName(t *testing.T) {
+// 	allDS(func(c DS) {
+// 		for _, n := range invalidNames {
+// 			_, e := c.Open(n)
+// 			if e != ErrNotFound {
+// 				t.Fatalf("Datastore %s: Incorrect error for invalid name: %v", c.Kind(), e)
+// 			}
+// 		}
+// 	})
+// }
 
-func TestSaveInvalidName(t *testing.T) {
-	allDS(func(c DS) {
-		for _, n := range invalidNames {
-			readCalled, eofCalledCnt, closeCalledCnt := false, 0, 0
-			e := c.Save(n, bReader([]byte{}, func() error {
-				if closeCalledCnt > 0 {
-					t.Fatalf("Datastore %s: Read after Close()", c.Kind())
-				}
-				if eofCalledCnt > 0 {
-					t.Fatalf("Datastore %s: Read after EOF", c.Kind())
-				}
-				readCalled = true
-				return nil
-			}, func() error {
-				if closeCalledCnt > 0 {
-					t.Fatalf("Datastore %s: EOF after Close()", c.Kind())
-				}
-				eofCalledCnt++
-				return nil
-			}, func() error {
-				closeCalledCnt++
-				return nil
-			}))
-			if e != ErrNameMismatch {
-				t.Fatalf("Datastore %s: Got error when opening invalid name write stream: %v", c.Kind(), e)
-			}
-			if !readCalled {
-				t.Fatalf("Datastore %s: Didn't call read for incorrect blob name", c.Kind())
-			}
-			if eofCalledCnt == 0 {
-				t.Fatalf("Datastore %s: Didn't get EOF when reading incorrect blob data", c.Kind())
-			}
-			if eofCalledCnt > 1 {
-				t.Fatalf("Datastore %s: Did get EOF multiple times (%d)", c.Kind(), eofCalledCnt)
-			}
-			if closeCalledCnt == 0 {
-				t.Fatalf("Datastore %s: Didn't call close for incorrect blob name", c.Kind())
-			}
-			if closeCalledCnt > 1 {
-				t.Fatalf("Datastore %s: Close called multiple times for incorrect blob name", c.Kind())
-			}
-		}
-	})
-}
+// func TestSaveInvalidName(t *testing.T) {
+// 	allDS(func(c DS) {
+// 		for _, n := range invalidNames {
+// 			readCalled, eofCalledCnt, closeCalledCnt := false, 0, 0
+// 			e := c.Save(n, bReader([]byte{}, func() error {
+// 				if closeCalledCnt > 0 {
+// 					t.Fatalf("Datastore %s: Read after Close()", c.Kind())
+// 				}
+// 				if eofCalledCnt > 0 {
+// 					t.Fatalf("Datastore %s: Read after EOF", c.Kind())
+// 				}
+// 				readCalled = true
+// 				return nil
+// 			}, func() error {
+// 				if closeCalledCnt > 0 {
+// 					t.Fatalf("Datastore %s: EOF after Close()", c.Kind())
+// 				}
+// 				eofCalledCnt++
+// 				return nil
+// 			}, func() error {
+// 				closeCalledCnt++
+// 				return nil
+// 			}))
+// 			if e != ErrNameMismatch {
+// 				t.Fatalf("Datastore %s: Got error when opening invalid name write stream: %v", c.Kind(), e)
+// 			}
+// 			if !readCalled {
+// 				t.Fatalf("Datastore %s: Didn't call read for incorrect blob name", c.Kind())
+// 			}
+// 			if eofCalledCnt == 0 {
+// 				t.Fatalf("Datastore %s: Didn't get EOF when reading incorrect blob data", c.Kind())
+// 			}
+// 			if eofCalledCnt > 1 {
+// 				t.Fatalf("Datastore %s: Did get EOF multiple times (%d)", c.Kind(), eofCalledCnt)
+// 			}
+// 			if closeCalledCnt == 0 {
+// 				t.Fatalf("Datastore %s: Didn't call close for incorrect blob name", c.Kind())
+// 			}
+// 			if closeCalledCnt > 1 {
+// 				t.Fatalf("Datastore %s: Close called multiple times for incorrect blob name", c.Kind())
+// 			}
+// 		}
+// 	})
+// }
 
-func TestExistsInvalidName(t *testing.T) {
-	allDS(func(c DS) {
-		for _, n := range invalidNames {
-			ex, err := c.Exists(n)
-			errPanic(err)
-			if ex {
-				t.Fatalf("Datastore %s: Blob with invalid name exists", c.Kind())
-			}
-		}
-	})
-}
+// func TestExistsInvalidName(t *testing.T) {
+// 	allDS(func(c DS) {
+// 		for _, n := range invalidNames {
+// 			ex, err := c.Exists(n)
+// 			errPanic(err)
+// 			if ex {
+// 				t.Fatalf("Datastore %s: Blob with invalid name exists", c.Kind())
+// 			}
+// 		}
+// 	})
+// }
 
-func TestDeleteInvalidNonExisting(t *testing.T) {
-	allDS(func(c DS) {
-		for _, b := range testBlobs {
-			e := c.Delete(b.name)
-			if e != ErrNotFound {
-				t.Fatalf("Datastore %s: Incorrect error for invalid name: %v", c.Kind(), e)
-			}
-		}
-	})
-}
+// func TestDeleteInvalidNonExisting(t *testing.T) {
+// 	allDS(func(c DS) {
+// 		for _, b := range testBlobs {
+// 			e := c.Delete(b.name)
+// 			if e != ErrNotFound {
+// 				t.Fatalf("Datastore %s: Incorrect error for invalid name: %v", c.Kind(), e)
+// 			}
+// 		}
+// 	})
+// }
 
-func TestDeleteInvalidName(t *testing.T) {
-	allDS(func(c DS) {
-		for _, n := range invalidNames {
-			e := c.Delete(n)
-			if e != ErrNotFound {
-				t.Fatalf("Datastore %s: Incorrect error for invalid name: %v", c.Kind(), e)
-			}
-		}
-	})
-}
-
-func TestAutoNamedWriter(t *testing.T) {
-	allDS(func(c DS) {
-		for _, b := range testBlobs {
-			name, err := c.SaveAutoNamed(bReader(b.data, nil, nil, nil))
-			if err != nil {
-				t.Fatalf("Datastore %s: Can not create auto named writer: %v", c.Kind(), err)
-			}
-
-			if name != b.name {
-				t.Fatalf("Datastore %s: Invalid name from auto named writer: "+
-					"'%s' instead of '%s'", c.Kind(), name, b.name)
-			}
-
-			if !exists(c, b.name) {
-				t.Fatalf("Datastore %s: Blob does not exist", c.Kind())
-			}
-		}
-	})
-}
+// func TestDeleteInvalidName(t *testing.T) {
+// 	allDS(func(c DS) {
+// 		for _, n := range invalidNames {
+// 			e := c.Delete(n)
+// 			if e != ErrNotFound {
+// 				t.Fatalf("Datastore %s: Incorrect error for invalid name: %v", c.Kind(), e)
+// 			}
+// 		}
+// 	})
+// }

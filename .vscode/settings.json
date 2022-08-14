@@ -1,4 +1,15 @@
 {
     "go.autocompleteUnimportedPackages": true,
-    "go.coverOnSave": true
+    "go.coverOnSave": true,
+    "cSpell.words": [
+        "blobtype",
+        "blobtypes",
+        "bmap",
+        "cinode",
+        "ciphertext",
+        "Hasher",
+        "coverprofile",
+        "goveralls",
+        "shogo"
+    ]
 }
