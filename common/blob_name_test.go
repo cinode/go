@@ -1,4 +1,4 @@
-package datastore
+package common
 
 import (
 	"crypto/sha256"
@@ -16,7 +16,13 @@ func TestBlobName(t *testing.T) {
 		{1, 2, 3, 4, 5, 6},
 		sha256.New().Sum(nil),
 	} {
-		for _, bt := range []BlobType{0, 1, 2, 0xFE, 0xFF} {
+		for _, bt := range []BlobType{
+			{t: 0x00},
+			{t: 0x01},
+			{t: 0x02},
+			{t: 0xFE},
+			{t: 0xFF},
+		} {
 			t.Run(fmt.Sprintf("%v:%v", bt, h), func(t *testing.T) {
 				bn, err := BlobNameFromHashAndType(h, bt)
 				assert.NoError(t, err)
@@ -39,6 +45,6 @@ func TestBlobName(t *testing.T) {
 	_, err = BlobNameFromString("")
 	require.ErrorIs(t, err, ErrInvalidBlobName)
 
-	_, err = BlobNameFromHashAndType(nil, 0x00)
+	_, err = BlobNameFromHashAndType(nil, BlobType{t: 0x00})
 	require.ErrorIs(t, err, ErrInvalidBlobName)
 }

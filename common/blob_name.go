@@ -1,4 +1,4 @@
-package datastore
+package common
 
 import (
 	"errors"
@@ -29,7 +29,7 @@ func BlobNameFromHashAndType(hash []byte, t BlobType) (BlobName, error) {
 
 	copy(ret[1:], hash)
 
-	scrambledTypeByte := byte(t)
+	scrambledTypeByte := byte(t.t)
 	for _, b := range hash {
 		scrambledTypeByte ^= b
 	}
@@ -63,5 +63,5 @@ func (b BlobName) Type() BlobType {
 	for _, by := range b {
 		ret ^= by
 	}
-	return BlobType(ret)
+	return BlobType{t: ret}
 }
