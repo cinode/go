@@ -6,6 +6,8 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+
+	"github.com/cinode/go/common"
 )
 
 var (
@@ -40,13 +42,13 @@ func (i *webInterface) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (i *webInterface) getName(w http.ResponseWriter, r *http.Request) (BlobName, error) {
+func (i *webInterface) getName(w http.ResponseWriter, r *http.Request) (common.BlobName, error) {
 	// Don't allow url queries and require path to start with '/'
 	if r.URL.Path[0] != '/' || r.URL.RawQuery != "" {
-		return nil, ErrInvalidBlobName
+		return nil, common.ErrInvalidBlobName
 	}
 
-	bn, err := BlobNameFromString(r.URL.Path[1:])
+	bn, err := common.BlobNameFromString(r.URL.Path[1:])
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +56,7 @@ func (i *webInterface) getName(w http.ResponseWriter, r *http.Request) (BlobName
 	return bn, nil
 }
 
-func (i *webInterface) sendName(name BlobName, w http.ResponseWriter, r *http.Request) {
+func (i *webInterface) sendName(name common.BlobName, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-type", "application/json")
 	json.NewEncoder(w).Encode(&webNameResponse{
 		Name: name.String(),
@@ -95,7 +97,7 @@ func (i *webInterface) serveGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = i.ds.Read(name, w)
+	err = i.ds.Read(r.Context(), name, w)
 	if !i.checkErr(err, w, r) {
 		return
 	}
@@ -163,7 +165,7 @@ func (i *webInterface) servePut(w http.ResponseWriter, r *http.Request) {
 	}
 	defer reader.Close()
 
-	err = i.ds.Update(name, reader)
+	err = i.ds.Update(r.Context(), name, reader)
 	if !i.checkErr(err, w, r) {
 		return
 	}
@@ -178,7 +180,7 @@ func (i *webInterface) serveDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = i.ds.Delete(name)
+	err = i.ds.Delete(r.Context(), name)
 	if !i.checkErr(err, w, r) {
 		return
 	}
@@ -192,7 +194,7 @@ func (i *webInterface) serveHead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exists, err := i.ds.Exists(name)
+	exists, err := i.ds.Exists(r.Context(), name)
 	if !i.checkErr(err, w, r) {
 		return
 	}

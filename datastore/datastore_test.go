@@ -2,35 +2,37 @@ package datastore
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"testing"
 
+	"github.com/cinode/go/common"
 	"github.com/stretchr/testify/require"
 )
 
 type mockStore struct {
 	fKind            func() string
-	fOpenReadStream  func(name BlobName) (io.ReadCloser, error)
-	fOpenWriteStream func(name BlobName) (WriteCloseCanceller, error)
-	fExists          func(name BlobName) (bool, error)
-	fDelete          func(name BlobName) error
+	fOpenReadStream  func(ctx context.Context, name common.BlobName) (io.ReadCloser, error)
+	fOpenWriteStream func(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error)
+	fExists          func(ctx context.Context, name common.BlobName) (bool, error)
+	fDelete          func(ctx context.Context, name common.BlobName) error
 }
 
 func (s *mockStore) kind() string {
 	return s.fKind()
 }
-func (s *mockStore) openReadStream(name BlobName) (io.ReadCloser, error) {
-	return s.fOpenReadStream(name)
+func (s *mockStore) openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+	return s.fOpenReadStream(ctx, name)
 }
-func (s *mockStore) openWriteStream(name BlobName) (WriteCloseCanceller, error) {
-	return s.fOpenWriteStream(name)
+func (s *mockStore) openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
+	return s.fOpenWriteStream(ctx, name)
 }
-func (s *mockStore) exists(name BlobName) (bool, error) {
-	return s.fExists(name)
+func (s *mockStore) exists(ctx context.Context, name common.BlobName) (bool, error) {
+	return s.fExists(ctx, name)
 }
-func (s *mockStore) delete(name BlobName) error {
-	return s.fDelete(name)
+func (s *mockStore) delete(ctx context.Context, name common.BlobName) error {
+	return s.fDelete(ctx, name)
 }
 
 type mockWriteCloseCanceller struct {
@@ -53,12 +55,12 @@ func TestDatastoreWriteFailure(t *testing.T) {
 	t.Run("error on opening write stream", func(t *testing.T) {
 		errRet := errors.New("error")
 		ds := &datastore{s: &mockStore{
-			fOpenWriteStream: func(name BlobName) (WriteCloseCanceller, error) {
+			fOpenWriteStream: func(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
 				return nil, errRet
 			},
 		}}
 
-		err := ds.Update(emptyBlobName, bytes.NewBuffer(nil))
+		err := ds.Update(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
 		require.ErrorIs(t, err, errRet)
 	})
 
@@ -66,7 +68,7 @@ func TestDatastoreWriteFailure(t *testing.T) {
 		errRet := errors.New("error")
 		cancelCalled := false
 		ds := &datastore{s: &mockStore{
-			fOpenWriteStream: func(name BlobName) (WriteCloseCanceller, error) {
+			fOpenWriteStream: func(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
 				return &mockWriteCloseCanceller{
 					fCancel: func() {
 						require.False(t, cancelCalled)
@@ -74,12 +76,12 @@ func TestDatastoreWriteFailure(t *testing.T) {
 					},
 				}, nil
 			},
-			fOpenReadStream: func(name BlobName) (io.ReadCloser, error) {
+			fOpenReadStream: func(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 				return nil, errRet
 			},
 		}}
 
-		err := ds.Update(emptyBlobName, bytes.NewBuffer(nil))
+		err := ds.Update(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
 		require.ErrorIs(t, err, errRet)
 
 		require.True(t, cancelCalled)
@@ -91,7 +93,7 @@ func TestDatastoreWriteFailure(t *testing.T) {
 		closeCalled := false
 		cancelCalled := false
 		ds := &datastore{s: &mockStore{
-			fOpenWriteStream: func(name BlobName) (WriteCloseCanceller, error) {
+			fOpenWriteStream: func(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
 				return &mockWriteCloseCanceller{
 					fWrite: func(b []byte) (int, error) {
 						require.False(t, closeCalled)
@@ -110,12 +112,12 @@ func TestDatastoreWriteFailure(t *testing.T) {
 					},
 				}, nil
 			},
-			fOpenReadStream: func(name BlobName) (io.ReadCloser, error) {
+			fOpenReadStream: func(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 				return nil, ErrNotFound
 			},
 		}}
 
-		err := ds.Update(emptyBlobName, bytes.NewBuffer(nil))
+		err := ds.Update(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
 		require.ErrorIs(t, err, errRet)
 
 		// Failed Close call will be followed by a Cancel call

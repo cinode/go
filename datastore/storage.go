@@ -1,6 +1,11 @@
 package datastore
 
-import "io"
+import (
+	"context"
+	"io"
+
+	"github.com/cinode/go/common"
+)
 
 type WriteCloseCanceller interface {
 	io.WriteCloser
@@ -9,8 +14,8 @@ type WriteCloseCanceller interface {
 
 type storage interface {
 	kind() string
-	openReadStream(name BlobName) (io.ReadCloser, error)
-	openWriteStream(name BlobName) (WriteCloseCanceller, error)
-	exists(name BlobName) (bool, error)
-	delete(name BlobName) error
+	openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error)
+	openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error)
+	exists(ctx context.Context, name common.BlobName) (bool, error)
+	delete(ctx context.Context, name common.BlobName) error
 }

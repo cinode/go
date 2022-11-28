@@ -1,9 +1,12 @@
 package datastore
 
 import (
+	"context"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/cinode/go/common"
 )
 
 const (
@@ -24,7 +27,7 @@ func newStorageFilesystem(path string) *fileSystem {
 func (fs *fileSystem) kind() string {
 	return "FileSystem"
 }
-func (fs *fileSystem) openReadStream(name BlobName) (io.ReadCloser, error) {
+func (fs *fileSystem) openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	rc, err := os.Open(fs.getFileName(name, fsSuffixCurrent))
 	if os.IsNotExist(err) {
 		return nil, ErrNotFound
@@ -32,7 +35,7 @@ func (fs *fileSystem) openReadStream(name BlobName) (io.ReadCloser, error) {
 	return rc, err
 }
 
-func (fs *fileSystem) createTemporaryWriteStream(name BlobName) (*os.File, error) {
+func (fs *fileSystem) createTemporaryWriteStream(name common.BlobName) (*os.File, error) {
 	tempName := fs.getFileName(name, fsSuffixUpload)
 
 	// Ensure dir exists
@@ -85,7 +88,7 @@ func (w *fileSystemWriteCloser) Close() error {
 	return os.Rename(w.fs.Name(), w.destName)
 }
 
-func (fs *fileSystem) openWriteStream(name BlobName) (WriteCloseCanceller, error) {
+func (fs *fileSystem) openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
 
 	fl, err := fs.createTemporaryWriteStream(name)
 	if err != nil {
@@ -98,7 +101,7 @@ func (fs *fileSystem) openWriteStream(name BlobName) (WriteCloseCanceller, error
 	}, nil
 }
 
-func (fs *fileSystem) exists(name BlobName) (bool, error) {
+func (fs *fileSystem) exists(ctx context.Context, name common.BlobName) (bool, error) {
 	_, err := os.Stat(fs.getFileName(name, fsSuffixCurrent))
 	if os.IsNotExist(err) {
 		return false, nil
@@ -109,7 +112,7 @@ func (fs *fileSystem) exists(name BlobName) (bool, error) {
 	return true, nil
 }
 
-func (fs *fileSystem) delete(name BlobName) error {
+func (fs *fileSystem) delete(ctx context.Context, name common.BlobName) error {
 	err := os.Remove(fs.getFileName(name, fsSuffixCurrent))
 	if os.IsNotExist(err) {
 		return ErrNotFound
@@ -117,7 +120,7 @@ func (fs *fileSystem) delete(name BlobName) error {
 	return err
 }
 
-func (fs *fileSystem) getFileName(name BlobName, suffix string) string {
+func (fs *fileSystem) getFileName(name common.BlobName, suffix string) string {
 	fNameParts := []string{fs.path}
 
 	nameStr := name.String()

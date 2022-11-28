@@ -1,6 +1,11 @@
 package datastore
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/cinode/go/common"
+	"github.com/cinode/go/internal/blobtypes"
+)
 
 type webErrResponse struct {
 	Code    string `json:"code"`
@@ -9,10 +14,11 @@ type webErrResponse struct {
 
 var (
 	webErrMap = map[string]error{
-		"UNKNOWN_BLOB_TYPE": ErrUnknownBlobType,
-		"VALIDATION_FAILED": ErrValidationFailed,
-		"INVALID_BLOB_NAME": ErrInvalidBlobName,
-		"NO_FORM_FIELD":     errNoData,
+		"UNKNOWN_BLOB_TYPE":  blobtypes.ErrUnknownBlobType,
+		"VALIDATION_FAILED":  blobtypes.ErrValidationFailed,
+		"INVALID_BLOB_NAME":  common.ErrInvalidBlobName,
+		"UPLOAD_IN_PROGRESS": ErrUploadInProgress,
+		"NO_FORM_FIELD":      errNoData,
 	}
 )
 

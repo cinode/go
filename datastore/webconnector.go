@@ -1,11 +1,15 @@
 package datastore
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/cinode/go/common"
+	"github.com/cinode/go/internal/blobtypes/propagation"
 )
 
 var (
@@ -31,13 +35,23 @@ func (w *webConnector) Kind() string {
 	return "Web"
 }
 
-func (w *webConnector) Read(name BlobName, output io.Writer) error {
-	handler, err := handlerForType(name.Type())
+func (w *webConnector) Read(ctx context.Context, name common.BlobName, output io.Writer) error {
+	handler, err := propagation.HandlerForType(name.Type())
 	if err != nil {
 		return err
 	}
 
-	res, err := w.client.Get(w.baseURL + name.String())
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		w.baseURL+name.String(),
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	res, err := w.client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -48,11 +62,15 @@ func (w *webConnector) Read(name BlobName, output io.Writer) error {
 		return err
 	}
 
-	return handler.Validate(name.Hash(), res.Body, output)
+	return handler.Validate(
+		name.Hash(),
+		io.TeeReader(res.Body, output),
+	)
 }
 
-func (w *webConnector) Update(name BlobName, r io.Reader) error {
-	req, err := http.NewRequest(
+func (w *webConnector) Update(ctx context.Context, name common.BlobName, r io.Reader) error {
+	req, err := http.NewRequestWithContext(
+		ctx,
 		http.MethodPut,
 		w.baseURL+name.String(),
 		r,
@@ -72,15 +90,24 @@ func (w *webConnector) Update(name BlobName, r io.Reader) error {
 	return w.errCheck(res)
 }
 
-func (w *webConnector) Exists(name BlobName) (bool, error) {
-	res, err := http.Head(w.baseURL + name.String())
+func (w *webConnector) Exists(ctx context.Context, name common.BlobName) (bool, error) {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodHead,
+		w.baseURL+name.String(),
+		nil,
+	)
+	if err != nil {
+		return false, err
+	}
+	res, err := w.client.Do(req)
 	if err != nil {
 		return false, err
 	}
 	defer res.Body.Close()
 
 	err = w.errCheck(res)
-	if err == ErrNotFound {
+	if errors.Is(err, ErrNotFound) {
 		return false, nil
 	}
 
@@ -90,8 +117,13 @@ func (w *webConnector) Exists(name BlobName) (bool, error) {
 	return false, err
 }
 
-func (w *webConnector) Delete(name BlobName) error {
-	req, err := http.NewRequest(http.MethodDelete, w.baseURL+name.String(), nil)
+func (w *webConnector) Delete(ctx context.Context, name common.BlobName) error {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodDelete,
+		w.baseURL+name.String(),
+		nil,
+	)
 	if err != nil {
 		return err
 	}

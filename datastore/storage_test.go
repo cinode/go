@@ -1,11 +1,14 @@
 package datastore
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
 	"io"
 	"testing"
 
+	"github.com/cinode/go/common"
+	"github.com/cinode/go/internal/blobtypes"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,7 +22,7 @@ func allTestStorages(t *testing.T) []storage {
 func TestStorageOpenFailureNotFound(t *testing.T) {
 	for _, st := range allTestStorages(t) {
 		t.Run(st.kind(), func(t *testing.T) {
-			r, err := st.openReadStream(emptyBlobName)
+			r, err := st.openReadStream(context.Background(), emptyBlobName)
 			require.ErrorIs(t, err, ErrNotFound)
 			require.Nil(t, r)
 		})
@@ -29,14 +32,14 @@ func TestStorageOpenFailureNotFound(t *testing.T) {
 func TestStorageSaveOpenSuccess(t *testing.T) {
 	for _, st := range allTestStorages(t) {
 		t.Run(st.kind(), func(t *testing.T) {
-			exists, err := st.exists(emptyBlobName)
+			exists, err := st.exists(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 			require.False(t, exists)
 
-			w, err := st.openWriteStream(emptyBlobName)
+			w, err := st.openWriteStream(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 
-			exists, err = st.exists(emptyBlobName)
+			exists, err = st.exists(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 			require.False(t, exists)
 
@@ -47,11 +50,11 @@ func TestStorageSaveOpenSuccess(t *testing.T) {
 			err = w.Close()
 			require.NoError(t, err)
 
-			exists, err = st.exists(emptyBlobName)
+			exists, err = st.exists(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 			require.True(t, exists)
 
-			r, err := st.openReadStream(emptyBlobName)
+			r, err := st.openReadStream(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 
 			b, err := io.ReadAll(r)
@@ -67,14 +70,14 @@ func TestStorageSaveOpenSuccess(t *testing.T) {
 func TestStorageSaveOpenCancelSuccess(t *testing.T) {
 	for _, st := range allTestStorages(t) {
 		t.Run(st.kind(), func(t *testing.T) {
-			exists, err := st.exists(emptyBlobName)
+			exists, err := st.exists(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 			require.False(t, exists)
 
-			w, err := st.openWriteStream(emptyBlobName)
+			w, err := st.openWriteStream(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 
-			exists, err = st.exists(emptyBlobName)
+			exists, err = st.exists(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 			require.False(t, exists)
 
@@ -82,17 +85,17 @@ func TestStorageSaveOpenCancelSuccess(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, 12, n)
 
-			exists, err = st.exists(emptyBlobName)
+			exists, err = st.exists(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 			require.False(t, exists)
 
 			w.Cancel()
 
-			exists, err = st.exists(emptyBlobName)
+			exists, err = st.exists(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 			require.False(t, exists)
 
-			r, err := st.openReadStream(emptyBlobName)
+			r, err := st.openReadStream(context.Background(), emptyBlobName)
 			require.ErrorIs(t, err, ErrNotFound)
 			require.Nil(t, r)
 		})
@@ -102,7 +105,7 @@ func TestStorageSaveOpenCancelSuccess(t *testing.T) {
 func TestStorageDelete(t *testing.T) {
 	for _, st := range allTestStorages(t) {
 		t.Run(st.kind(), func(t *testing.T) {
-			blobNames := []BlobName{}
+			blobNames := []common.BlobName{}
 			blobDatas := [][]byte{}
 
 			t.Run("generate test data", func(t *testing.T) {
@@ -112,19 +115,19 @@ func TestStorageDelete(t *testing.T) {
 					"third",
 				} {
 					h := sha256.Sum256([]byte(d))
-					bn, err := BlobNameFromHashAndType(h[:], 0x00)
+					bn, err := common.BlobNameFromHashAndType(h[:], blobtypes.Static)
 					require.NoError(t, err)
 
 					blobNames = append(blobNames, bn)
 					blobDatas = append(blobDatas, []byte(d))
 
-					err = st.delete(bn)
+					err = st.delete(context.Background(), bn)
 					require.ErrorIs(t, err, ErrNotFound)
 
-					w, err := st.openWriteStream(bn)
+					w, err := st.openWriteStream(context.Background(), bn)
 					require.NoError(t, err)
 
-					exists, err := st.exists(bn)
+					exists, err := st.exists(context.Background(), bn)
 					require.NoError(t, err)
 					require.False(t, exists)
 
@@ -135,7 +138,7 @@ func TestStorageDelete(t *testing.T) {
 					err = w.Close()
 					require.NoError(t, err)
 
-					exists, err = st.exists(bn)
+					exists, err = st.exists(context.Background(), bn)
 					require.NoError(t, err)
 					require.True(t, exists)
 				}
@@ -143,15 +146,15 @@ func TestStorageDelete(t *testing.T) {
 
 			t.Run("delete blob", func(t *testing.T) {
 				const toDelete = 1
-				err := st.delete(blobNames[toDelete])
+				err := st.delete(context.Background(), blobNames[toDelete])
 				require.NoError(t, err)
 
-				err = st.delete(blobNames[toDelete])
+				err = st.delete(context.Background(), blobNames[toDelete])
 				require.ErrorIs(t, err, ErrNotFound)
 
 				for i := range blobNames {
 					t.Run(fmt.Sprintf("exists test %d", i), func(t *testing.T) {
-						exists, err := st.exists(blobNames[i])
+						exists, err := st.exists(context.Background(), blobNames[i])
 						require.NoError(t, err)
 						require.Equal(t, i != toDelete, exists)
 					})
@@ -167,11 +170,11 @@ func TestStorageTooManySimultaneousSaves(t *testing.T) {
 		t.Run(st.kind(), func(t *testing.T) {
 
 			// Start the first writer
-			w1, err := st.openWriteStream(emptyBlobName)
+			w1, err := st.openWriteStream(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 
 			// Any attempt to update while the update is in progress should fail now
-			w2, err := st.openWriteStream(emptyBlobName)
+			w2, err := st.openWriteStream(context.Background(), emptyBlobName)
 			require.ErrorIs(t, err, ErrUploadInProgress)
 			require.Nil(t, w2)
 
@@ -180,7 +183,7 @@ func TestStorageTooManySimultaneousSaves(t *testing.T) {
 			require.NoError(t, err)
 
 			// We should be able to successfully read the ingested data
-			r, err := st.openReadStream(emptyBlobName)
+			r, err := st.openReadStream(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 
 			b, err := io.ReadAll(r)
@@ -197,30 +200,30 @@ func TestStorageSaveWhileDeleting(t *testing.T) {
 	for _, st := range allTestStorages(t) {
 		t.Run(st.kind(), func(t *testing.T) {
 
-			w, err := st.openWriteStream(emptyBlobName)
+			w, err := st.openWriteStream(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 
 			err = w.Close()
 			require.NoError(t, err)
 
-			exists, err := st.exists(emptyBlobName)
+			exists, err := st.exists(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 			require.True(t, exists)
 
-			w, err = st.openWriteStream(emptyBlobName)
+			w, err = st.openWriteStream(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 
-			err = st.delete(emptyBlobName)
+			err = st.delete(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 
-			exists, err = st.exists(emptyBlobName)
+			exists, err = st.exists(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 			require.False(t, exists)
 
 			err = w.Close()
 			require.NoError(t, err)
 
-			exists, err = st.exists(emptyBlobName)
+			exists, err = st.exists(context.Background(), emptyBlobName)
 			require.NoError(t, err)
 			require.True(t, exists)
 		})

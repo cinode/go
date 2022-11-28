@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"mime/multipart"
@@ -9,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/cinode/go/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -82,7 +84,7 @@ func TestWebInterfaceDeleteQueryString(t *testing.T) {
 func TestWebIntefaceExistsFailure(t *testing.T) {
 	server := httptest.NewServer(WebInterface(&datastore{
 		s: &mockStore{
-			fExists: func(name BlobName) (bool, error) { return false, errors.New("fail") },
+			fExists: func(ctx context.Context, name common.BlobName) (bool, error) { return false, errors.New("fail") },
 		},
 	}))
 	defer server.Close()

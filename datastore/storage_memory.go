@@ -2,8 +2,11 @@ package datastore
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"sync"
+
+	"github.com/cinode/go/common"
 )
 
 type memory struct {
@@ -31,7 +34,7 @@ func (m *memory) kind() string {
 	return "Memory"
 }
 
-func (m *memory) openReadStream(name BlobName) (io.ReadCloser, error) {
+func (m *memory) openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	m.rw.RLock()
 	defer m.rw.RUnlock()
 
@@ -69,7 +72,7 @@ func (w *memoryWriteCloser) Close() error {
 	return nil
 }
 
-func (m *memory) openWriteStream(name BlobName) (WriteCloseCanceller, error) {
+func (m *memory) openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
 	m.rw.Lock()
 	defer m.rw.Unlock()
 
@@ -88,7 +91,7 @@ func (m *memory) openWriteStream(name BlobName) (WriteCloseCanceller, error) {
 	}, nil
 }
 
-func (m *memory) exists(n BlobName) (bool, error) {
+func (m *memory) exists(ctx context.Context, n common.BlobName) (bool, error) {
 	m.rw.RLock()
 	defer m.rw.RUnlock()
 
@@ -99,7 +102,7 @@ func (m *memory) exists(n BlobName) (bool, error) {
 	return true, nil
 }
 
-func (m *memory) delete(n BlobName) error {
+func (m *memory) delete(ctx context.Context, n common.BlobName) error {
 	m.rw.Lock()
 	defer m.rw.Unlock()
 

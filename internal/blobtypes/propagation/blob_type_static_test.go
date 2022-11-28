@@ -1,4 +1,4 @@
-package datastore
+package propagation
 
 import (
 	"bytes"
@@ -8,10 +8,11 @@ import (
 	"testing"
 	"testing/iotest"
 
+	"github.com/cinode/go/internal/blobtypes"
 	"github.com/stretchr/testify/require"
 )
 
-func getUpdatedBlob(bt BlobTypeHandler, hash []byte, current, update []byte) ([]byte, error) {
+func getUpdatedBlob(bt Handler, hash []byte, current, update []byte) ([]byte, error) {
 	var currentReader io.Reader
 	if current != nil {
 		currentReader = bytes.NewReader(current)
@@ -20,7 +21,7 @@ func getUpdatedBlob(bt BlobTypeHandler, hash []byte, current, update []byte) ([]
 	return getUpdatedBlobWithCurrentReader(bt, hash, currentReader, update)
 }
 
-func getUpdatedBlobWithCurrentReader(bt BlobTypeHandler, hash []byte, currentReader io.Reader, update []byte) ([]byte, error) {
+func getUpdatedBlobWithCurrentReader(bt Handler, hash []byte, currentReader io.Reader, update []byte) ([]byte, error) {
 
 	output := bytes.NewBuffer(nil)
 
@@ -33,9 +34,7 @@ func getUpdatedBlobWithCurrentReader(bt BlobTypeHandler, hash []byte, currentRea
 }
 
 func TestStaticBlobHandler(t *testing.T) {
-	bt := NewStaticBlobHandlerSha256()
-
-	require.EqualValues(t, bt.Type(), 0x00)
+	bt := newStaticBlobHandlerSha256()
 
 	t.Run("ingest a new correct blob", func(t *testing.T) {
 		data := []byte("hello world!")
@@ -46,13 +45,22 @@ func TestStaticBlobHandler(t *testing.T) {
 		require.Equal(t, data, dataBack)
 	})
 
+	t.Run("propagate read error", func(t *testing.T) {
+		data := []byte("hello world!")
+		hash := sha256.Sum256(data)
+		errToReturn := errors.New("test error")
+
+		err := bt.Validate(hash[:], iotest.ErrReader(errToReturn))
+		require.ErrorIs(t, err, errToReturn)
+	})
+
 	t.Run("ingest a new incorrect blob - hash of wrong data", func(t *testing.T) {
 		data := []byte("hello world!")
 		hash := sha256.Sum256(append(data, 1))
 
 		dataBack, err := getUpdatedBlob(bt, hash[:], nil, data)
 		require.ErrorIs(t, err, ErrInvalidStaticBlobHash)
-		require.ErrorIs(t, err, ErrValidationFailed)
+		require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
 		require.Nil(t, dataBack)
 	})
 
@@ -62,7 +70,7 @@ func TestStaticBlobHandler(t *testing.T) {
 
 		dataBack, err := getUpdatedBlob(bt, hash[:len(hash)-1], nil, data)
 		require.ErrorIs(t, err, ErrInvalidStaticBlobHash)
-		require.ErrorIs(t, err, ErrValidationFailed)
+		require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
 		require.Nil(t, dataBack)
 	})
 
@@ -81,7 +89,7 @@ func TestStaticBlobHandler(t *testing.T) {
 
 		_, err := getUpdatedBlob(bt, hash[:], data, append(data, 1))
 		require.ErrorIs(t, err, ErrInvalidStaticBlobHash)
-		require.ErrorIs(t, err, ErrValidationFailed)
+		require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
 	})
 
 	t.Run("ingest a new incorrect blob - hash size mismatch", func(t *testing.T) {
@@ -90,7 +98,7 @@ func TestStaticBlobHandler(t *testing.T) {
 
 		dataBack, err := getUpdatedBlob(bt, hash[:len(hash)-1], data, data)
 		require.ErrorIs(t, err, ErrInvalidStaticBlobHash)
-		require.ErrorIs(t, err, ErrValidationFailed)
+		require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
 		require.Nil(t, dataBack)
 	})
 

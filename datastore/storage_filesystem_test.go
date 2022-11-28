@@ -1,6 +1,7 @@
 package datastore
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,7 +44,7 @@ func TestFilesystemSaveFailureDir(t *testing.T) {
 	fName = filepath.Dir(fName)
 	touchFile(t, fName)
 
-	w, err := fs.openWriteStream(emptyBlobName)
+	w, err := fs.openWriteStream(context.Background(), emptyBlobName)
 	require.IsType(t, &os.PathError{}, err)
 	require.Nil(t, w)
 }
@@ -59,7 +60,7 @@ func TestFilesystemSaveFailureTempFile(t *testing.T) {
 	require.NoError(t, err)
 	defer protect(t, dirPath)()
 
-	w, err := fs.openWriteStream(emptyBlobName)
+	w, err := fs.openWriteStream(context.Background(), emptyBlobName)
 	require.IsType(t, &os.PathError{}, err)
 	require.Nil(t, w)
 }
@@ -72,7 +73,7 @@ func TestFilesystemRenameFailure(t *testing.T) {
 	fName := fs.getFileName(emptyBlobName, fsSuffixCurrent)
 	os.MkdirAll(fName, 0777)
 
-	w, err := fs.openWriteStream(emptyBlobName)
+	w, err := fs.openWriteStream(context.Background(), emptyBlobName)
 	require.NoError(t, err)
 
 	err = w.Close()
@@ -87,14 +88,14 @@ func TestFilesystemDeleteFailure(t *testing.T) {
 	os.MkdirAll(fName, 0777)
 	touchFile(t, fName+"/keep.me")
 
-	err := fs.delete(emptyBlobName)
+	err := fs.delete(context.Background(), emptyBlobName)
 	require.IsType(t, &os.PathError{}, err)
 }
 
 func TestFilesystemDeleteNotFound(t *testing.T) {
 	fs := temporaryFS(t)
 
-	err := fs.delete(emptyBlobName)
+	err := fs.delete(context.Background(), emptyBlobName)
 	require.ErrorIs(t, err, ErrNotFound)
 }
 
@@ -108,6 +109,6 @@ func TestFilesystemExistsFailure(t *testing.T) {
 	require.NoError(t, err)
 	defer protect(t, dirPath)()
 
-	_, err = fs.exists(emptyBlobName)
+	_, err = fs.exists(context.Background(), emptyBlobName)
 	require.IsType(t, &os.PathError{}, err)
 }

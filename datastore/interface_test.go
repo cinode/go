@@ -2,12 +2,16 @@ package datastore
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
+	"github.com/cinode/go/common"
+	"github.com/cinode/go/internal/blobtypes"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +31,7 @@ func allTestInterfaces(t *testing.T) []DS {
 func TestOpenNonExisting(t *testing.T) {
 	for _, ds := range allTestInterfaces(t) {
 		t.Run(ds.Kind(), func(t *testing.T) {
-			err := ds.Read(emptyBlobName, bytes.NewBuffer(nil))
+			err := ds.Read(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
 			require.ErrorIs(t, err, ErrNotFound)
 		})
 	}
@@ -36,14 +40,14 @@ func TestOpenNonExisting(t *testing.T) {
 func TestOpenInvalidBlobType(t *testing.T) {
 	for _, ds := range allTestInterfaces(t) {
 		t.Run(ds.Kind(), func(t *testing.T) {
-			bn, err := BlobNameFromHashAndType(sha256.New().Sum(nil), 0xFF)
+			bn, err := common.BlobNameFromHashAndType(sha256.New().Sum(nil), common.NewBlobType(0xFF))
 			require.NoError(t, err)
 
-			err = ds.Read(bn, bytes.NewBuffer(nil))
-			require.ErrorIs(t, err, ErrUnknownBlobType)
+			err = ds.Read(context.Background(), bn, bytes.NewBuffer(nil))
+			require.ErrorIs(t, err, blobtypes.ErrUnknownBlobType)
 
-			err = ds.Update(bn, bytes.NewBuffer(nil))
-			require.ErrorIs(t, err, ErrUnknownBlobType)
+			err = ds.Update(context.Background(), bn, bytes.NewBuffer(nil))
+			require.ErrorIs(t, err, blobtypes.ErrUnknownBlobType)
 		})
 	}
 }
@@ -51,8 +55,8 @@ func TestOpenInvalidBlobType(t *testing.T) {
 func TestSaveNameMismatch(t *testing.T) {
 	for _, ds := range allTestInterfaces(t) {
 		t.Run(ds.Kind(), func(t *testing.T) {
-			err := ds.Update(emptyBlobName, bytes.NewReader([]byte("test")))
-			require.ErrorIs(t, err, ErrValidationFailed)
+			err := ds.Update(context.Background(), emptyBlobName, bytes.NewReader([]byte("test")))
+			require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
 		})
 	}
 }
@@ -63,35 +67,35 @@ func TestSaveSuccessful(t *testing.T) {
 
 			for _, b := range testBlobs {
 
-				exists, err := ds.Exists(b.name)
+				exists, err := ds.Exists(context.Background(), b.name)
 				require.NoError(t, err)
 				require.False(t, exists)
 
-				err = ds.Update(b.name, bytes.NewReader(b.data))
+				err = ds.Update(context.Background(), b.name, bytes.NewReader(b.data))
 				require.NoError(t, err)
 
-				exists, err = ds.Exists(b.name)
+				exists, err = ds.Exists(context.Background(), b.name)
 				require.NoError(t, err)
 				require.True(t, exists)
 
 				// Overwrite with the same data must be fine
-				err = ds.Update(b.name, bytes.NewReader(b.data))
+				err = ds.Update(context.Background(), b.name, bytes.NewReader(b.data))
 				require.NoError(t, err)
 
-				exists, err = ds.Exists(b.name)
+				exists, err = ds.Exists(context.Background(), b.name)
 				require.NoError(t, err)
 				require.True(t, exists)
 
 				// Overwrite with wrong data must fail
-				err = ds.Update(b.name, bytes.NewReader(append([]byte{0x00}, b.data...)))
-				require.ErrorIs(t, err, ErrValidationFailed)
+				err = ds.Update(context.Background(), b.name, bytes.NewReader(append([]byte{0x00}, b.data...)))
+				require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
 
-				exists, err = ds.Exists(b.name)
+				exists, err = ds.Exists(context.Background(), b.name)
 				require.NoError(t, err)
 				require.True(t, exists)
 
-				data := bytes.NewBuffer(nil)
-				err = ds.Read(b.name, data)
+				data := bytes.NewBuffer([]byte{})
+				err = ds.Read(context.Background(), b.name, data)
 				require.NoError(t, err)
 				require.Equal(t, b.data, data.Bytes())
 			}
@@ -104,12 +108,12 @@ func TestErrorWhileUpdating(t *testing.T) {
 		t.Run(ds.Kind(), func(t *testing.T) {
 			for _, b := range testBlobs {
 				errRet := errors.New("Test error")
-				err := ds.Update(b.name, bReader(b.data, func() error {
+				err := ds.Update(context.Background(), b.name, bReader(b.data, func() error {
 					return errRet
 				}, nil))
 				require.ErrorIs(t, err, errRet)
 
-				exists, err := ds.Exists(b.name)
+				exists, err := ds.Exists(context.Background(), b.name)
 				require.NoError(t, err)
 				require.False(t, exists)
 			}
@@ -122,13 +126,13 @@ func TestErrorWhileOverwriting(t *testing.T) {
 		t.Run(ds.Kind(), func(t *testing.T) {
 			b := testBlobs[0]
 
-			err := ds.Update(b.name, bytes.NewReader(b.data))
+			err := ds.Update(context.Background(), b.name, bytes.NewReader(b.data))
 			require.NoError(t, err)
 
 			errRet := errors.New("cancel")
 
-			err = ds.Update(b.name, bReader(b.data, func() error {
-				exists, err := ds.Exists(b.name)
+			err = ds.Update(context.Background(), b.name, bReader(b.data, func() error {
+				exists, err := ds.Exists(context.Background(), b.name)
 				require.NoError(t, err)
 				require.True(t, exists)
 
@@ -137,12 +141,12 @@ func TestErrorWhileOverwriting(t *testing.T) {
 
 			require.ErrorIs(t, err, errRet)
 
-			exists, err := ds.Exists(b.name)
+			exists, err := ds.Exists(context.Background(), b.name)
 			require.NoError(t, err)
 			require.True(t, exists)
 
 			data := bytes.NewBuffer(nil)
-			err = ds.Read(b.name, data)
+			err = ds.Read(context.Background(), b.name, data)
 			require.NoError(t, err)
 			require.Equal(t, b.data, data.Bytes())
 		})
@@ -154,142 +158,130 @@ func TestDeleteNonExisting(t *testing.T) {
 		t.Run(ds.Kind(), func(t *testing.T) {
 			b := testBlobs[0]
 
-			err := ds.Update(b.name, bytes.NewReader(b.data))
+			err := ds.Update(context.Background(), b.name, bytes.NewReader(b.data))
 			require.NoError(t, err)
 
-			err = ds.Delete(testBlobs[1].name)
+			err = ds.Delete(context.Background(), testBlobs[1].name)
 			require.ErrorIs(t, err, ErrNotFound)
 
-			exists, err := ds.Exists(b.name)
+			exists, err := ds.Exists(context.Background(), b.name)
 			require.NoError(t, err)
 			require.True(t, exists)
 		})
 	}
 }
 
-// func TestDeleteExisting(t *testing.T) {
-// 	allDS(func(c DS) {
+func TestDeleteExisting(t *testing.T) {
+	for _, ds := range allTestInterfaces(t) {
+		t.Run(ds.Kind(), func(t *testing.T) {
 
-// 		b := testBlobs[0]
-// 		putBlob(b.name, b.data, c)
+			b := testBlobs[0]
+			err := ds.Update(context.Background(), b.name, bytes.NewReader(b.data))
+			require.NoError(t, err)
 
-// 		if !exists(c, b.name) {
-// 			t.Fatalf("Datastore %s: Blob should exist", c.Kind())
-// 		}
+			exists, err := ds.Exists(context.Background(), b.name)
+			require.NoError(t, err)
+			require.True(t, exists)
 
-// 		if !bytes.Equal(b.data, getBlob(b.name, c)) {
-// 			t.Fatalf("Datastore %s: Did read invalid data", c.Kind())
-// 		}
+			err = ds.Delete(context.Background(), b.name)
+			require.NoError(t, err)
 
-// 		err := c.Delete(b.name)
-// 		if err != nil {
-// 			t.Fatalf("Datastore %s: Couldn't delete blob: %v", c.Kind(), err)
-// 		}
+			exists, err = ds.Exists(context.Background(), b.name)
+			require.NoError(t, err)
+			require.False(t, exists)
 
-// 		if exists(c, b.name) {
-// 			t.Fatalf("Datastore %s: Blob should not exist", c.Kind())
-// 		}
+			err = ds.Read(context.Background(), b.name, bytes.NewBuffer(nil))
+			require.ErrorIs(t, err, ErrNotFound)
+		})
+	}
+}
 
-// 		r, err := c.Open(b.name)
-// 		if err != ErrNotFound {
-// 			t.Fatalf("Datastore %s: Did not get ErrNotFound error after blob deletion", c.Kind())
-// 		}
-// 		if r != nil {
-// 			t.Fatalf("Datastore %s: Got reader for deleted blob", c.Kind())
-// 		}
+func TestGetKind(t *testing.T) {
+	for _, ds := range allTestInterfaces(t) {
+		t.Run(ds.Kind(), func(t *testing.T) {
+			k := ds.Kind()
+			require.NotEmpty(t, k)
+		})
+	}
+}
 
-// 	})
-// }
+func TestSimultaneousReads(t *testing.T) {
+	const threadCnt = 10
+	const readCnt = 200
 
-// func TestGetKind(t *testing.T) {
-// 	allDS(func(c DS) {
-// 		k := c.Kind()
-// 		if len(k) == 0 {
-// 			t.Fatalf("Invalid kind - empty string")
-// 		}
-// 	})
-// }
+	for _, ds := range allTestInterfaces(t) {
+		t.Run(ds.Kind(), func(t *testing.T) {
 
-// func TestSimultaneousReads(t *testing.T) {
-// 	threadCnt := 10
-// 	readCnt := 200
+			// Prepare data
+			for _, b := range testBlobs {
+				err := ds.Update(context.Background(), b.name, bytes.NewReader(b.data))
+				require.NoError(t, err)
+			}
 
-// 	allDS(func(c DS) {
+			wg := sync.WaitGroup{}
+			wg.Add(threadCnt)
 
-// 		// Prepare data
-// 		for _, b := range testBlobs {
-// 			putBlob(b.name, b.data, c)
-// 		}
+			for i := 0; i < threadCnt; i++ {
+				go func(i int) {
+					defer wg.Done()
+					for n := 0; n < readCnt; n++ {
+						b := testBlobs[(i+n)%len(testBlobs)]
 
-// 		wg := sync.WaitGroup{}
-// 		wg.Add(threadCnt)
+						buff := bytes.NewBuffer([]byte{})
+						err := ds.Read(context.Background(), b.name, buff)
+						require.NoError(t, err)
+						require.Equal(t, b.data, buff.Bytes())
+					}
+				}(i)
+			}
 
-// 		for i := 0; i < threadCnt; i++ {
-// 			go func(i int) {
-// 				defer wg.Done()
-// 				for n := 0; n < readCnt; n++ {
-// 					b := testBlobs[(i+n)%len(testBlobs)]
-// 					if !bytes.Equal(b.data, getBlob(b.name, c)) {
-// 						t.Errorf("Datastore %s: Did read invalid data", c.Kind())
-// 						break
-// 					}
-// 				}
-// 			}(i)
-// 		}
+			wg.Wait()
+		})
+	}
+}
 
-// 		wg.Wait()
-// 	})
-// }
+func TestSimultaneousSaves(t *testing.T) {
+	threadCnt := 3
 
-// func TestSimultaneousSaves(t *testing.T) {
-// 	threadCnt := 3
+	for _, ds := range allTestInterfaces(t) {
+		t.Run(ds.Kind(), func(t *testing.T) {
 
-// 	allDS(func(c DS) {
+			b := testBlobs[0]
 
-// 		b := testBlobs[0]
+			wg := sync.WaitGroup{}
+			wg.Add(threadCnt)
 
-// 		wg := sync.WaitGroup{}
-// 		wg.Add(threadCnt)
+			for i := 0; i < threadCnt; i++ {
+				go func(i int) {
+					defer wg.Done()
 
-// 		wg2 := sync.WaitGroup{}
-// 		wg2.Add(threadCnt)
+					err := ds.Update(context.Background(), b.name, bytes.NewReader(b.data))
+					if errors.Is(err, ErrUploadInProgress) {
+						// TODO: We should be able to handle this case
+						return
+					}
 
-// 		for i := 0; i < threadCnt; i++ {
-// 			go func(i int) {
-// 				firstTime := true
-// 				err := c.Save(b.name, bReader(b.data, func() error {
+					require.NoError(t, err)
 
-// 					if !firstTime {
-// 						return nil
-// 					}
-// 					firstTime = false
+					exists, err := ds.Exists(context.Background(), b.name)
+					require.NoError(t, err)
+					require.True(t, exists)
+				}(i)
+			}
 
-// 					// Blob must not exist now
-// 					if exists(c, b.name) {
-// 						t.Errorf("Datastore %s: Blob exists although no writter finished yet", c.Kind())
-// 						return nil
-// 					}
+			wg.Wait()
 
-// 					// Wait for all writes to start
-// 					wg.Done()
-// 					wg.Wait()
+			exists, err := ds.Exists(context.Background(), b.name)
+			require.NoError(t, err)
+			require.True(t, exists)
 
-// 					return nil
-
-// 				}, nil, nil))
-// 				errPanic(err)
-
-// 				if !exists(c, b.name) {
-// 					t.Errorf("Datastore %s: Blob does not exist yet", c.Kind())
-// 				}
-
-// 				wg2.Done()
-// 			}(i)
-// 		}
-
-// 		wg2.Wait()
-// 	})
-// }
+			buf := bytes.NewBuffer([]byte{})
+			err = ds.Read(context.Background(), b.name, buf)
+			require.NoError(t, err)
+			require.Equal(t, b.data, buf.Bytes())
+		})
+	}
+}
 
 // // Invalid names behave just as if there was no blob with such name.
 // // Writing such blob would always fail on close (similarly to how invalid name

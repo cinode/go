@@ -1,8 +1,12 @@
 package datastore
 
 import (
+	"context"
 	"errors"
 	"io"
+
+	"github.com/cinode/go/common"
+	"github.com/cinode/go/internal/blobtypes/propagation"
 )
 
 type datastore struct {
@@ -15,13 +19,13 @@ func (ds *datastore) Kind() string {
 	return ds.s.kind()
 }
 
-func (ds *datastore) Read(name BlobName, output io.Writer) error {
-	handler, err := handlerForType(name.Type())
+func (ds *datastore) Read(ctx context.Context, name common.BlobName, output io.Writer) error {
+	handler, err := propagation.HandlerForType(name.Type())
 	if err != nil {
 		return err
 	}
 
-	rc, err := ds.s.openReadStream(name)
+	rc, err := ds.s.openReadStream(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -29,18 +33,17 @@ func (ds *datastore) Read(name BlobName, output io.Writer) error {
 
 	return handler.Validate(
 		name.Hash(),
-		rc,
-		output,
+		io.TeeReader(rc, output),
 	)
 }
 
-func (ds *datastore) Update(name BlobName, updateStream io.Reader) error {
-	handler, err := handlerForType(name.Type())
+func (ds *datastore) Update(ctx context.Context, name common.BlobName, updateStream io.Reader) error {
+	handler, err := propagation.HandlerForType(name.Type())
 	if err != nil {
 		return err
 	}
 
-	outputStream, err := ds.s.openWriteStream(name)
+	outputStream, err := ds.s.openWriteStream(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -53,7 +56,7 @@ func (ds *datastore) Update(name BlobName, updateStream io.Reader) error {
 	}()
 
 	// Check if we can get the currentStream blob data
-	currentStream, err := ds.s.openReadStream(name)
+	currentStream, err := ds.s.openReadStream(ctx, name)
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		return err
 	}
@@ -67,7 +70,7 @@ func (ds *datastore) Update(name BlobName, updateStream io.Reader) error {
 	if currentStream == nil {
 		// No content yet, only need to validate the updateStream
 		// and store in the result file
-		err := handler.Validate(name.Hash(), updateStream, outputStream)
+		err := handler.Validate(name.Hash(), io.TeeReader(updateStream, outputStream))
 		if err != nil {
 			return err
 		}
@@ -91,12 +94,12 @@ func (ds *datastore) Update(name BlobName, updateStream io.Reader) error {
 	return nil
 }
 
-func (ds *datastore) Exists(name BlobName) (bool, error) {
-	return ds.s.exists(name)
+func (ds *datastore) Exists(ctx context.Context, name common.BlobName) (bool, error) {
+	return ds.s.exists(ctx, name)
 }
 
-func (ds *datastore) Delete(name BlobName) error {
-	return ds.s.delete(name)
+func (ds *datastore) Delete(ctx context.Context, name common.BlobName) error {
+	return ds.s.delete(ctx, name)
 }
 
 func InMemory() DS {
