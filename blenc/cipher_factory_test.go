@@ -2,71 +2,159 @@ package blenc
 
 import (
 	"bytes"
-	"io"
-	"strings"
+	"crypto/aes"
+	"errors"
+	"fmt"
+	"io/ioutil"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/chacha20"
 )
 
-func TestStreamCipherReaderForKey(t *testing.T) {
+type errorKeyInfo struct {
+	err error
+}
+
+func (k *errorKeyInfo) getSymmetricKey() (byte, []byte, []byte, error) {
+	return 0, nil, nil, k.err
+}
+
+func TestCipherForKi(t *testing.T) {
+
+	errCheck := errors.New("test error")
 
 	for _, d := range []struct {
-		key  string
-		err  error
 		desc string
+		key  KeyInfo
+		err  error
 	}{
-		{"", ErrInvalidKey, "Empty key"},
-		{"#", ErrInvalidKey, "Non base58 character"},
-		{"UBYspbTy9mx6SBnRrVeDyEcQQqnytz9WZ", nil, "Valid AES key"},
-		{"eJEA1E4dRcx3zy59mu4BcD25kf86n5ydSEuDAojhQu3F", nil, "Valid chacha20 key"},
+		{
+			"Empty key",
+			&keyInfoStatic{},
+			ErrInvalidKey,
+		},
+		{
+			"Error when retrieving key info",
+			&errorKeyInfo{err: errCheck},
+			errCheck,
+		},
+		{
+			"Invalid AES key size",
+			&keyInfoStatic{
+				t:   keyTypeAES,
+				key: bytes.Repeat([]byte{0x0}, 23),
+				iv:  bytes.Repeat([]byte{0x0}, 16),
+			},
+			ErrInvalidKey,
+		},
+		{
+			"Invalid AES iv size",
+			&keyInfoStatic{
+				t:   keyTypeAES,
+				key: bytes.Repeat([]byte{0x0}, 24),
+				iv:  bytes.Repeat([]byte{0x0}, 15),
+			},
+			ErrInvalidKey,
+		},
+		{
+			"Valid AES key",
+			&keyInfoStatic{
+				t:   keyTypeAES,
+				key: bytes.Repeat([]byte{0x0}, 24),
+				iv:  bytes.Repeat([]byte{0x0}, 16),
+			},
+			nil,
+		},
+		{
+			"Invalid chacha20 key size",
+			&keyInfoStatic{
+				t:   keyTypeChaCha20,
+				key: bytes.Repeat([]byte{0x0}, 31),
+				iv:  bytes.Repeat([]byte{0x0}, 12),
+			},
+			ErrInvalidKey,
+		},
+		{
+			"Invalid chacha20 iv size",
+			&keyInfoStatic{
+				t:   keyTypeChaCha20,
+				key: bytes.Repeat([]byte{0x0}, 32),
+				iv:  bytes.Repeat([]byte{0x0}, 11),
+			},
+			ErrInvalidKey,
+		},
+		{
+			"Valid chacha20 key",
+			&keyInfoStatic{
+				t:   keyTypeChaCha20,
+				key: bytes.Repeat([]byte{0x0}, 32),
+				iv:  bytes.Repeat([]byte{0x0}, 12),
+			},
+			nil,
+		},
 	} {
-		sc, err := streamCipherReaderForKey(
-			d.key, io.NopCloser(bytes.NewReader([]byte{})))
-		if d.err != err {
-			t.Fatalf("In test for %v: Invalid error returned, expected %v, got %v",
-				d.desc, d.err, err)
-		}
-
-		if err == nil {
-			if sc == nil {
-				t.Fatalf("In test for %v: Empty stream reader received but no error reported",
-					d.desc)
+		t.Run(d.desc, func(t *testing.T) {
+			sc, err := streamCipherReaderForKeyInfo(d.key, bytes.NewReader([]byte{}))
+			require.ErrorIs(t, err, d.err)
+			if err == nil {
+				require.NotNil(t, sc)
 			}
-		}
+		})
 	}
 }
 
-func TestStreamCipherReaderForKeyData(t *testing.T) {
-	for _, d := range []struct {
-		keyType byte
-		keyData []byte
-		err     error
-		desc    string
-	}{
-		{keyTypeAES, []byte(strings.Repeat("*", 24)), nil, "Normal AES key"},
-		{keyTypeAES, []byte(strings.Repeat("*", 24-1)), ErrInvalidKey, "Normal AES key - short key"},
-		{keyTypeAES, []byte(strings.Repeat("*", 24+1)), ErrInvalidKey, "Normal AES key - long key"},
-		{keyTypeChaCha20, []byte(strings.Repeat("*", 32)), nil, "Normal ChaCha20 key"},
-		{keyTypeChaCha20, []byte(strings.Repeat("*", 32-1)), ErrInvalidKey, "Normal ChaCha20 key - short key"},
-		{keyTypeChaCha20, []byte(strings.Repeat("*", 32+1)), ErrInvalidKey, "Normal ChaCha20 key - long key"},
-		{keyTypeInvalid, []byte(strings.Repeat("*", 32)), ErrInvalidKey, "Invalid key type"},
+func TestStreamCipherReaderWriterForKeyInfo(t *testing.T) {
+	for _, ki := range []KeyInfo{
+		&keyInfoStatic{
+			t:   keyTypeAES,
+			key: make([]byte, keySizeAES),
+			iv:  make([]byte, aes.BlockSize),
+		},
+		&keyInfoStatic{
+			t:   keyTypeChaCha20,
+			key: make([]byte, chacha20.KeySize),
+			iv:  make([]byte, chacha20.NonceSize),
+		},
 	} {
-		rc, err := streamCipherReaderForKeyData(d.keyType, d.keyData,
-			io.NopCloser(bytes.NewReader([]byte{})))
-		if err != d.err {
-			t.Fatalf("In test for %v: Invalid error received, expected %v, got %v",
-				d.desc, d.err, err)
-		}
-		if rc != nil {
-			if err != nil {
-				t.Fatalf("In test for %v: Got reader back although error (%v) received",
-					d.desc, err)
-			}
-			rc.Close()
-		} else {
-			if err == nil {
-				t.Fatalf("In test for %v: Neither reader nor error returned",
-					d.desc)
-			}
-		}
+		t.Run(fmt.Sprintf("valid roundtrip: %+v", ki), func(t *testing.T) {
+			data := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06}
+			buf := bytes.NewBuffer(nil)
+
+			writer, err := streamCipherWriterForKeyInfo(ki, buf)
+			require.NoError(t, err)
+
+			_, err = writer.Write(data)
+			require.NoError(t, err)
+			require.NotEqual(t, buf.Bytes(), data)
+
+			reader, err := streamCipherReaderForKeyInfo(ki, bytes.NewReader(buf.Bytes()))
+			require.NoError(t, err)
+
+			readBack, err := ioutil.ReadAll(reader)
+			require.NoError(t, err)
+			require.Equal(t, data, readBack)
+		})
+	}
+
+	for _, ki := range []KeyInfo{
+		&keyInfoStatic{
+			t:   keyTypeAES,
+			key: make([]byte, keySizeAES-1),
+			iv:  make([]byte, aes.BlockSize),
+		},
+		&keyInfoStatic{
+			t:   keyTypeChaCha20,
+			key: make([]byte, chacha20.KeySize-1),
+			iv:  make([]byte, chacha20.NonceSize),
+		},
+	} {
+		t.Run(fmt.Sprintf("invalid key: %+v", ki), func(t *testing.T) {
+			_, err := streamCipherWriterForKeyInfo(ki, bytes.NewBuffer(nil))
+			require.ErrorIs(t, err, ErrInvalidKey)
+
+			_, err = streamCipherReaderForKeyInfo(ki, bytes.NewReader(nil))
+			require.ErrorIs(t, err, ErrInvalidKey)
+		})
 	}
 }
