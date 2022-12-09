@@ -16,7 +16,7 @@ type Handler interface {
 	// PrepareNewBlob starts generation of a new blob of given type.
 	// Additional data may be needed if the blob name / validation is dependent
 	// on the content of the data (e.g. static blobs) but it also can be
-	// ignored (e.g. dynamic links) adn thus the called must not rely on this method
+	// ignored (e.g. dynamic links) and thus the caller must not rely on this method
 	// to read the whole dataset.
 	PrepareNewBlob(data io.Reader) (hash []byte, wi WriterInfo, err error)
 
