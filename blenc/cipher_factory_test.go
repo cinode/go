@@ -16,7 +16,7 @@ type errorKeyInfo struct {
 	err error
 }
 
-func (k *errorKeyInfo) getSymmetricKey() (byte, []byte, []byte, error) {
+func (k *errorKeyInfo) GetSymmetricKey() (byte, []byte, []byte, error) {
 	return 0, nil, nil, k.err
 }
 

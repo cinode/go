@@ -9,7 +9,7 @@ import (
 )
 
 type KeyInfo interface {
-	getSymmetricKey() (byte, []byte, []byte, error)
+	GetSymmetricKey() (byte, []byte, []byte, error)
 }
 
 type WriterInfo = generation.WriterInfo

@@ -44,7 +44,7 @@ func streamCipherWriterForKeyInfo(ki KeyInfo, w io.Writer) (io.Writer, error) {
 
 func _cipherForKi(ki KeyInfo) (cipher.Stream, error) {
 
-	keyType, key, iv, err := ki.getSymmetricKey()
+	keyType, key, iv, err := ki.GetSymmetricKey()
 	if err != nil {
 		return nil, err
 	}
