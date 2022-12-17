@@ -15,9 +15,9 @@ import (
 var ErrInvalidKey = errors.New("invalid encryption key")
 
 const (
-	keyTypeAES      = 0x01
-	keyTypeChaCha20 = 0x02
-	keyTypeInvalid  = 0xFF
+	keyTypeAES      byte = 0x01
+	keyTypeChaCha20 byte = 0x02
+	keyTypeInvalid  byte = 0xFF
 
 	keyTypeDefault = keyTypeChaCha20
 )
