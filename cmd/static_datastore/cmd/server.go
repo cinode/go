@@ -44,52 +44,52 @@ Serve files from static datastore from a directory.
 	return cmd
 }
 
-func getEntrypoint(datastoreDir string) ([]byte, blenc.KeyInfo) {
+func getEntrypoint(datastoreDir string) ([]byte, blenc.KeyInfo, error) {
 	ep, err := os.Open(path.Join(datastoreDir, "entrypoint.txt"))
 	if err != nil {
-		log.Fatalf("Can't open entrypoint file from %s", datastoreDir)
+		return nil, nil, fmt.Errorf("can't open entrypoint file from %s", datastoreDir)
 	}
 	defer ep.Close()
 
 	scanner := bufio.NewScanner(ep)
 	if !scanner.Scan() {
-		log.Fatalf("Malformed entrypoint file - missing bid")
+		return nil, nil, fmt.Errorf("malformed entrypoint file - missing bid")
 	}
 	bid, err := common.BlobNameFromString(scanner.Text())
 	if err != nil {
-		log.Fatalf("Malformed entrypoint file - could not get blob name: %v", err.Error())
+		return nil, nil, fmt.Errorf("malformed entrypoint file - could not get blob name: %w", err)
 	}
 
 	if !scanner.Scan() {
-		log.Fatalf("Malformed entrypoint file - missing key info")
+		return nil, nil, fmt.Errorf("malformed entrypoint file - missing key info")
 	}
 
 	keyInfoText := strings.Split(scanner.Text(), ":")
 	if len(keyInfoText) != 3 {
-		log.Fatalf("Malformed entrypoint file - invalid key info, must be 3 segments split by ':'")
+		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, must be 3 segments split by ':'")
 	}
 	keyType, err := hex.DecodeString(keyInfoText[0])
 	if err != nil {
-		log.Fatalf("Malformed entrypoint file - invalid key info, key type segment can not be hex-decoded: %v", err.Error())
+		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, key type segment can not be hex-decoded: %w", err)
 	}
 	if len(keyType) != 1 {
-		log.Fatalf("Malformed entrypoint file - invalid key info, key type segment must be one byte")
+		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, key type segment must be one byte")
 	}
 
 	keyKey, err := hex.DecodeString(keyInfoText[1])
 	if err != nil {
-		log.Fatalf("Malformed entrypoint file - invalid key info, key segment can not be hex-decoded: %v", err.Error())
+		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, key segment can not be hex-decoded: %w", err)
 	}
 
 	keyIV, err := hex.DecodeString(keyInfoText[2])
 	if err != nil {
-		log.Fatalf("Malformed entrypoint file - invalid key info, IV can not be hex-decoded: %v", err.Error())
+		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, IV can not be hex-decoded: %w", err)
 	}
 	return bid, blenc.NewStaticKeyInfo(
 		keyType[0],
 		keyKey,
 		keyIV,
-	)
+	), nil
 }
 
 func handleDir(
@@ -168,15 +168,15 @@ func handleDir(
 	}
 }
 
-func server(datastoreDir string) {
-
-	fmt.Println("Serving files from", datastoreDir)
-
-	epBID, epKI := getEntrypoint(datastoreDir)
+func serverHandler(datastoreDir string) (http.Handler, error) {
+	epBID, epKI, err := getEntrypoint(datastoreDir)
+	if err != nil {
+		return nil, err
+	}
 
 	be := blenc.FromDatastore(datastore.InFileSystem(datastoreDir))
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -187,7 +187,18 @@ func server(datastoreDir string) {
 		}
 
 		handleDir(r.Context(), be, epBID, epKI, w, r, r.URL.Path)
-	})
+	}), nil
+}
+
+func server(datastoreDir string) {
+
+	fmt.Println("Serving files from", datastoreDir)
+
+	hnd, err := serverHandler(datastoreDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	http.Handle("/", hnd)
 
 	fmt.Println("Listening on http://localhost:8080/")
 	if err := http.ListenAndServe("0.0.0.0:8080", nil); err != nil {

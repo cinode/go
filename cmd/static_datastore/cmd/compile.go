@@ -43,7 +43,11 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 				cmd.Help()
 				return
 			}
-			compile(srcDir, dstDir)
+			err := compile(srcDir, dstDir)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println("DONE")
 		},
 	}
 
@@ -53,18 +57,18 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 	return cmd
 }
 
-func compile(srcDir, dstDir string) {
+func compile(srcDir, dstDir string) error {
 
 	be := blenc.FromDatastore(datastore.InFileSystem(dstDir))
 
 	name, key, err := compileOneLevel(srcDir, be)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	fl, err := os.Create(path.Join(dstDir, "entrypoint.txt"))
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	keyType, keyKey, keyIV, err := key.GetSymmetricKey()
 	if err != nil {
@@ -80,15 +84,15 @@ func compile(srcDir, dstDir string) {
 	)
 	if err != nil {
 		fl.Close()
-		log.Fatal(err)
+		return err
 	}
 
 	err = fl.Close()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	fmt.Println("DONE")
+	return nil
 }
 
 func compileOneLevel(path string, be blenc.BE) (common.BlobName, blenc.KeyInfo, error) {
