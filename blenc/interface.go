@@ -22,7 +22,7 @@ type BE interface {
 	// to given writer
 	Read(ctx context.Context, name common.BlobName, ki KeyInfo, w io.Writer) error
 
-	// Create completely new blob with given dataset, as a result, the blobname and optional
+	// Create completely new blob with given dataset, as a result, the blob name and optional
 	// WriterInfo that allows blob's update is returned
 	Create(ctx context.Context, blobType common.BlobType, r io.Reader) (common.BlobName, KeyInfo, WriterInfo, error)
 
