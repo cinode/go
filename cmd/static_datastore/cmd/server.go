@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
+	"context"
+	"encoding/hex"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -11,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/cinode/go/blenc"
+	"github.com/cinode/go/common"
 	"github.com/cinode/go/datastore"
 	"github.com/cinode/go/structure"
 	"github.com/spf13/cobra"
@@ -41,25 +44,63 @@ Serve files from static datastore from a directory.
 	return cmd
 }
 
-func getEntrypoint(datastoreDir string) (string, string) {
+func getEntrypoint(datastoreDir string) ([]byte, blenc.KeyInfo) {
 	ep, err := os.Open(path.Join(datastoreDir, "entrypoint.txt"))
 	if err != nil {
-		log.Fatalf("Can't open entrypoint file from %s\n", datastoreDir)
+		log.Fatalf("Can't open entrypoint file from %s", datastoreDir)
 	}
 	defer ep.Close()
 
 	scanner := bufio.NewScanner(ep)
-	scanner.Scan()
-	bid := scanner.Text()
-	scanner.Scan()
-	key := scanner.Text()
-	if err := scanner.Err(); err != nil {
-		log.Fatalf("Cant find entrypoint: %v", err)
+	if !scanner.Scan() {
+		log.Fatalf("Malformed entrypoint file - missing bid")
 	}
-	return bid, key
+	bid, err := common.BlobNameFromString(scanner.Text())
+	if err != nil {
+		log.Fatalf("Malformed entrypoint file - could not get blob name: %v", err.Error())
+	}
+
+	if !scanner.Scan() {
+		log.Fatalf("Malformed entrypoint file - missing key info")
+	}
+
+	keyInfoText := strings.Split(scanner.Text(), ":")
+	if len(keyInfoText) != 3 {
+		log.Fatalf("Malformed entrypoint file - invalid key info, must be 3 segments split by ':'")
+	}
+	keyType, err := hex.DecodeString(keyInfoText[0])
+	if err != nil {
+		log.Fatalf("Malformed entrypoint file - invalid key info, key type segment can not be hex-decoded: %v", err.Error())
+	}
+	if len(keyType) != 1 {
+		log.Fatalf("Malformed entrypoint file - invalid key info, key type segment must be one byte")
+	}
+
+	keyKey, err := hex.DecodeString(keyInfoText[1])
+	if err != nil {
+		log.Fatalf("Malformed entrypoint file - invalid key info, key segment can not be hex-decoded: %v", err.Error())
+	}
+
+	keyIV, err := hex.DecodeString(keyInfoText[2])
+	if err != nil {
+		log.Fatalf("Malformed entrypoint file - invalid key info, IV can not be hex-decoded: %v", err.Error())
+	}
+	return bid, blenc.NewStaticKeyInfo(
+		keyType[0],
+		keyKey,
+		keyIV,
+	)
 }
 
-func handleDir(be blenc.BE, bid, key string, w http.ResponseWriter, r *http.Request, subPath string) {
+func handleDir(
+	ctx context.Context,
+	be blenc.BE,
+	bid []byte,
+	ki blenc.KeyInfo,
+	w http.ResponseWriter,
+	r *http.Request,
+	subPath string,
+) {
 
 	if subPath == "" {
 		subPath = "index.html"
@@ -67,21 +108,15 @@ func handleDir(be blenc.BE, bid, key string, w http.ResponseWriter, r *http.Requ
 
 	pathParts := strings.SplitN(subPath, "/", 2)
 
-	dirData, err := be.Open(bid, key)
-	if err != nil {
-		http.Error(w, "Internal error", http.StatusInternalServerError)
-		return
-	}
-
-	dirBytes, err := io.ReadAll(dirData)
-	dirData.Close()
+	dirBytes := bytes.NewBuffer(nil)
+	err := be.Read(ctx, common.BlobName(bid), ki, dirBytes)
 	if err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
 
 	dir := structure.Directory{}
-	if err := proto.Unmarshal(dirBytes, &dir); err != nil {
+	if err := proto.Unmarshal(dirBytes.Bytes(), &dir); err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
@@ -97,7 +132,18 @@ func handleDir(be blenc.BE, bid, key string, w http.ResponseWriter, r *http.Requ
 			http.Redirect(w, r, r.URL.Path+"/", http.StatusPermanentRedirect)
 			return
 		}
-		handleDir(be, entry.GetBid(), entry.GetKey(), w, r, pathParts[1])
+		handleDir(
+			ctx,
+			be,
+			entry.GetBid(),
+			blenc.NewStaticKeyInfo(
+				byte(entry.GetKeyInfo().GetType()),
+				entry.GetKeyInfo().GetKey(),
+				entry.GetKeyInfo().GetIv(),
+			),
+			w, r,
+			pathParts[1],
+		)
 		return
 	}
 
@@ -106,14 +152,18 @@ func handleDir(be blenc.BE, bid, key string, w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data, err := be.Open(entry.GetBid(), entry.GetKey())
-	if err != nil {
-		http.Error(w, "Internal error", http.StatusInternalServerError)
-		return
-	}
-	defer data.Close()
 	w.Header().Set("Content-Type", entry.GetMimeType())
-	if _, err = io.Copy(w, data); err != nil {
+	err = be.Read(
+		ctx,
+		common.BlobName(entry.Bid),
+		blenc.NewStaticKeyInfo(
+			byte(entry.GetKeyInfo().GetType()),
+			entry.GetKeyInfo().GetKey(),
+			entry.GetKeyInfo().GetIv(),
+		),
+		w,
+	)
+	if err != nil {
 		// TODO: Log this, can't send an error back, it's too late
 	}
 }
@@ -122,7 +172,7 @@ func server(datastoreDir string) {
 
 	fmt.Println("Serving files from", datastoreDir)
 
-	epBID, epKEY := getEntrypoint(datastoreDir)
+	epBID, epKI := getEntrypoint(datastoreDir)
 
 	be := blenc.FromDatastore(datastore.InFileSystem(datastoreDir))
 
@@ -136,7 +186,7 @@ func server(datastoreDir string) {
 			r.URL.Path = r.URL.Path[1:]
 		}
 
-		handleDir(be, epBID, epKEY, w, r, r.URL.Path)
+		handleDir(r.Context(), be, epBID, epKI, w, r, r.URL.Path)
 	})
 
 	fmt.Println("Listening on http://localhost:8080/")
