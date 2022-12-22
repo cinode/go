@@ -4,9 +4,9 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"errors"
+	"fmt"
 	"io"
 
-	"github.com/jbenet/go-base58"
 	"golang.org/x/crypto/chacha20"
 )
 
@@ -15,77 +15,61 @@ import (
 var ErrInvalidKey = errors.New("invalid encryption key")
 
 const (
-	keyTypeAES      = 0x01
-	keyTypeChaCha20 = 0x02
-	keyTypeInvalid  = 0xFF
+	keyTypeAES      byte = 0x01
+	keyTypeChaCha20 byte = 0x02
+	keyTypeInvalid  byte = 0xFF
 
 	keyTypeDefault = keyTypeChaCha20
 )
 
 const (
-	keyTypeDefaultLen = chacha20.KeySize
-	keyTypeAESKeySize = 24
+	keySizeAES = 24
 )
 
-type streamReader struct {
-	cipher.StreamReader
-}
-
-func (s *streamReader) Close() error {
-	closer := s.R.(io.Closer)
-	return closer.Close()
-}
-
-func streamCipherReaderForKey(key string, r io.ReadCloser) (io.ReadCloser, error) {
-
-	keyData := base58.Decode(key)
-	if len(keyData) == 0 {
-		return nil, ErrInvalidKey
-	}
-
-	return streamCipherReaderForKeyData(keyData[0], keyData[1:], r)
-}
-
-func streamCipherReaderForKeyGenerator(kg KeyDataGenerator, r io.ReadCloser) (stream io.ReadCloser, key string, err error) {
-
-	keyData := make([]byte, 1+keyTypeDefaultLen)
-	keyData[0] = keyTypeDefault
-	r2, err := kg.GenerateKeyData(r, keyData[1:])
+func streamCipherReaderForKeyInfo(ki KeyInfo, r io.Reader) (io.Reader, error) {
+	stream, err := _cipherForKi(ki)
 	if err != nil {
-		r.Close()
-		return nil, "", err
+		return nil, err
 	}
-
-	// Ignore error below, we control arguments and pass valid sizes
-	stream, _ = streamCipherReaderForKeyData(keyData[0], keyData[1:], r2)
-
-	key = base58.Encode(keyData)
-	return stream, key, nil
+	return &cipher.StreamReader{S: stream, R: r}, nil
 }
 
-func streamCipherReaderForKeyData(keyType byte, keyData []byte, r io.ReadCloser) (io.ReadCloser, error) {
+func streamCipherWriterForKeyInfo(ki KeyInfo, w io.Writer) (io.Writer, error) {
+	stream, err := _cipherForKi(ki)
+	if err != nil {
+		return nil, err
+	}
+	return cipher.StreamWriter{S: stream, W: w}, nil
+}
+
+func _cipherForKi(ki KeyInfo) (cipher.Stream, error) {
+
+	keyType, key, iv, err := ki.GetSymmetricKey()
+	if err != nil {
+		return nil, err
+	}
 
 	switch keyType {
 	case keyTypeAES:
-		if len(keyData) != keyTypeAESKeySize {
-			return nil, ErrInvalidKey
+		if len(key) != keySizeAES {
+			return nil, fmt.Errorf("%w: invalid AES key size, expected %d bytes", ErrInvalidKey, keySizeAES)
+		}
+		if len(iv) != aes.BlockSize {
+			return nil, fmt.Errorf("%w: invalid AES iv size, expected %d bytes", ErrInvalidKey, aes.BlockSize)
 		}
 		// Ignore error below, aes will fail only if the size of key is
 		// invalid. We fully control it and pass valid value.
-		block, _ := aes.NewCipher(keyData)
-		var iv [aes.BlockSize]byte
-		stream := cipher.NewCTR(block, iv[:])
-		return &streamReader{cipher.StreamReader{S: stream, R: r}}, nil
+		block, _ := aes.NewCipher(key)
+		return cipher.NewCTR(block, iv), nil
 
 	case keyTypeChaCha20:
-		if len(keyData) != chacha20.KeySize {
-			return nil, ErrInvalidKey
+		if len(key) != chacha20.KeySize {
+			return nil, fmt.Errorf("%w: invalid ChaCha20 key size, expected %d bytes", ErrInvalidKey, chacha20.KeySize)
 		}
-		var nonce [chacha20.NonceSize]byte
-		// Ignore error below, chacha20 will fail only if the size of key or
-		// nonce are invalid. We fully control those and pass valid values.
-		stream, _ := chacha20.NewUnauthenticatedCipher(keyData, nonce[:])
-		return &streamReader{cipher.StreamReader{S: stream, R: r}}, nil
+		if len(iv) != chacha20.NonceSize {
+			return nil, fmt.Errorf("%w: invalid ChaCha20 iv size, expected %d bytes", ErrInvalidKey, chacha20.NonceSize)
+		}
+		return chacha20.NewUnauthenticatedCipher(key, iv)
 
 	default:
 		return nil, ErrInvalidKey

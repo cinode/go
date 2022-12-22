@@ -2,12 +2,22 @@ syntax = "proto3";
 
 option go_package = ".;structure";
 
+// KeyInfo represents encryption key information
+message KeyInfo {
+  uint32 type = 1;
+  bytes key = 2;
+  bytes iv = 3;
+}
+
 // Directory represents a content of a static directory
 message Directory {
-    message Entry {
-        string bid = 1;
-        string key = 2;
-        string mimeType = 3;
-    }
-    map<string, Entry> entries = 1;
+
+  // Entry represents a single entry of a directory
+  message Entry {
+    bytes bid = 1;
+    KeyInfo keyInfo = 2;
+    string mimeType = 3;
+  }
+
+  map<string, Entry> entries = 1;
 }

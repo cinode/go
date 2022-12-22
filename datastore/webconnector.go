@@ -1,144 +1,139 @@
 package datastore
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/cinode/go/common"
+	"github.com/cinode/go/internal/blobtypes/propagation"
 )
 
-func errServerConnection(err error) error {
-	return errors.New("Connection error: " + err.Error())
-}
-
-type webConnectorStreamWrapper struct {
-	reader io.Reader
-	closer io.Closer
-}
-
-func (w *webConnectorStreamWrapper) Read(b []byte) (int, error) {
-	n, err := w.reader.Read(b)
-	if err == io.EOF {
-		err2 := w.closer.Close()
-		if err2 != nil {
-			return 0, err2
-		}
-	}
-	return n, err
-}
-
-func (w *webConnectorStreamWrapper) Close() error {
-	return nil
-}
+var (
+	ErrWebConnectionError = errors.New("connection error")
+)
 
 type webConnector struct {
 	baseURL string
 	client  *http.Client
 }
 
+var _ DS = (*webConnector)(nil)
+
 // FromWeb returns Datastore implementation that connects to external url
 func FromWeb(baseURL string, client *http.Client) DS {
-
 	return &webConnector{
 		baseURL: baseURL,
 		client:  client,
 	}
-
 }
 
 func (w *webConnector) Kind() string {
 	return "Web"
 }
 
-func (w *webConnector) Open(name string) (io.ReadCloser, error) {
-	res, err := w.client.Get(w.baseURL + name)
+func (w *webConnector) Read(ctx context.Context, name common.BlobName, output io.Writer) error {
+	handler, err := propagation.HandlerForType(name.Type())
 	if err != nil {
-		return nil, err
+		return err
 	}
-	err = w.errCheck(res)
-	if err != nil {
-		res.Body.Close()
-		return nil, err
-	}
-	return hashValidatingReader(res.Body, name), nil
-}
 
-func (w *webConnector) SaveAutoNamed(r io.ReadCloser) (string, error) {
-	hasher := newHasher()
-	res, err := w.client.Post(
-		w.baseURL,
-		"application/octet-stream",
-		&webConnectorStreamWrapper{
-			reader: io.TeeReader(r, hasher),
-			closer: r,
-		},
-	)
-	if err != nil {
-		return "", err
-	}
-	defer res.Body.Close()
-	name, err := io.ReadAll(res.Body)
-	if err != nil {
-		return "", err
-	}
-	err = w.errCheck(res)
-	if err != nil {
-		return "", err
-	}
-	nameStr := string(name)
-	if !nameEqual(nameStr, hasher.Name()) {
-		return "", ErrNameMismatch
-	}
-	return nameStr, nil
-}
-
-func (w *webConnector) Save(name string, r io.ReadCloser) error {
-	req, err := http.NewRequest(
-		http.MethodPut,
-		w.baseURL+name,
-		&webConnectorStreamWrapper{reader: r, closer: r},
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		w.baseURL+name.String(),
+		nil,
 	)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "application/octet-stream")
+
 	res, err := w.client.Do(req)
 	if err != nil {
 		return err
 	}
-	io.Copy(io.Discard, res.Body)
-	res.Body.Close()
+	defer res.Body.Close()
+
+	err = w.errCheck(res)
+	if err != nil {
+		return err
+	}
+
+	return handler.Validate(
+		name.Hash(),
+		io.TeeReader(res.Body, output),
+	)
+}
+
+func (w *webConnector) Update(ctx context.Context, name common.BlobName, r io.Reader) error {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPut,
+		w.baseURL+name.String(),
+		r,
+	)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.Header.Set("Accept", "application/json")
+	res, err := w.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
 	return w.errCheck(res)
 }
 
-func (w *webConnector) Exists(name string) (bool, error) {
-	res, err := http.Head(w.baseURL + name)
+func (w *webConnector) Exists(ctx context.Context, name common.BlobName) (bool, error) {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodHead,
+		w.baseURL+name.String(),
+		nil,
+	)
 	if err != nil {
 		return false, err
 	}
-	io.Copy(io.Discard, res.Body)
-	res.Body.Close()
+	res, err := w.client.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer res.Body.Close()
+
 	err = w.errCheck(res)
-	if err == ErrNotFound {
+	if errors.Is(err, ErrNotFound) {
 		return false, nil
 	}
+
 	if err == nil {
 		return true, nil
 	}
 	return false, err
 }
 
-func (w *webConnector) Delete(name string) error {
-	req, err := http.NewRequest(http.MethodDelete, w.baseURL+name, nil)
+func (w *webConnector) Delete(ctx context.Context, name common.BlobName) error {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodDelete,
+		w.baseURL+name.String(),
+		nil,
+	)
 	if err != nil {
 		return err
 	}
+
 	res, err := w.client.Do(req)
 	if err != nil {
 		return err
 	}
-	io.Copy(io.Discard, res.Body)
-	res.Body.Close()
+	defer res.Body.Close()
+
 	return w.errCheck(res)
 }
 
@@ -147,11 +142,31 @@ func (w *webConnector) errCheck(res *http.Response) error {
 		return ErrNotFound
 	}
 	if res.StatusCode == http.StatusBadRequest {
-		return ErrNameMismatch
+		msg := webErrResponse{}
+		err := json.NewDecoder(res.Body).Decode(&msg)
+		if err == nil {
+			err := webErrFromCode(msg.Code)
+			if err != nil {
+				return err
+			}
+			return fmt.Errorf(
+				"%w: response status code: %v (%v), error code: %v, error message: %v",
+				ErrWebConnectionError,
+				res.StatusCode,
+				res.Status,
+				msg.Code,
+				msg.Message,
+			)
+		}
+		// Fallthrough to code below if can't decode json error
 	}
 	if res.StatusCode >= 400 {
-		return errServerConnection(fmt.Errorf(
-			"response status code: %v (%v)", res.StatusCode, res.Status))
+		return fmt.Errorf(
+			"%w: response status code: %v (%v)",
+			ErrWebConnectionError,
+			res.StatusCode,
+			res.Status,
+		)
 	}
 	return nil
 }

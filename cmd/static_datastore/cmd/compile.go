@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"bytes"
+	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -12,7 +14,9 @@ import (
 	"path/filepath"
 
 	"github.com/cinode/go/blenc"
+	"github.com/cinode/go/common"
 	"github.com/cinode/go/datastore"
+	"github.com/cinode/go/internal/blobtypes"
 	"github.com/cinode/go/structure"
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/proto"
@@ -39,7 +43,11 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 				cmd.Help()
 				return
 			}
-			compile(srcDir, dstDir)
+			err := compile(srcDir, dstDir)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println("DONE")
 		},
 	}
 
@@ -49,37 +57,48 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 	return cmd
 }
 
-func compile(srcDir, dstDir string) {
+func compile(srcDir, dstDir string) error {
 
 	be := blenc.FromDatastore(datastore.InFileSystem(dstDir))
 
 	name, key, err := compileOneLevel(srcDir, be)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	fl, err := os.Create(path.Join(dstDir, "entrypoint.txt"))
 	if err != nil {
+		return err
+	}
+	keyType, keyKey, keyIV, err := key.GetSymmetricKey()
+	if err != nil {
 		log.Fatal(err)
 	}
-	_, err = fmt.Fprintf(fl, "%s\n%s\n", name, key)
+	_, err = fmt.Fprintf(
+		fl,
+		"%s\n%s:%s:%s\n",
+		name,
+		hex.EncodeToString([]byte{keyType}),
+		hex.EncodeToString(keyKey),
+		hex.EncodeToString(keyIV),
+	)
 	if err != nil {
 		fl.Close()
-		log.Fatal(err)
+		return err
 	}
 
 	err = fl.Close()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	fmt.Println("DONE")
+	return nil
 }
 
-func compileOneLevel(path string, be blenc.BE) (string, string, error) {
+func compileOneLevel(path string, be blenc.BE) (common.BlobName, blenc.KeyInfo, error) {
 	st, err := os.Stat(path)
 	if err != nil {
-		return "", "", fmt.Errorf("Couldn't check path: %w", err)
+		return nil, nil, fmt.Errorf("Couldn't check path: %w", err)
 	}
 
 	if st.IsDir() {
@@ -90,31 +109,33 @@ func compileOneLevel(path string, be blenc.BE) (string, string, error) {
 		return compileFile(path, be)
 	}
 
-	return "", "", fmt.Errorf("Neither dir nor a regular file: %v", path)
+	return nil, nil, fmt.Errorf("Neither dir nor a regular file: %v", path)
 }
 
-func compileFile(path string, be blenc.BE) (string, string, error) {
+func compileFile(path string, be blenc.BE) (common.BlobName, blenc.KeyInfo, error) {
 	fmt.Println(" *", path)
 	fl, err := os.Open(path)
 	if err != nil {
-		return "", "", fmt.Errorf("Couldn't read file %v: %w", path, err)
+		return nil, nil, fmt.Errorf("Couldn't read file %v: %w", path, err)
 	}
-	return be.Save(fl, blenc.ContentsHashKey())
+	defer fl.Close()
+	bn, ki, _, err := be.Create(context.Background(), blobtypes.Static, fl)
+	return bn, ki, err
 }
 
-func compileDir(p string, be blenc.BE) (string, string, error) {
+func compileDir(p string, be blenc.BE) (common.BlobName, blenc.KeyInfo, error) {
 	fileList, err := os.ReadDir(p)
 	if err != nil {
-		return "", "", fmt.Errorf("Couldn't read contents of dir %v: %w", p, err)
+		return nil, nil, fmt.Errorf("Couldn't read contents of dir %v: %w", p, err)
 	}
 	dirStruct := structure.Directory{
 		Entries: make(map[string]*structure.Directory_Entry),
 	}
 	for _, e := range fileList {
 		subPath := path.Join(p, e.Name())
-		name, key, err := compileOneLevel(subPath, be)
+		name, ki, err := compileOneLevel(subPath, be)
 		if err != nil {
-			return "", "", err
+			return nil, nil, err
 		}
 		contentType := "application/cinode-dir"
 		if !e.IsDir() {
@@ -122,28 +143,38 @@ func compileDir(p string, be blenc.BE) (string, string, error) {
 			if contentType == "" {
 				file, err := os.Open(subPath)
 				if err != nil {
-					return "", "", fmt.Errorf("Can not detect content type for %v: %w", subPath, err)
+					return nil, nil, fmt.Errorf("Can not detect content type for %v: %w", subPath, err)
 				}
 				buffer := make([]byte, 512)
 				n, err := io.ReadFull(file, buffer)
 				file.Close()
 				if err != nil && err != io.ErrUnexpectedEOF {
-					return "", "", fmt.Errorf("Can not detect content type for %v: %w", subPath, err)
+					return nil, nil, fmt.Errorf("Can not detect content type for %v: %w", subPath, err)
 				}
 				contentType = http.DetectContentType(buffer[:n])
 			}
 		}
+		keyType, keyKey, keyIV, err := ki.GetSymmetricKey()
+		if err != nil {
+			return nil, nil, fmt.Errorf("Can not fetch key ifo for %v: %w", subPath, err)
+
+		}
 		dirStruct.Entries[e.Name()] = &structure.Directory_Entry{
-			Bid:      name,
-			Key:      key,
+			Bid: name,
+			KeyInfo: &structure.KeyInfo{
+				Type: uint32(keyType),
+				Key:  keyKey,
+				Iv:   keyIV,
+			},
 			MimeType: contentType,
 		}
 	}
 
 	data, err := proto.Marshal(&dirStruct)
 	if err != nil {
-		return "", "", fmt.Errorf("Can not serialize directory %v: %w", p, err)
+		return nil, nil, fmt.Errorf("Can not serialize directory %v: %w", p, err)
 	}
 
-	return be.Save(io.NopCloser(bytes.NewReader(data)), blenc.ContentsHashKey())
+	bn, ki, _, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data))
+	return bn, ki, err
 }

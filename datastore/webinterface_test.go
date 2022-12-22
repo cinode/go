@@ -2,38 +2,50 @@ package datastore
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/cinode/go/common"
+	"github.com/stretchr/testify/require"
 )
 
-func testServer() (string, func()) {
+// import (
+// 	"bytes"
+// 	"io"
+// 	"mime/multipart"
+// 	"net/http"
+// 	"net/http/httptest"
+// 	"testing"
+// )
+
+func testServer(t *testing.T) string {
 	// Test web interface and web connector
 	server := httptest.NewServer(WebInterface(InMemory()))
-	return server.URL + "/", func() { server.Close() }
+	t.Cleanup(func() { server.Close() })
+	return server.URL + "/"
 }
 
 func testHTTPResponse(t *testing.T, method string, path string, data io.Reader, code int) {
-	url, d := testServer()
-	defer d()
-
+	url := testServer(t)
 	testHTTPResponseOwnServer(t, method, url+path, data, code)
 }
 
-func testHTTPResponseOwnServerContentType(t *testing.T, method string, url string,
-	data io.Reader, contentType string, code int) {
-
+func testHTTPResponseOwnServerContentType(t *testing.T, method string, url string, data io.Reader, contentType string, code int) {
 	req, err := http.NewRequest(method, url, data)
-	errPanic(err)
+	require.NoError(t, err)
+
 	req.Header.Set("Content-Type", contentType)
 	resp, err := http.DefaultClient.Do(req)
-	errPanic(err)
+	require.NoError(t, err)
+
 	defer resp.Body.Close()
-	if resp.StatusCode != code {
-		t.Fatalf("Incorrect status code %d (%s)", resp.StatusCode, resp.Status)
-	}
+
+	require.Equal(t, code, resp.StatusCode)
 }
 
 func testHTTPResponseOwnServer(t *testing.T, method string, url string, data io.Reader, code int) {
@@ -45,71 +57,65 @@ func TestWebInterfaceInvalidMethod(t *testing.T) {
 }
 
 func TestWebInterfaceGetQueryString(t *testing.T) {
-	url, d := testServer()
-	defer d()
-	testHTTPResponseOwnServer(t, http.MethodPut, url+emptyBlobName, emptyBlobReader(), http.StatusOK)
-	testHTTPResponseOwnServer(t, http.MethodGet, url+emptyBlobName+"?param=value", nil, http.StatusNotFound)
-}
-
-func TestWebInterfacePostQueryString(t *testing.T) {
-	testHTTPResponse(t, http.MethodPost, "?param=value", emptyBlobReader(), http.StatusNotFound)
-	testHTTPResponse(t, http.MethodPost, "", emptyBlobReader(), http.StatusOK)
+	url := testServer(t)
+	testHTTPResponseOwnServer(t, http.MethodPut, url+emptyBlobName.String(), bytes.NewBuffer(nil), http.StatusOK)
+	testHTTPResponseOwnServer(t, http.MethodGet, url+emptyBlobName.String()+"?param=value", nil, http.StatusBadRequest)
 }
 
 func TestWebInterfacePutQueryString(t *testing.T) {
-	testHTTPResponse(t, http.MethodPut, emptyBlobName+"?param=value", emptyBlobReader(), http.StatusNotFound)
-	testHTTPResponse(t, http.MethodPut, emptyBlobName, emptyBlobReader(), http.StatusOK)
+	testHTTPResponse(t, http.MethodPut, emptyBlobName.String()+"?param=value", bytes.NewBuffer(nil), http.StatusBadRequest)
+	testHTTPResponse(t, http.MethodPut, emptyBlobName.String(), bytes.NewBuffer(nil), http.StatusOK)
 }
 
 func TestWebInterfaceHeadQueryString(t *testing.T) {
-	url, d := testServer()
-	defer d()
-	testHTTPResponseOwnServer(t, http.MethodPut, url+emptyBlobName, emptyBlobReader(), http.StatusOK)
-	testHTTPResponseOwnServer(t, http.MethodHead, url+emptyBlobName+"?param=value", nil, http.StatusNotFound)
-	testHTTPResponseOwnServer(t, http.MethodHead, url+emptyBlobName, nil, http.StatusOK)
+	url := testServer(t)
+	testHTTPResponseOwnServer(t, http.MethodPut, url+emptyBlobName.String(), bytes.NewBuffer(nil), http.StatusOK)
+	testHTTPResponseOwnServer(t, http.MethodHead, url+emptyBlobName.String()+"?param=value", nil, http.StatusBadRequest)
+	testHTTPResponseOwnServer(t, http.MethodHead, url+emptyBlobName.String(), nil, http.StatusOK)
 }
 
 func TestWebInterfaceDeleteQueryString(t *testing.T) {
-	url, d := testServer()
-	defer d()
-	testHTTPResponseOwnServer(t, http.MethodPut, url+emptyBlobName, emptyBlobReader(), http.StatusOK)
-	testHTTPResponseOwnServer(t, http.MethodDelete, url+emptyBlobName+"?param=value", nil, http.StatusNotFound)
-	testHTTPResponseOwnServer(t, http.MethodDelete, url+emptyBlobName, nil, http.StatusOK)
-}
-
-func TestWebInterfacePostNonRoot(t *testing.T) {
-	testHTTPResponse(t, http.MethodPost, emptyBlobName, emptyBlobReader(), http.StatusNotFound)
+	url := testServer(t)
+	testHTTPResponseOwnServer(t, http.MethodPut, url+emptyBlobName.String(), bytes.NewBuffer(nil), http.StatusOK)
+	testHTTPResponseOwnServer(t, http.MethodDelete, url+emptyBlobName.String()+"?param=value", nil, http.StatusBadRequest)
+	testHTTPResponseOwnServer(t, http.MethodDelete, url+emptyBlobName.String(), nil, http.StatusOK)
 }
 
 func TestWebIntefaceExistsFailure(t *testing.T) {
-	server := httptest.NewServer(WebInterface(&errorOnExists{}))
+	server := httptest.NewServer(WebInterface(&datastore{
+		s: &mockStore{
+			fExists: func(ctx context.Context, name common.BlobName) (bool, error) { return false, errors.New("fail") },
+		},
+	}))
 	defer server.Close()
-	testHTTPResponseOwnServer(t, http.MethodHead, server.URL+"/"+emptyBlobName, nil, http.StatusInternalServerError)
+
+	testHTTPResponseOwnServer(t, http.MethodHead, server.URL+"/"+emptyBlobName.String(), nil, http.StatusInternalServerError)
 }
 
 func TestWebInterfaceMultipartSave(t *testing.T) {
-	url, d := testServer()
-	defer d()
+	url := testServer(t)
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	_, err := writer.CreateFormFile("file", "file")
-	errPanic(err)
-	writer.Close()
+	require.NoError(t, err)
+	err = writer.Close()
+	require.NoError(t, err)
 
-	testHTTPResponseOwnServerContentType(t, http.MethodPost, url, body, writer.FormDataContentType(), http.StatusOK)
+	testHTTPResponseOwnServerContentType(t, http.MethodPut, url+emptyBlobName.String(), body, writer.FormDataContentType(), http.StatusOK)
 }
 
 func TestWebInterfaceMultipartNoDataSave(t *testing.T) {
-	url, d := testServer()
-	defer d()
+	url := testServer(t)
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	field, err := writer.CreateFormField("test")
-	errPanic(err)
-	field.Write([]byte("test"))
-	writer.Close()
+	require.NoError(t, err)
+	_, err = field.Write([]byte("test"))
+	require.NoError(t, err)
+	err = writer.Close()
+	require.NoError(t, err)
 
-	testHTTPResponseOwnServerContentType(t, http.MethodPost, url, body, writer.FormDataContentType(), http.StatusBadRequest)
+	testHTTPResponseOwnServerContentType(t, http.MethodPut, url+emptyBlobName.String(), body, writer.FormDataContentType(), http.StatusBadRequest)
 }

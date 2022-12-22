@@ -1,34 +1,32 @@
 package datastore
 
 import (
-	"io"
+	"bytes"
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
+
+	"github.com/cinode/go/internal/blobtypes"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWebConnectorInvalidUrl(t *testing.T) {
 	c := FromWeb("://bad.url", &http.Client{})
-	_, err := c.Open("test")
-	if err == nil {
-		t.Fatal("Did not get error for Open")
-	}
-	_, err = c.Exists("test")
-	if err == nil {
-		t.Fatal("Did not get error for Exists")
-	}
-	err = c.Delete("test")
-	if err == nil {
-		t.Fatal("Did not get error for Delete")
-	}
-	err = c.Save(emptyBlobName, emptyBlobReader())
-	if err == nil {
-		t.Fatal("Did not get error for Delete")
-	}
-	_, err = c.SaveAutoNamed(emptyBlobReader())
-	if err == nil {
-		t.Fatal("Did not get error for Delete")
-	}
+
+	err := c.Read(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
+	require.IsType(t, &url.Error{}, err)
+
+	_, err = c.Exists(context.Background(), emptyBlobName)
+	require.IsType(t, &url.Error{}, err)
+
+	err = c.Delete(context.Background(), emptyBlobName)
+	require.IsType(t, &url.Error{}, err)
+
+	err = c.Update(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
+	require.IsType(t, &url.Error{}, err)
 }
 
 func TestWebConnectorServerSideError(t *testing.T) {
@@ -39,79 +37,50 @@ func TestWebConnectorServerSideError(t *testing.T) {
 
 	c := FromWeb(server.URL+"/", &http.Client{})
 
-	_, err := c.Open("test")
-	if err == nil {
-		t.Fatal("Did not get error for Open")
-	}
-	_, err = c.Exists("test")
-	if err == nil {
-		t.Fatal("Did not get error for Exists")
-	}
-	err = c.Delete("test")
-	if err == nil {
-		t.Fatal("Did not get error for Delete")
-	}
-	err = c.Save(emptyBlobName, emptyBlobReader())
-	if err == nil {
-		t.Fatal("Did not get error for Delete")
-	}
-	_, err = c.SaveAutoNamed(emptyBlobReader())
-	if err == nil {
-		t.Fatal("Did not get error for Delete")
-	}
+	err := c.Read(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
+	require.ErrorIs(t, err, ErrWebConnectionError)
+
+	_, err = c.Exists(context.Background(), emptyBlobName)
+	require.ErrorIs(t, err, ErrWebConnectionError)
+
+	err = c.Delete(context.Background(), emptyBlobName)
+	require.ErrorIs(t, err, ErrWebConnectionError)
+
+	err = c.Update(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
+	require.ErrorIs(t, err, ErrWebConnectionError)
 }
 
 func TestWebConnectorDetectInvalidBlobRead(t *testing.T) {
 
-	// Create memory stream without consistency check - that's to catch the
-	// manipulation at the connector level, not the original datastore level
-	ds := newMemoryNoConsistencyCheck()
-
 	// Test web interface and web connector
-	server := httptest.NewServer(WebInterface(ds))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello, I should not be here!"))
+	}))
 	defer server.Close()
 
 	ds2 := FromWeb(server.URL+"/", &http.Client{})
 
-	blob := testBlobs[0]
-	putBlob(blob.name, blob.data, ds)
-
-	// Modify data
-	ds.bmap[blob.name][0]++
-
-	r, err := ds2.Open(blob.name)
-	errPanic(err)
-
-	_, err = io.ReadAll(r)
-	r.Close()
-	if err != ErrNameMismatch {
-		t.Fatalf("Didn't detect local file manipulation, got error: %v instead of %v",
-			err, ErrNameMismatch)
-	}
+	data := bytes.NewBuffer(nil)
+	err := ds2.Read(context.Background(), emptyBlobName, data)
+	require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
 
 }
 
-func TestWebConnectorDetectInvalidBlobSaveAutoNamed(t *testing.T) {
+func TestWebConnectorInvalidErrorCode(t *testing.T) {
 
-	// Create memory stream without consistency check - that's to catch the
-	// manipulation at the connector level, not the original datastore level
-	ds := newMemoryBrokenAutoNamed(func(n string) string {
-		// Just kick out the first letter to the end of the name, it's still
-		// the same length and uses valid alphabet but won't match the data
-		return n[1:] + n[:1]
-	})
-
-	server := httptest.NewServer(WebInterface(ds))
+	// Test web interface and web connector
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(&webErrResponse{
+			Code: "SOME_UNKNOWN_CODE",
+		})
+	}))
 	defer server.Close()
 
 	ds2 := FromWeb(server.URL+"/", &http.Client{})
 
-	blob := testBlobs[0]
-
-	_, err := ds2.SaveAutoNamed(bReader(blob.data, nil, nil, nil))
-	if err != ErrNameMismatch {
-		t.Fatalf("Didn't detect invalid name returned from the server, error: '%v'",
-			err,
-		)
-	}
+	data := bytes.NewBuffer(nil)
+	err := ds2.Read(context.Background(), emptyBlobName, data)
+	require.ErrorIs(t, err, ErrWebConnectionError)
 }
