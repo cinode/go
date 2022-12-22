@@ -15,8 +15,8 @@ limitations under the License.
 */
 package main
 
-import "github.com/cinode/go/cmd/static_datastore/cmd"
+import "github.com/cinode/go/pkg/cmd/static_datastore"
 
 func main() {
-	cmd.Execute()
+	static_datastore.Execute()
 }
