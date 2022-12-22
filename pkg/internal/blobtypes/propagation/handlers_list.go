@@ -14,10 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package propagation
 
-import "github.com/cinode/go/pkg/cmd/static_datastore"
+import (
+	"fmt"
 
-func main() {
-	static_datastore.Execute()
+	"github.com/cinode/go/pkg/common"
+	"github.com/cinode/go/pkg/internal/blobtypes"
+)
+
+func HandlerForType(t common.BlobType) (Handler, error) {
+	switch t {
+	case blobtypes.Static:
+		return newStaticBlobHandlerSha256(), nil
+	}
+
+	return nil, fmt.Errorf("%w (%d)", blobtypes.ErrUnknownBlobType, t)
 }

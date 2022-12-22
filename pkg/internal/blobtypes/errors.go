@@ -14,10 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package blobtypes
 
-import "github.com/cinode/go/pkg/cmd/static_datastore"
+import "errors"
 
-func main() {
-	static_datastore.Execute()
-}
+var (
+	ErrUnknownBlobType  = errors.New("unknown blob type")
+	ErrValidationFailed = errors.New("blob validation failed")
+)

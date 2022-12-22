@@ -14,10 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package blobtypes
 
-import "github.com/cinode/go/pkg/cmd/static_datastore"
+import "github.com/cinode/go/pkg/common"
 
-func main() {
-	static_datastore.Execute()
+var (
+	Invalid = common.NewBlobType(0x00)
+	Static  = common.NewBlobType(0x01)
+)
+
+var All = map[string]common.BlobType{
+	"Static": Static,
 }

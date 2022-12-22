@@ -14,10 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package structure
 
-import "github.com/cinode/go/pkg/cmd/static_datastore"
-
-func main() {
-	static_datastore.Execute()
-}
+//go:generate protoc --go_out=. directory.proto

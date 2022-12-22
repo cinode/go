@@ -14,10 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package datastore
 
-import "github.com/cinode/go/pkg/cmd/static_datastore"
+import (
+	"testing"
 
-func main() {
-	static_datastore.Execute()
+	"github.com/stretchr/testify/require"
+)
+
+func temporaryMemory(t *testing.T) *memory {
+	return newStorageMemory()
+}
+
+func TestMemoryStorageKind(t *testing.T) {
+	m := temporaryMemory(t)
+	require.Equal(t, "Memory", m.kind())
 }

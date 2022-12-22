@@ -14,10 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package generation
 
-import "github.com/cinode/go/pkg/cmd/static_datastore"
+import (
+	"bytes"
+	"crypto/sha256"
+	"testing"
 
-func main() {
-	static_datastore.Execute()
+	"github.com/stretchr/testify/require"
+)
+
+func TestStaticBlobHandler(t *testing.T) {
+	bt := newStaticBlobHandlerSha256()
+
+	data := []byte("Hello world!")
+
+	hash, wi, err := bt.PrepareNewBlob(bytes.NewReader(data))
+	require.NoError(t, err)
+	require.Len(t, hash, sha256.Size)
+	require.Empty(t, wi)
 }

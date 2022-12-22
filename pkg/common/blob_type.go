@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package common
 
-import "github.com/cinode/go/pkg/cmd/static_datastore"
+type BlobType struct {
+	t byte
+}
 
-func main() {
-	static_datastore.Execute()
+func NewBlobType(t byte) BlobType {
+	return BlobType{t: t}
 }

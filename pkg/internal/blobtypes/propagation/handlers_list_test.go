@@ -14,10 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package propagation
 
-import "github.com/cinode/go/pkg/cmd/static_datastore"
+import (
+	"testing"
 
-func main() {
-	static_datastore.Execute()
+	"github.com/cinode/go/pkg/internal/blobtypes"
+	"github.com/stretchr/testify/require"
+)
+
+func TestBlobHandlerForValidType(t *testing.T) {
+	h, err := HandlerForType(blobtypes.Static)
+	require.NoError(t, err)
+	require.NotNil(t, h)
+}
+
+func TestBlobHandlerForInvalidType(t *testing.T) {
+	h, err := HandlerForType(blobtypes.Invalid)
+	require.ErrorIs(t, err, blobtypes.ErrUnknownBlobType)
+	require.Nil(t, h)
 }

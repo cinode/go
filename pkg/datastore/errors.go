@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package datastore
 
-import "github.com/cinode/go/pkg/cmd/static_datastore"
+import "errors"
 
-func main() {
-	static_datastore.Execute()
-}
+var (
+	ErrUploadInProgress = errors.New("another upload is already in progress")
+)

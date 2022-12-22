@@ -14,10 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package blenc
 
-import "github.com/cinode/go/pkg/cmd/static_datastore"
+type keyInfoStatic struct {
+	t       byte
+	key, iv []byte
+}
 
-func main() {
-	static_datastore.Execute()
+func (k *keyInfoStatic) GetSymmetricKey() (byte, []byte, []byte, error) {
+	return k.t, k.key, k.iv, nil
+}
+
+func NewStaticKeyInfo(t byte, key, iv []byte) KeyInfo {
+	return &keyInfoStatic{
+		t: t, key: key, iv: iv,
+	}
 }

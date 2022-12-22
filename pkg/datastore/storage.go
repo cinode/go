@@ -14,10 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package datastore
 
-import "github.com/cinode/go/pkg/cmd/static_datastore"
+import (
+	"context"
+	"io"
 
-func main() {
-	static_datastore.Execute()
+	"github.com/cinode/go/pkg/common"
+)
+
+type WriteCloseCanceller interface {
+	io.WriteCloser
+	Cancel()
+}
+
+type storage interface {
+	kind() string
+	openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error)
+	openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error)
+	exists(ctx context.Context, name common.BlobName) (bool, error)
+	delete(ctx context.Context, name common.BlobName) error
 }
