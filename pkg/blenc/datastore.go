@@ -18,14 +18,14 @@ package blenc
 
 import (
 	"context"
-	"crypto/aes"
 	"crypto/sha256"
 	"io"
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/internal/blobtypes/generation"
+	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/internal/utilities/securefifo"
+	"golang.org/x/crypto/chacha20"
 )
 
 // FromDatastore creates Blob Encoder using given datastore implementation as
@@ -38,11 +38,18 @@ type beDatastore struct {
 	ds datastore.DS
 }
 
-func (be *beDatastore) Read(ctx context.Context, name common.BlobName, ki KeyInfo, w io.Writer) error {
-	// TODO: Some analysis of the data from blob types ?
-	// In case of dynamic link we'll have to skip link's additional data
+func (be *beDatastore) Read(ctx context.Context, name common.BlobName, key EncryptionKey, w io.Writer) error {
+	if name.Type() != blobtypes.Static {
+		return blobtypes.ErrUnknownBlobType
+	}
 
-	cw, err := streamCipherWriterForKeyInfo(ki, w)
+	iv := make([]byte, chacha20.NonceSizeX)
+
+	// TODO: This should be reversed - we should use streamCipherReader here since we're reading encrypted data,
+	// currently it works because stream ciphers we're using are xor-based thus reader and writer is performing the same logic,
+	// it will break if we start using stream cipher where there's asymmetry between encryption and decryption algorithm
+
+	cw, err := streamCipherWriter(key, iv, w)
 	if err != nil {
 		return err
 	}
@@ -54,27 +61,62 @@ func (be *beDatastore) Read(ctx context.Context, name common.BlobName, ki KeyInf
 	return nil
 }
 
-func (be *beDatastore) Create(ctx context.Context, blobType common.BlobType, r io.Reader) (common.BlobName, KeyInfo, WriterInfo, error) {
+func (be *beDatastore) Create(
+	ctx context.Context,
+	blobType common.BlobType,
+	r io.Reader,
+) (
+	common.BlobName,
+	EncryptionKey,
+	WriterInfo,
+	error,
+) {
+	if blobType != blobtypes.Static {
+		return nil, nil, nil, blobtypes.ErrUnknownBlobType
+	}
 
-	handler, err := generation.HandlerForType(blobType)
+	// Static blobtype generation
+
+	tempWriteBufferPlain, err := securefifo.New()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	defer tempWriteBufferPlain.Close()
+
+	tempWriteBufferEncrypted, err := securefifo.New()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	defer tempWriteBufferEncrypted.Close()
+
+	// Generate encryption key
+	// 		Key - sha256(content)
+	//		IV - constant (zeroed iv)
+
+	keyHasher := sha256.New()
+	_, err = io.Copy(tempWriteBufferPlain, io.TeeReader(r, keyHasher))
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	ki, rClone, err := be.generateKeyInfo(r)
+	key := keyHasher.Sum(nil)[:chacha20.KeySize]
+	iv := make([]byte, chacha20.NonceSizeX)
+
+	rClone, err := tempWriteBufferPlain.Done() // rClone will allow re-reading the source data
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	defer rClone.Close()
 
-	tempWriteBuffer, err := securefifo.New()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	defer tempWriteBuffer.Close()
-
-	// Encrypt data with calculated key
-	encWriter, err := streamCipherWriterForKeyInfo(ki, tempWriteBuffer)
+	// Encrypt data with calculated key, hash encrypted data to generate blob name
+	blobNameHasher := sha256.New()
+	encWriter, err := streamCipherWriter(
+		key, iv,
+		io.MultiWriter(
+			tempWriteBufferEncrypted, // Stream out encrypted data to temporary fifo
+			blobNameHasher,           // Also hash the output to avoid re-reading the fifo again to build blob name
+		),
+	)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -84,84 +126,25 @@ func (be *beDatastore) Create(ctx context.Context, blobType common.BlobType, r i
 		return nil, nil, nil, err
 	}
 
-	encReader, err := tempWriteBuffer.Done()
+	encReader, err := tempWriteBufferEncrypted.Done()
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	defer encReader.Close()
 
-	// Generate new blob info
-	hash, wi, err := handler.PrepareNewBlob(encReader)
+	// Generate blob name from the encrypted data
+	name, err := common.BlobNameFromHashAndType(blobNameHasher.Sum(nil), blobType)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	name, err := common.BlobNameFromHashAndType(hash, blobType)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	// Store encrypted blob into the datastore
-	encReader, err = encReader.Reset()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	defer encReader.Close()
-
+	// Send encrypted blob into the datastore
 	err = be.ds.Update(ctx, name, encReader)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	return name, ki, wi, nil
-}
-
-func (be *beDatastore) generateKeyInfo(r io.Reader) (KeyInfo, io.ReadCloser, error) {
-
-	w, err := securefifo.New()
-	if err != nil {
-		return nil, nil, err
-	}
-	defer w.Close()
-
-	// TODO: This should be a part of internal/blobtypes/generation
-
-	// TODO: Those values MUST be checked when reading the blob
-	//       to ensure that those can not be weakened on purpose
-
-	// hasher for key
-	hasher := sha256.New()
-	hasher.Write([]byte{0x00})
-
-	// hasher for IV
-	hasher2 := sha256.New()
-	hasher2.Write([]byte{0xFF})
-
-	// Copy to temporary fifo and calculate hash at the same time
-	_, err = io.Copy(
-		w,
-		io.TeeReader(io.TeeReader(r, hasher), hasher2),
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	hash := hasher.Sum(nil)
-	hash2 := hasher2.Sum(nil)
-
-	ki := &keyInfoStatic{
-		t:   keyTypeAES,
-		key: hash[:keySizeAES],
-		iv:  hash2[:aes.BlockSize],
-	}
-
-	reader, err := w.Done()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return ki, reader, nil
-
+	return name, key, nil, nil
 }
 
 func (be *beDatastore) Exists(ctx context.Context, name common.BlobName) (bool, error) {

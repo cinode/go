@@ -17,7 +17,9 @@ limitations under the License.
 package datastore
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,7 +27,7 @@ import (
 	"net/http"
 
 	"github.com/cinode/go/pkg/common"
-	"github.com/cinode/go/pkg/internal/blobtypes/propagation"
+	"github.com/cinode/go/pkg/internal/blobtypes"
 )
 
 var (
@@ -52,9 +54,8 @@ func (w *webConnector) Kind() string {
 }
 
 func (w *webConnector) Read(ctx context.Context, name common.BlobName, output io.Writer) error {
-	handler, err := propagation.HandlerForType(name.Type())
-	if err != nil {
-		return err
+	if name.Type() != blobtypes.Static {
+		return blobtypes.ErrUnknownBlobType
 	}
 
 	req, err := http.NewRequestWithContext(
@@ -78,10 +79,17 @@ func (w *webConnector) Read(ctx context.Context, name common.BlobName, output io
 		return err
 	}
 
-	return handler.Validate(
-		name.Hash(),
-		io.TeeReader(res.Body, output),
-	)
+	hasher := sha256.New()
+	_, err = io.Copy(output, io.TeeReader(res.Body, hasher))
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(name.Hash(), hasher.Sum(nil)) {
+		return blobtypes.ErrValidationFailed
+	}
+
+	return nil
 }
 
 func (w *webConnector) Update(ctx context.Context, name common.BlobName, r io.Reader) error {

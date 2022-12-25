@@ -60,7 +60,7 @@ Serve files from static datastore from a directory.
 	return cmd
 }
 
-func getEntrypoint(datastoreDir string) ([]byte, blenc.KeyInfo, error) {
+func getEntrypoint(datastoreDir string) ([]byte, []byte, error) {
 	ep, err := os.Open(path.Join(datastoreDir, "entrypoint.txt"))
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't open entrypoint file from %s", datastoreDir)
@@ -77,42 +77,22 @@ func getEntrypoint(datastoreDir string) ([]byte, blenc.KeyInfo, error) {
 	}
 
 	if !scanner.Scan() {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - missing key info")
+		return nil, nil, fmt.Errorf("malformed entrypoint file - missing key")
 	}
 
-	keyInfoText := strings.Split(scanner.Text(), ":")
-	if len(keyInfoText) != 3 {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, must be 3 segments split by ':'")
-	}
-	keyType, err := hex.DecodeString(keyInfoText[0])
+	key, err := hex.DecodeString(scanner.Text())
 	if err != nil {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, key type segment can not be hex-decoded: %w", err)
-	}
-	if len(keyType) != 1 {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, key type segment must be one byte")
+		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key: %w", err)
 	}
 
-	keyKey, err := hex.DecodeString(keyInfoText[1])
-	if err != nil {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, key segment can not be hex-decoded: %w", err)
-	}
-
-	keyIV, err := hex.DecodeString(keyInfoText[2])
-	if err != nil {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, IV can not be hex-decoded: %w", err)
-	}
-	return bid, blenc.NewStaticKeyInfo(
-		keyType[0],
-		keyKey,
-		keyIV,
-	), nil
+	return bid, key, nil
 }
 
 func handleDir(
 	ctx context.Context,
 	be blenc.BE,
 	bid []byte,
-	ki blenc.KeyInfo,
+	key []byte,
 	w http.ResponseWriter,
 	r *http.Request,
 	subPath string,
@@ -125,7 +105,7 @@ func handleDir(
 	pathParts := strings.SplitN(subPath, "/", 2)
 
 	dirBytes := bytes.NewBuffer(nil)
-	err := be.Read(ctx, common.BlobName(bid), ki, dirBytes)
+	err := be.Read(ctx, common.BlobName(bid), key, dirBytes)
 	if err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
@@ -152,11 +132,7 @@ func handleDir(
 			ctx,
 			be,
 			entry.GetBid(),
-			blenc.NewStaticKeyInfo(
-				byte(entry.GetKeyInfo().GetType()),
-				entry.GetKeyInfo().GetKey(),
-				entry.GetKeyInfo().GetIv(),
-			),
+			entry.KeyInfo.GetKey(),
 			w, r,
 			pathParts[1],
 		)
@@ -172,11 +148,7 @@ func handleDir(
 	err = be.Read(
 		ctx,
 		common.BlobName(entry.Bid),
-		blenc.NewStaticKeyInfo(
-			byte(entry.GetKeyInfo().GetType()),
-			entry.GetKeyInfo().GetKey(),
-			entry.GetKeyInfo().GetIv(),
-		),
+		entry.KeyInfo.GetKey(),
 		w,
 	)
 	if err != nil {

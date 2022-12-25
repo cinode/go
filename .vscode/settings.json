@@ -2,14 +2,18 @@
     "go.autocompleteUnimportedPackages": true,
     "go.coverOnSave": true,
     "cSpell.words": [
+        "blenc",
         "blobtype",
         "blobtypes",
         "bmap",
         "cinode",
         "ciphertext",
-        "Hasher",
         "coverprofile",
         "goveralls",
-        "shogo"
+        "Hasher",
+        "protobuf",
+        "securefifo",
+        "shogo",
+        "stretchr"
     ]
 }

@@ -89,8 +89,10 @@ func (w *fileSystemWriteCloser) Write(b []byte) (int, error) {
 }
 
 func (w *fileSystemWriteCloser) Cancel() {
-	w.fs.Close()
-	os.Remove(w.fs.Name())
+	if w.fs != nil {
+		w.fs.Close()
+		os.Remove(w.fs.Name())
+	}
 }
 
 func (w *fileSystemWriteCloser) Close() error {
@@ -101,7 +103,13 @@ func (w *fileSystemWriteCloser) Close() error {
 		return err
 	}
 
-	return os.Rename(w.fs.Name(), w.destName)
+	err = os.Rename(w.fs.Name(), w.destName)
+	if err != nil {
+		return err
+	}
+
+	w.fs = nil
+	return nil
 }
 
 func (fs *fileSystem) openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {

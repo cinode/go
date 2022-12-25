@@ -17,12 +17,13 @@ limitations under the License.
 package datastore
 
 import (
+	"bytes"
 	"context"
-	"errors"
+	"crypto/sha256"
 	"io"
 
 	"github.com/cinode/go/pkg/common"
-	"github.com/cinode/go/pkg/internal/blobtypes/propagation"
+	"github.com/cinode/go/pkg/internal/blobtypes"
 )
 
 type datastore struct {
@@ -36,9 +37,8 @@ func (ds *datastore) Kind() string {
 }
 
 func (ds *datastore) Read(ctx context.Context, name common.BlobName, output io.Writer) error {
-	handler, err := propagation.HandlerForType(name.Type())
-	if err != nil {
-		return err
+	if name.Type() != blobtypes.Static {
+		return blobtypes.ErrUnknownBlobType
 	}
 
 	rc, err := ds.s.openReadStream(ctx, name)
@@ -47,58 +47,38 @@ func (ds *datastore) Read(ctx context.Context, name common.BlobName, output io.W
 	}
 	defer rc.Close()
 
-	return handler.Validate(
-		name.Hash(),
-		io.TeeReader(rc, output),
-	)
+	hasher := sha256.New()
+	_, err = io.Copy(output, io.TeeReader(rc, hasher))
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(name.Hash(), hasher.Sum(nil)) {
+		return blobtypes.ErrValidationFailed
+	}
+
+	return nil
 }
 
 func (ds *datastore) Update(ctx context.Context, name common.BlobName, updateStream io.Reader) error {
-	handler, err := propagation.HandlerForType(name.Type())
-	if err != nil {
-		return err
+	if name.Type() != blobtypes.Static {
+		return blobtypes.ErrUnknownBlobType
 	}
 
 	outputStream, err := ds.s.openWriteStream(ctx, name)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		// Cancel the write operation if for whatever reason
-		// we don't finish the write operation
-		if outputStream != nil {
-			outputStream.Cancel()
-		}
-	}()
+	defer outputStream.Cancel()
 
-	// Check if we can get the currentStream blob data
-	currentStream, err := ds.s.openReadStream(ctx, name)
-	if err != nil && !errors.Is(err, ErrNotFound) {
+	hasher := sha256.New()
+	_, err = io.Copy(outputStream, io.TeeReader(updateStream, hasher))
+	if err != nil {
 		return err
 	}
 
-	defer func() {
-		if currentStream != nil {
-			currentStream.Close()
-		}
-	}()
-
-	if currentStream == nil {
-		// No content yet, only need to validate the updateStream
-		// and store in the result file
-		err := handler.Validate(name.Hash(), io.TeeReader(updateStream, outputStream))
-		if err != nil {
-			return err
-		}
-	} else {
-		err = handler.Ingest(name.Hash(), currentStream, updateStream, outputStream)
-		if err != nil {
-			return err
-		}
-
-		// Current dataset must be closed before closing the output stream
-		currentStream.Close()
-		currentStream = nil
+	if !bytes.Equal(name.Hash(), hasher.Sum(nil)) {
+		return blobtypes.ErrValidationFailed
 	}
 
 	err = outputStream.Close()

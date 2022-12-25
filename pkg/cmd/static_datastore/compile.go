@@ -86,17 +86,11 @@ func compile(srcDir, dstDir string) error {
 	if err != nil {
 		return err
 	}
-	keyType, keyKey, keyIV, err := key.GetSymmetricKey()
-	if err != nil {
-		log.Fatal(err)
-	}
 	_, err = fmt.Fprintf(
 		fl,
-		"%s\n%s:%s:%s\n",
+		"%s\n%s\n",
 		name,
-		hex.EncodeToString([]byte{keyType}),
-		hex.EncodeToString(keyKey),
-		hex.EncodeToString(keyIV),
+		hex.EncodeToString(key),
 	)
 	if err != nil {
 		fl.Close()
@@ -111,7 +105,7 @@ func compile(srcDir, dstDir string) error {
 	return nil
 }
 
-func compileOneLevel(path string, be blenc.BE) (common.BlobName, blenc.KeyInfo, error) {
+func compileOneLevel(path string, be blenc.BE) (common.BlobName, []byte, error) {
 	st, err := os.Stat(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Couldn't check path: %w", err)
@@ -128,7 +122,7 @@ func compileOneLevel(path string, be blenc.BE) (common.BlobName, blenc.KeyInfo, 
 	return nil, nil, fmt.Errorf("Neither dir nor a regular file: %v", path)
 }
 
-func compileFile(path string, be blenc.BE) (common.BlobName, blenc.KeyInfo, error) {
+func compileFile(path string, be blenc.BE) (common.BlobName, []byte, error) {
 	fmt.Println(" *", path)
 	fl, err := os.Open(path)
 	if err != nil {
@@ -139,7 +133,7 @@ func compileFile(path string, be blenc.BE) (common.BlobName, blenc.KeyInfo, erro
 	return bn, ki, err
 }
 
-func compileDir(p string, be blenc.BE) (common.BlobName, blenc.KeyInfo, error) {
+func compileDir(p string, be blenc.BE) (common.BlobName, []byte, error) {
 	fileList, err := os.ReadDir(p)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Couldn't read contents of dir %v: %w", p, err)
@@ -149,7 +143,7 @@ func compileDir(p string, be blenc.BE) (common.BlobName, blenc.KeyInfo, error) {
 	}
 	for _, e := range fileList {
 		subPath := path.Join(p, e.Name())
-		name, ki, err := compileOneLevel(subPath, be)
+		name, key, err := compileOneLevel(subPath, be)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -170,17 +164,10 @@ func compileDir(p string, be blenc.BE) (common.BlobName, blenc.KeyInfo, error) {
 				contentType = http.DetectContentType(buffer[:n])
 			}
 		}
-		keyType, keyKey, keyIV, err := ki.GetSymmetricKey()
-		if err != nil {
-			return nil, nil, fmt.Errorf("Can not fetch key ifo for %v: %w", subPath, err)
-
-		}
 		dirStruct.Entries[e.Name()] = &structure.Directory_Entry{
 			Bid: name,
 			KeyInfo: &structure.KeyInfo{
-				Type: uint32(keyType),
-				Key:  keyKey,
-				Iv:   keyIV,
+				Key: key,
 			},
 			MimeType: contentType,
 		}
