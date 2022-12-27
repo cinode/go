@@ -38,6 +38,12 @@ type BE interface {
 	// WriterInfo that allows blob's update is returned
 	Create(ctx context.Context, blobType common.BlobType, r io.Reader) (common.BlobName, EncryptionKey, WriterInfo, error)
 
+	// Update updates given blob type with new data,
+	// The update must happen within a single blob name (i.e. it can not end up with blob with different name)
+	// and may not be available for certain blob types such as static blobs.
+	// A valid writer info is necessary to ensure a correct new content can be created
+	Update(ctx context.Context, name common.BlobName, wi WriterInfo, key EncryptionKey, r io.Reader) error
+
 	// Exists does check whether blob of given name exists. It forwards the call
 	// to underlying datastore.
 	Exists(ctx context.Context, name common.BlobName) (bool, error)

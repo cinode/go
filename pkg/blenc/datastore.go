@@ -58,9 +58,20 @@ func (be *beDatastore) Create(
 	switch blobType {
 	case blobtypes.Static:
 		return be.createStatic(ctx, r)
+	case blobtypes.DynamicLink:
+		return be.createDynamicLink(ctx, r)
 	}
 	return nil, nil, nil, blobtypes.ErrUnknownBlobType
+}
 
+func (be *beDatastore) Update(ctx context.Context, name common.BlobName, wi WriterInfo, key EncryptionKey, r io.Reader) error {
+	switch name.Type() {
+	case blobtypes.Static:
+		return be.updateStatic(ctx, name, wi, key, r)
+	case blobtypes.DynamicLink:
+		return be.updateDynamicLink(ctx, name, wi, key, r)
+	}
+	return blobtypes.ErrUnknownBlobType
 }
 
 func (be *beDatastore) Exists(ctx context.Context, name common.BlobName) (bool, error) {

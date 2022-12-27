@@ -34,6 +34,9 @@ var (
 
 const (
 	reservedByteValue byte = 0
+
+	signatureForLinkData                byte = 0
+	signatureForEncryptionKeyGeneration byte = 0xFF
 )
 
 type DynamicLinkData struct {
@@ -149,6 +152,9 @@ func (d *DynamicLinkData) Verify() bool {
 func (d *DynamicLinkData) bytesToSign() []byte {
 	b := bytes.NewBuffer(nil)
 
+	// Content indicator
+	b.WriteByte(signatureForLinkData)
+
 	// Blob name, length-prefixed
 	bn := d.BlobName()
 	b.WriteByte(byte(len(bn)))
@@ -170,4 +176,17 @@ func (d *DynamicLinkData) BlobName() common.BlobName {
 
 	bn, _ := common.BlobNameFromHashAndType(hasher.Sum(nil), blobtypes.DynamicLink)
 	return bn
+}
+
+func (d *DynamicLinkData) CalculateEncryptionKey(privKey ed25519.PrivateKey) []byte {
+	dataSeed := append(
+		[]byte{signatureForEncryptionKeyGeneration},
+		d.BlobName()...,
+	)
+
+	// TODO: Add key validation block
+
+	signature := ed25519.Sign(privKey, dataSeed)
+	signatureHash := sha256.Sum256(signature)
+	return signatureHash[:chacha20.KeySize]
 }

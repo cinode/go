@@ -19,6 +19,7 @@ package blenc
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"io"
 
 	"github.com/cinode/go/pkg/common"
@@ -126,4 +127,14 @@ func (be *beDatastore) createStatic(
 	}
 
 	return name, key, nil, nil
+}
+
+func (be *beDatastore) updateStatic(
+	ctx context.Context,
+	name common.BlobName,
+	wi WriterInfo,
+	key EncryptionKey,
+	r io.Reader,
+) error {
+	return errors.New("Blob update is not supported for static blobs")
 }
