@@ -38,6 +38,8 @@ func (ds *datastore) Read(ctx context.Context, name common.BlobName, output io.W
 	switch name.Type() {
 	case blobtypes.Static:
 		return ds.readStatic(ctx, name, output)
+	case blobtypes.DynamicLink:
+		return ds.readDynamicLink(ctx, name, output)
 	default:
 		return blobtypes.ErrUnknownBlobType
 	}
@@ -47,6 +49,8 @@ func (ds *datastore) Update(ctx context.Context, name common.BlobName, updateStr
 	switch name.Type() {
 	case blobtypes.Static:
 		return ds.updateStatic(ctx, name, updateStream)
+	case blobtypes.DynamicLink:
+		return ds.updateDynamicLink(ctx, name, updateStream)
 	default:
 		return blobtypes.ErrUnknownBlobType
 	}

@@ -22,6 +22,8 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"io"
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes"
@@ -29,7 +31,9 @@ import (
 )
 
 var (
-	ErrInvalidDynamicLinkData = errors.New("invalid dynamic link data")
+	ErrInvalidDynamicLinkData          = errors.New("invalid dynamic link data")
+	ErrInvalidDynamicLinkDataBlobName  = fmt.Errorf("%w: blob name mismatch", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkDataSignature = fmt.Errorf("%w: signature is invalid", ErrInvalidDynamicLinkData)
 )
 
 const (
@@ -47,78 +51,122 @@ type DynamicLinkData struct {
 	EncryptedLink  []byte
 }
 
-func DynamicLinkDataFromBytes(b []byte) (*DynamicLinkData, error) {
-	// Reserved byte
-	if len(b) < 1 {
-		return nil, ErrInvalidDynamicLinkData
+func readBuff(r io.Reader, buff []byte, fieldName string) error {
+	_, err := io.ReadFull(r, buff)
+	if err != nil {
+		return fmt.Errorf(
+			"%w: error while reading %s: %v",
+			ErrInvalidDynamicLinkData, fieldName, err,
+		)
 	}
-	if b[0] != reservedByteValue {
-		return nil, ErrInvalidDynamicLinkData
-	}
-
-	// Public key
-	if len(b) < ed25519.PrivateKeySize {
-		return nil, ErrInvalidDynamicLinkData
-	}
-	pubKey := ed25519.PublicKey(b[:ed25519.PrivateKeySize])
-	b = b[ed25519.PrivateKeySize:]
-
-	// Content version
-	if len(b) < 8 {
-		return nil, ErrInvalidDynamicLinkData
-	}
-	contentVersion := binary.BigEndian.Uint64(b)
-	b = b[8:]
-
-	// Signature
-	if len(b) < ed25519.SignatureSize {
-		return nil, ErrInvalidDynamicLinkData
-	}
-	signature := b[:ed25519.SignatureSize]
-	b = b[ed25519.SignatureSize:]
-
-	// IV
-	// TODO: The size of IV may potentially leak the cipher used
-	if len(b) < chacha20.NonceSizeX {
-		return nil, ErrInvalidDynamicLinkData
-	}
-	iv := b[:chacha20.NonceSizeX]
-	b = b[chacha20.NonceSizeX:]
-
-	// Link data
-	encryptedLink := b
-
-	return &DynamicLinkData{
-		PublicKey:      pubKey,
-		ContentVersion: contentVersion,
-		Signature:      signature,
-		IV:             iv,
-		EncryptedLink:  encryptedLink,
-	}, nil
+	return nil
 }
 
-func (d *DynamicLinkData) ToBytes() []byte {
-	b := bytes.NewBuffer(nil)
+func readByte(r io.Reader, fieldName string) (byte, error) {
+	var b [1]byte
+	err := readBuff(r, b[:], fieldName)
+	return b[0], err
+}
 
+func readUint64(r io.Reader, fieldName string) (uint64, error) {
+	var b [8]byte
+	err := readBuff(r, b[:], fieldName)
+	return binary.BigEndian.Uint64(b[:]), err
+}
+
+// FromReader creates an encrypted dynamic link data from given io.Reader
+//
+// Invalid links are rejected - i.e. if there's any error while reading the data
+// or when the validation of the link fails for whatever reason
+func FromReader(name common.BlobName, r io.Reader) (*DynamicLinkData, error) {
+	dl := DynamicLinkData{
+		PublicKey: make([]byte, ed25519.PublicKeySize),
+		Signature: make([]byte, ed25519.SignatureSize),
+		IV:        make([]byte, chacha20.NonceSizeX),
+	}
+
+	reserved, err := readByte(r, "reserved byte")
+	if err != nil {
+		return nil, err
+	}
+	if reserved != reservedByteValue {
+		return nil, fmt.Errorf(
+			"%w: invalid value of the reserved byte: %d, expected 0",
+			ErrInvalidDynamicLinkData, reserved,
+		)
+	}
+
+	err = readBuff(r, dl.PublicKey, "public key")
+	if err != nil {
+		return nil, err
+	}
+
+	dl.ContentVersion, err = readUint64(r, "content version")
+	if err != nil {
+		return nil, err
+	}
+
+	err = readBuff(r, dl.Signature, "signature")
+	if err != nil {
+		return nil, err
+	}
+
+	err = readBuff(r, dl.IV, "iv")
+	if err != nil {
+		return nil, err
+	}
+
+	dl.EncryptedLink, err = io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+
+	err = dl.verifyPublicData(name)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dl, nil
+}
+
+func (d *DynamicLinkData) SendToWriter(w io.Writer) error {
 	// Reserved
-	b.WriteByte(reservedByteValue)
+	_, err := w.Write([]byte{reservedByteValue})
+	if err != nil {
+		return err
+	}
 
 	// Public key
-	b.Write(d.PublicKey)
+	_, err = w.Write(d.PublicKey)
+	if err != nil {
+		return err
+	}
 
 	// Content version
-	b.Write(binary.BigEndian.AppendUint64(nil, d.ContentVersion))
+	_, err = w.Write(binary.BigEndian.AppendUint64(nil, d.ContentVersion))
+	if err != nil {
+		return err
+	}
 
 	// Signature
-	b.Write(d.Signature)
+	_, err = w.Write(d.Signature)
+	if err != nil {
+		return err
+	}
 
 	// IV
-	b.Write(d.IV)
+	_, err = w.Write(d.IV)
+	if err != nil {
+		return err
+	}
 
 	// Encrypted link
-	b.Write(d.EncryptedLink)
+	_, err = w.Write(d.EncryptedLink)
+	if err != nil {
+		return err
+	}
 
-	return b.Bytes()
+	return nil
 }
 
 func (d *DynamicLinkData) CalculateIV(unencryptedLink []byte) []byte {
@@ -145,8 +193,16 @@ func (d *DynamicLinkData) CalculateSignature(privKey ed25519.PrivateKey) []byte 
 	return ed25519.Sign(privKey, d.bytesToSign())
 }
 
-func (d *DynamicLinkData) Verify() bool {
-	return ed25519.Verify(d.PublicKey, d.bytesToSign(), d.Signature)
+func (d *DynamicLinkData) verifyPublicData(name common.BlobName) error {
+	if !bytes.Equal(name, d.BlobName()) {
+		return ErrInvalidDynamicLinkDataBlobName
+	}
+
+	if !ed25519.Verify(d.PublicKey, d.bytesToSign(), d.Signature) {
+		return ErrInvalidDynamicLinkDataSignature
+	}
+
+	return nil
 }
 
 func (d *DynamicLinkData) bytesToSign() []byte {
@@ -189,4 +245,21 @@ func (d *DynamicLinkData) CalculateEncryptionKey(privKey ed25519.PrivateKey) []b
 	signature := ed25519.Sign(privKey, dataSeed)
 	signatureHash := sha256.Sum256(signature)
 	return signatureHash[:chacha20.KeySize]
+}
+
+func (d *DynamicLinkData) GreaterThan(d2 *DynamicLinkData) bool {
+	// First step - compare versions
+	if d.ContentVersion > d2.ContentVersion {
+		return true
+	}
+	if d.ContentVersion < d2.ContentVersion {
+		return false
+	}
+
+	// Second step - compare hashed signatures.
+
+	hs1 := sha256.Sum256(d.Signature)
+	hs2 := sha256.Sum256(d2.Signature)
+
+	return bytes.Compare(hs1[:], hs2[:]) > 0
 }

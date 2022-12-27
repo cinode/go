@@ -48,25 +48,14 @@ func (be *beDatastore) readDynamicLink(
 	// TODO: Prefer a stream-like approach when dealing with link data
 
 	buff := bytes.NewBuffer(nil)
-
 	err := be.ds.Read(ctx, name, buff)
 	if err != nil {
 		return err
 	}
 
-	dl, err := dynamiclink.DynamicLinkDataFromBytes(buff.Bytes())
+	dl, err := dynamiclink.FromReader(name, bytes.NewReader(buff.Bytes()))
 	if err != nil {
 		return err
-	}
-
-	// Ensure the public key is correct
-	if !bytes.Equal(name, dl.BlobName()) {
-		return fmt.Errorf("%w: blob name does not match the public key", blobtypes.ErrValidationFailed)
-	}
-
-	// Ensure the signature is correct
-	if !dl.Verify() {
-		return fmt.Errorf("%w: invalid signature", blobtypes.ErrValidationFailed)
 	}
 
 	// Decrypt link data
@@ -125,10 +114,8 @@ func (be *beDatastore) createDynamicLink(
 
 	dl.IV = dl.CalculateIV(unencryptedLink)
 
-	// Generate deterministic encryption key
 	encryptionKey := dl.CalculateEncryptionKey(privKey)
 
-	// Encrypt the link
 	encryptedLinkBuff := bytes.NewBuffer(nil)
 	w, err := streamCipherWriter(encryptionKey, dl.IV, encryptedLinkBuff)
 	if err != nil {
@@ -141,13 +128,16 @@ func (be *beDatastore) createDynamicLink(
 	}
 
 	dl.EncryptedLink = encryptedLinkBuff.Bytes()
-
-	// Signature
 	dl.Signature = dl.CalculateSignature(privKey)
 
 	// Send update packet
+	// TODO: A bit awkward to use the pipe here, but that's since the datastore.Update takes reader as a parameter
+	// maybe we should consider different interfaces in datastore?
+	pr, pw := io.Pipe()
+	defer pr.Close()
+	go dl.SendToWriter(pw)
 	bn := dl.BlobName()
-	err = be.ds.Update(ctx, bn, bytes.NewReader(dl.ToBytes()))
+	err = be.ds.Update(ctx, bn, pr)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -184,14 +174,16 @@ func (be *beDatastore) updateDynamicLink(
 		ContentVersion: uint64(time.Now().UnixMicro()),
 	}
 
-	dl.IV = dl.CalculateIV(unencryptedLink)
-
 	// Generate deterministic encryption key
 	if !bytes.Equal(dl.CalculateEncryptionKey(privKey), key) {
 		return errors.New("could not prepare dynamic link update - encryption key mismatch")
 	}
+	if !bytes.Equal(name, dl.BlobName()) {
+		return errors.New("could not prepare dynamic link update - blob name mismatch")
+	}
 
-	// Encrypt the link
+	// Encrypt and sign the link
+	dl.IV = dl.CalculateIV(unencryptedLink)
 	encryptedLinkBuff := bytes.NewBuffer(nil)
 	w, err := streamCipherWriter(key, dl.IV, encryptedLinkBuff)
 	if err != nil {
@@ -204,15 +196,13 @@ func (be *beDatastore) updateDynamicLink(
 	}
 
 	dl.EncryptedLink = encryptedLinkBuff.Bytes()
-
-	// Signature
 	dl.Signature = dl.CalculateSignature(privKey)
 
 	// Send update packet
-	if !bytes.Equal(name, dl.BlobName()) {
-		return errors.New("could not prepare dynamic link update - blob name mismatch")
-	}
-	err = be.ds.Update(ctx, name, bytes.NewReader(dl.ToBytes()))
+	pr, pw := io.Pipe()
+	defer pr.Close()
+	go dl.SendToWriter(pw)
+	err = be.ds.Update(ctx, name, pr)
 	if err != nil {
 		return err
 	}
