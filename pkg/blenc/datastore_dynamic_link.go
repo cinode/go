@@ -19,37 +19,26 @@ package blenc
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
-	"golang.org/x/crypto/chacha20"
 )
-
-var (
-	ErrMaxDynamicLinkRecursionDepthReached = errors.New("max dynamic link recursion depth reached")
-)
-
-const maxDynamicLinkRecursionDepth = 10 // TODO: This is just a Jeronimo number, most likely this should be 2 or 3
 
 func (be *beDatastore) readDynamicLink(
 	ctx context.Context,
 	name common.BlobName,
 	key EncryptionKey,
 	w io.Writer,
-	recursionDepth int,
 ) error {
 
 	// TODO: Protect against long links - there should be max size limit and maybe some streaming involved?
 	// TODO: Validate the encryption key to avoid forcing weak keys
 	// TODO: Key info should not be a byte array, there should be some more abstract structure to allow more complex key lookup
 
-	if recursionDepth >= maxDynamicLinkRecursionDepth {
-		return ErrMaxDynamicLinkRecursionDepthReached
-	}
+	// TODO: Prefer a stream-like approach when dealing with link data
 
 	buff := bytes.NewBuffer(nil)
 
@@ -73,8 +62,7 @@ func (be *beDatastore) readDynamicLink(
 		return fmt.Errorf("%w: invalid signature", blobtypes.ErrValidationFailed)
 	}
 
-	// Decrypt link info
-
+	// Decrypt link data
 	r, err := streamCipherReader(key, dl.IV, bytes.NewBuffer(dl.EncryptedLink))
 	if err != nil {
 		return err
@@ -85,22 +73,18 @@ func (be *beDatastore) readDynamicLink(
 		return err
 	}
 
+	// Send the link to writer
+	// Note: we're doing this before validating the IV - that's to ensure that this code can easily be converted
+	// to a stream-based approach later where the writer can get the data before the link is fully validated
+	_, err = w.Write(unencryptedLink)
+	if err != nil {
+		return err
+	}
+
 	// Ensure the IV does match to avoid enforcing weak IVs
 	if !bytes.Equal(dl.IV, dl.CalculateIV(unencryptedLink)) {
 		return fmt.Errorf("%w: invalid iv", blobtypes.ErrValidationFailed)
 	}
 
-	// Analyze and follow the link
-	if len(unencryptedLink) < 1+chacha20.KeySize+1 {
-		return fmt.Errorf("%w: invalid link data", blobtypes.ErrValidationFailed)
-	}
-	if unencryptedLink[0] != 0 { // reserved
-		return fmt.Errorf("%w: invalid link data: reserved byte is not zero", blobtypes.ErrValidationFailed)
-	}
-	unencryptedLink = unencryptedLink[1:]
-
-	redirectKey := unencryptedLink[:chacha20.KeySize]
-	redirectName := common.BlobName(unencryptedLink[chacha20.KeySize:])
-
-	return be.read(ctx, redirectName, redirectKey, w, recursionDepth+1)
+	return nil
 }

@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -31,8 +32,10 @@ import (
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
+	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/structure"
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/chacha20"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -105,7 +108,7 @@ func handleDir(
 	pathParts := strings.SplitN(subPath, "/", 2)
 
 	dirBytes := bytes.NewBuffer(nil)
-	err := be.Read(ctx, common.BlobName(bid), key, dirBytes)
+	err := readWithLinkDereference(ctx, be, common.BlobName(bid), key, dirBytes)
 	if err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
@@ -154,6 +157,40 @@ func handleDir(
 	if err != nil {
 		// TODO: Log this, can't send an error back, it's too late
 	}
+}
+
+func readWithLinkDereference(ctx context.Context, be blenc.BE, name common.BlobName, key []byte, w io.Writer) error {
+	for redirectLevel := 0; redirectLevel < 10; redirectLevel++ {
+		switch name.Type() {
+
+		case blobtypes.Static:
+			return be.Read(ctx, name, key, w)
+
+		case blobtypes.DynamicLink:
+			buff := bytes.NewBuffer(nil)
+			err := be.Read(ctx, name, key, buff)
+			if err != nil {
+				return err
+			}
+
+			b := buff.Bytes()
+			if len(b) < 1+chacha20.KeySize+1 {
+				return fmt.Errorf("invalid dynamic link content")
+			}
+
+			if b[0] != 0 {
+				return fmt.Errorf("invalid dynamic link content: non-zero reserved byte")
+			}
+
+			key = b[1 : 1+chacha20.KeySize]
+			name = common.BlobName(b[1+chacha20.KeySize:])
+
+		default:
+			return blobtypes.ErrUnknownBlobType
+		}
+	}
+
+	return fmt.Errorf("Too many dynamic link redirects")
 }
 
 func serverHandler(datastoreDir string) (http.Handler, error) {

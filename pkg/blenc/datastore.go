@@ -36,15 +36,11 @@ type beDatastore struct {
 }
 
 func (be *beDatastore) Read(ctx context.Context, name common.BlobName, key EncryptionKey, w io.Writer) error {
-	return be.read(ctx, name, key, w, 0)
-}
-
-func (be *beDatastore) read(ctx context.Context, name common.BlobName, key EncryptionKey, w io.Writer, recursionDepth int) error {
 	switch name.Type() {
 	case blobtypes.Static:
 		return be.readStatic(ctx, name, key, w)
 	case blobtypes.DynamicLink:
-		return be.readDynamicLink(ctx, name, key, w, recursionDepth)
+		return be.readDynamicLink(ctx, name, key, w)
 	}
 	return blobtypes.ErrUnknownBlobType
 }
