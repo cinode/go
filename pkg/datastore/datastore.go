@@ -17,9 +17,7 @@ limitations under the License.
 package datastore
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
 	"io"
 
 	"github.com/cinode/go/pkg/common"
@@ -37,57 +35,21 @@ func (ds *datastore) Kind() string {
 }
 
 func (ds *datastore) Read(ctx context.Context, name common.BlobName, output io.Writer) error {
-	if name.Type() != blobtypes.Static {
+	switch name.Type() {
+	case blobtypes.Static:
+		return ds.readStatic(ctx, name, output)
+	default:
 		return blobtypes.ErrUnknownBlobType
 	}
-
-	rc, err := ds.s.openReadStream(ctx, name)
-	if err != nil {
-		return err
-	}
-	defer rc.Close()
-
-	hasher := sha256.New()
-	_, err = io.Copy(output, io.TeeReader(rc, hasher))
-	if err != nil {
-		return err
-	}
-
-	if !bytes.Equal(name.Hash(), hasher.Sum(nil)) {
-		return blobtypes.ErrValidationFailed
-	}
-
-	return nil
 }
 
 func (ds *datastore) Update(ctx context.Context, name common.BlobName, updateStream io.Reader) error {
-	if name.Type() != blobtypes.Static {
+	switch name.Type() {
+	case blobtypes.Static:
+		return ds.updateStatic(ctx, name, updateStream)
+	default:
 		return blobtypes.ErrUnknownBlobType
 	}
-
-	outputStream, err := ds.s.openWriteStream(ctx, name)
-	if err != nil {
-		return err
-	}
-	defer outputStream.Cancel()
-
-	hasher := sha256.New()
-	_, err = io.Copy(outputStream, io.TeeReader(updateStream, hasher))
-	if err != nil {
-		return err
-	}
-
-	if !bytes.Equal(name.Hash(), hasher.Sum(nil)) {
-		return blobtypes.ErrValidationFailed
-	}
-
-	err = outputStream.Close()
-	if err != nil {
-		return err
-	}
-
-	outputStream = nil
-	return nil
 }
 
 func (ds *datastore) Exists(ctx context.Context, name common.BlobName) (bool, error) {
