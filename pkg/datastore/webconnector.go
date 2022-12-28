@@ -28,6 +28,7 @@ import (
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes"
+	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
 )
 
 var (
@@ -54,10 +55,17 @@ func (w *webConnector) Kind() string {
 }
 
 func (w *webConnector) Read(ctx context.Context, name common.BlobName, output io.Writer) error {
-	if name.Type() != blobtypes.Static {
+	switch name.Type() {
+	case blobtypes.Static:
+		return w.readStatic(ctx, name, output)
+	case blobtypes.DynamicLink:
+		return w.readDynamicLink(ctx, name, output)
+	default:
 		return blobtypes.ErrUnknownBlobType
 	}
+}
 
+func (w *webConnector) readStatic(ctx context.Context, name common.BlobName, output io.Writer) error {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
@@ -87,6 +95,36 @@ func (w *webConnector) Read(ctx context.Context, name common.BlobName, output io
 
 	if !bytes.Equal(name.Hash(), hasher.Sum(nil)) {
 		return blobtypes.ErrValidationFailed
+	}
+
+	return nil
+}
+
+func (w *webConnector) readDynamicLink(ctx context.Context, name common.BlobName, output io.Writer) error {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		w.baseURL+name.String(),
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	res, err := w.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	err = w.errCheck(res)
+	if err != nil {
+		return err
+	}
+
+	_, err = dynamiclink.FromReader(name, io.TeeReader(res.Body, output))
+	if err != nil {
+		return err
 	}
 
 	return nil
