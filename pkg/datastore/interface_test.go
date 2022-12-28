@@ -28,7 +28,9 @@ import (
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes"
+	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 )
 
 func allTestInterfaces(t *testing.T) []DS {
@@ -308,6 +310,67 @@ func TestSimultaneousSaves(t *testing.T) {
 			require.Equal(t, b.data, buf.Bytes())
 		})
 	}
+}
+
+type DatastoreTestSuite struct {
+	suite.Suite
+
+	ds DS
+}
+
+func TestDatastoreTestSuite(t *testing.T) {
+	for _, ds := range allTestInterfaces(t) {
+		t.Run(ds.Kind(), func(t *testing.T) {
+			suite.Run(t, &DatastoreTestSuite{ds: ds})
+		})
+	}
+}
+
+func (s *DatastoreTestSuite) updateDynamicLink(num int) {
+	err := s.ds.Update(
+		context.Background(),
+		dynamicLinkPropagationData[num].name,
+		bytes.NewReader(dynamicLinkPropagationData[num].data),
+	)
+	s.Require().NoError(err)
+}
+
+func (s *DatastoreTestSuite) readDynamicLinkData() string {
+	buff := bytes.NewBuffer(nil)
+	err := s.ds.Read(context.Background(), dynamicLinkPropagationData[0].name, buff)
+	s.Require().NoError(err)
+
+	dl, err := dynamiclink.FromReader(dynamicLinkPropagationData[0].name, bytes.NewReader(buff.Bytes()))
+	s.Require().NoError(err)
+
+	return string(dl.EncryptedLink)
+}
+
+func (s *DatastoreTestSuite) expectDynamicLinkData(num int) {
+	s.Require().Equal(
+		dynamicLinkPropagationData[num].expected,
+		s.readDynamicLinkData(),
+	)
+}
+
+func (s *DatastoreTestSuite) TestDynamicLinkPropagation() {
+	s.updateDynamicLink(0)
+	s.expectDynamicLinkData(0)
+
+	s.updateDynamicLink(1)
+	s.expectDynamicLinkData(1)
+
+	s.updateDynamicLink(0)
+	s.expectDynamicLinkData(1)
+
+	s.updateDynamicLink(2)
+	s.expectDynamicLinkData(2)
+
+	s.updateDynamicLink(1)
+	s.expectDynamicLinkData(2)
+
+	s.updateDynamicLink(0)
+	s.expectDynamicLinkData(2)
 }
 
 // // Invalid names behave just as if there was no blob with such name.

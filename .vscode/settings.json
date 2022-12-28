@@ -9,6 +9,7 @@
         "cinode",
         "ciphertext",
         "coverprofile",
+        "dynamiclink",
         "goveralls",
         "Hasher",
         "protobuf",
