@@ -70,6 +70,12 @@ func readUint64(r io.Reader) (uint64, error) {
 	return binary.BigEndian.Uint64(b[:]), err
 }
 
+func storeUint64(v uint64) []byte {
+	var b [8]byte
+	binary.BigEndian.PutUint64(b[:], v)
+	return b[:]
+}
+
 // FromReader creates an encrypted dynamic link data from given io.Reader
 //
 // Invalid links are rejected - i.e. if there's any error while reading the data
@@ -139,7 +145,7 @@ func (d *DynamicLinkData) SendToWriter(w io.Writer) error {
 	}
 
 	// Content version
-	_, err = w.Write(binary.BigEndian.AppendUint64(nil, d.ContentVersion))
+	_, err = w.Write(storeUint64(d.ContentVersion))
 	if err != nil {
 		return err
 	}
@@ -177,7 +183,7 @@ func (d *DynamicLinkData) CalculateIV(unencryptedLink []byte) []byte {
 	hasher.Write(bn)
 
 	// Version
-	hasher.Write(binary.BigEndian.AppendUint64(nil, d.ContentVersion))
+	hasher.Write(storeUint64(d.ContentVersion))
 
 	// Plaintext link
 	hasher.Write(unencryptedLink)
@@ -213,7 +219,7 @@ func (d *DynamicLinkData) bytesToSign() []byte {
 	b.Write(bn)
 
 	// Version
-	b.Write(binary.BigEndian.AppendUint64(nil, d.ContentVersion))
+	b.Write(storeUint64(d.ContentVersion))
 
 	// Encrypted link
 	b.Write(d.EncryptedLink)
