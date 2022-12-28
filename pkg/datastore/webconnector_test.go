@@ -32,16 +32,16 @@ import (
 func TestWebConnectorInvalidUrl(t *testing.T) {
 	c := FromWeb("://bad.url", &http.Client{})
 
-	err := c.Read(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
+	err := c.Read(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
 	require.IsType(t, &url.Error{}, err)
 
-	_, err = c.Exists(context.Background(), emptyBlobName)
+	_, err = c.Exists(context.Background(), emptyBlobNameStatic)
 	require.IsType(t, &url.Error{}, err)
 
-	err = c.Delete(context.Background(), emptyBlobName)
+	err = c.Delete(context.Background(), emptyBlobNameStatic)
 	require.IsType(t, &url.Error{}, err)
 
-	err = c.Update(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
+	err = c.Update(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
 	require.IsType(t, &url.Error{}, err)
 }
 
@@ -53,16 +53,16 @@ func TestWebConnectorServerSideError(t *testing.T) {
 
 	c := FromWeb(server.URL+"/", &http.Client{})
 
-	err := c.Read(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
+	err := c.Read(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
 	require.ErrorIs(t, err, ErrWebConnectionError)
 
-	_, err = c.Exists(context.Background(), emptyBlobName)
+	_, err = c.Exists(context.Background(), emptyBlobNameStatic)
 	require.ErrorIs(t, err, ErrWebConnectionError)
 
-	err = c.Delete(context.Background(), emptyBlobName)
+	err = c.Delete(context.Background(), emptyBlobNameStatic)
 	require.ErrorIs(t, err, ErrWebConnectionError)
 
-	err = c.Update(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
+	err = c.Update(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
 	require.ErrorIs(t, err, ErrWebConnectionError)
 }
 
@@ -77,7 +77,7 @@ func TestWebConnectorDetectInvalidBlobRead(t *testing.T) {
 	ds2 := FromWeb(server.URL+"/", &http.Client{})
 
 	data := bytes.NewBuffer(nil)
-	err := ds2.Read(context.Background(), emptyBlobName, data)
+	err := ds2.Read(context.Background(), emptyBlobNameStatic, data)
 	require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
 
 }
@@ -97,6 +97,6 @@ func TestWebConnectorInvalidErrorCode(t *testing.T) {
 	ds2 := FromWeb(server.URL+"/", &http.Client{})
 
 	data := bytes.NewBuffer(nil)
-	err := ds2.Read(context.Background(), emptyBlobName, data)
+	err := ds2.Read(context.Background(), emptyBlobNameStatic, data)
 	require.ErrorIs(t, err, ErrWebConnectionError)
 }

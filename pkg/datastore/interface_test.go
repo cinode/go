@@ -47,7 +47,10 @@ func allTestInterfaces(t *testing.T) []DS {
 func TestOpenNonExisting(t *testing.T) {
 	for _, ds := range allTestInterfaces(t) {
 		t.Run(ds.Kind(), func(t *testing.T) {
-			err := ds.Read(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
+			err := ds.Read(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
+			require.ErrorIs(t, err, ErrNotFound)
+
+			err = ds.Read(context.Background(), emptyBlobNameDynamicLink, bytes.NewBuffer(nil))
 			require.ErrorIs(t, err, ErrNotFound)
 		})
 	}
@@ -68,16 +71,23 @@ func TestOpenInvalidBlobType(t *testing.T) {
 	}
 }
 
-func TestSaveNameMismatch(t *testing.T) {
+func TestBlobValidationFailed(t *testing.T) {
 	for _, ds := range allTestInterfaces(t) {
 		t.Run(ds.Kind(), func(t *testing.T) {
-			err := ds.Update(context.Background(), emptyBlobName, bytes.NewReader([]byte("test")))
-			require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
+			t.Run("static blob name does not match the content", func(t *testing.T) {
+				err := ds.Update(context.Background(), emptyBlobNameStatic, bytes.NewReader([]byte("test")))
+				require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
+			})
+
+			t.Run("dynamic link validation failure", func(t *testing.T) {
+				err := ds.Update(context.Background(), emptyBlobNameDynamicLink, bytes.NewReader([]byte("test")))
+				require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
+			})
 		})
 	}
 }
 
-func TestSaveSuccessful(t *testing.T) {
+func TestSaveSuccessfulStatic(t *testing.T) {
 	for _, ds := range allTestInterfaces(t) {
 		t.Run(ds.Kind(), func(t *testing.T) {
 
@@ -140,31 +150,32 @@ func TestErrorWhileUpdating(t *testing.T) {
 func TestErrorWhileOverwriting(t *testing.T) {
 	for _, ds := range allTestInterfaces(t) {
 		t.Run(ds.Kind(), func(t *testing.T) {
-			b := testBlobs[0]
+			for _, b := range testBlobs {
 
-			err := ds.Update(context.Background(), b.name, bytes.NewReader(b.data))
-			require.NoError(t, err)
+				err := ds.Update(context.Background(), b.name, bytes.NewReader(b.data))
+				require.NoError(t, err)
 
-			errRet := errors.New("cancel")
+				errRet := errors.New("cancel")
 
-			err = ds.Update(context.Background(), b.name, bReader(b.data, func() error {
+				err = ds.Update(context.Background(), b.name, bReader(b.data, func() error {
+					exists, err := ds.Exists(context.Background(), b.name)
+					require.NoError(t, err)
+					require.True(t, exists)
+
+					return errRet
+				}, nil))
+
+				require.ErrorIs(t, err, errRet)
+
 				exists, err := ds.Exists(context.Background(), b.name)
 				require.NoError(t, err)
 				require.True(t, exists)
 
-				return errRet
-			}, nil))
-
-			require.ErrorIs(t, err, errRet)
-
-			exists, err := ds.Exists(context.Background(), b.name)
-			require.NoError(t, err)
-			require.True(t, exists)
-
-			data := bytes.NewBuffer(nil)
-			err = ds.Read(context.Background(), b.name, data)
-			require.NoError(t, err)
-			require.Equal(t, b.data, data.Bytes())
+				data := bytes.NewBuffer(nil)
+				err = ds.Read(context.Background(), b.name, data)
+				require.NoError(t, err)
+				require.Equal(t, b.data, data.Bytes())
+			}
 		})
 	}
 }

@@ -21,7 +21,6 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 
@@ -31,7 +30,7 @@ import (
 )
 
 var (
-	ErrInvalidDynamicLinkData          = errors.New("invalid dynamic link data")
+	ErrInvalidDynamicLinkData          = fmt.Errorf("%w: invalid dynamic link data", blobtypes.ErrValidationFailed)
 	ErrInvalidDynamicLinkDataBlobName  = fmt.Errorf("%w: blob name mismatch", ErrInvalidDynamicLinkData)
 	ErrInvalidDynamicLinkDataSignature = fmt.Errorf("%w: signature is invalid", ErrInvalidDynamicLinkData)
 )
@@ -51,26 +50,23 @@ type DynamicLinkData struct {
 	EncryptedLink  []byte
 }
 
-func readBuff(r io.Reader, buff []byte, fieldName string) error {
+func readBuff(r io.Reader, buff []byte) error {
 	_, err := io.ReadFull(r, buff)
 	if err != nil {
-		return fmt.Errorf(
-			"%w: error while reading %s: %v",
-			ErrInvalidDynamicLinkData, fieldName, err,
-		)
+		return err
 	}
 	return nil
 }
 
-func readByte(r io.Reader, fieldName string) (byte, error) {
+func readByte(r io.Reader) (byte, error) {
 	var b [1]byte
-	err := readBuff(r, b[:], fieldName)
+	err := readBuff(r, b[:])
 	return b[0], err
 }
 
-func readUint64(r io.Reader, fieldName string) (uint64, error) {
+func readUint64(r io.Reader) (uint64, error) {
 	var b [8]byte
-	err := readBuff(r, b[:], fieldName)
+	err := readBuff(r, b[:])
 	return binary.BigEndian.Uint64(b[:]), err
 }
 
@@ -85,7 +81,7 @@ func FromReader(name common.BlobName, r io.Reader) (*DynamicLinkData, error) {
 		IV:        make([]byte, chacha20.NonceSizeX),
 	}
 
-	reserved, err := readByte(r, "reserved byte")
+	reserved, err := readByte(r)
 	if err != nil {
 		return nil, err
 	}
@@ -96,22 +92,22 @@ func FromReader(name common.BlobName, r io.Reader) (*DynamicLinkData, error) {
 		)
 	}
 
-	err = readBuff(r, dl.PublicKey, "public key")
+	err = readBuff(r, dl.PublicKey)
 	if err != nil {
 		return nil, err
 	}
 
-	dl.ContentVersion, err = readUint64(r, "content version")
+	dl.ContentVersion, err = readUint64(r)
 	if err != nil {
 		return nil, err
 	}
 
-	err = readBuff(r, dl.Signature, "signature")
+	err = readBuff(r, dl.Signature)
 	if err != nil {
 		return nil, err
 	}
 
-	err = readBuff(r, dl.IV, "iv")
+	err = readBuff(r, dl.IV)
 	if err != nil {
 		return nil, err
 	}
