@@ -18,14 +18,11 @@ package blenc
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/sha256"
 	"io"
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/internal/blobtypes/generation"
-	"github.com/cinode/go/pkg/internal/utilities/securefifo"
+	"github.com/cinode/go/pkg/internal/blobtypes"
 )
 
 // FromDatastore creates Blob Encoder using given datastore implementation as
@@ -38,130 +35,43 @@ type beDatastore struct {
 	ds datastore.DS
 }
 
-func (be *beDatastore) Read(ctx context.Context, name common.BlobName, ki KeyInfo, w io.Writer) error {
-	// TODO: Some analysis of the data from blob types ?
-	// In case of dynamic link we'll have to skip link's additional data
-
-	cw, err := streamCipherWriterForKeyInfo(ki, w)
-	if err != nil {
-		return err
+func (be *beDatastore) Read(ctx context.Context, name common.BlobName, key EncryptionKey, w io.Writer) error {
+	switch name.Type() {
+	case blobtypes.Static:
+		return be.readStatic(ctx, name, key, w)
+	case blobtypes.DynamicLink:
+		return be.readDynamicLink(ctx, name, key, w)
 	}
-
-	err = be.ds.Read(ctx, name, cw)
-	if err != nil {
-		return err
-	}
-	return nil
+	return blobtypes.ErrUnknownBlobType
 }
 
-func (be *beDatastore) Create(ctx context.Context, blobType common.BlobType, r io.Reader) (common.BlobName, KeyInfo, WriterInfo, error) {
-
-	handler, err := generation.HandlerForType(blobType)
-	if err != nil {
-		return nil, nil, nil, err
+func (be *beDatastore) Create(
+	ctx context.Context,
+	blobType common.BlobType,
+	r io.Reader,
+) (
+	common.BlobName,
+	EncryptionKey,
+	WriterInfo,
+	error,
+) {
+	switch blobType {
+	case blobtypes.Static:
+		return be.createStatic(ctx, r)
+	case blobtypes.DynamicLink:
+		return be.createDynamicLink(ctx, r)
 	}
-
-	ki, rClone, err := be.generateKeyInfo(r)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	defer rClone.Close()
-
-	tempWriteBuffer, err := securefifo.New()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	defer tempWriteBuffer.Close()
-
-	// Encrypt data with calculated key
-	encWriter, err := streamCipherWriterForKeyInfo(ki, tempWriteBuffer)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	_, err = io.Copy(encWriter, rClone)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	encReader, err := tempWriteBuffer.Done()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	defer encReader.Close()
-
-	// Generate new blob info
-	hash, wi, err := handler.PrepareNewBlob(encReader)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	name, err := common.BlobNameFromHashAndType(hash, blobType)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	// Store encrypted blob into the datastore
-	encReader, err = encReader.Reset()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	defer encReader.Close()
-
-	err = be.ds.Update(ctx, name, encReader)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	return name, ki, wi, nil
+	return nil, nil, nil, blobtypes.ErrUnknownBlobType
 }
 
-func (be *beDatastore) generateKeyInfo(r io.Reader) (KeyInfo, io.ReadCloser, error) {
-
-	w, err := securefifo.New()
-	if err != nil {
-		return nil, nil, err
+func (be *beDatastore) Update(ctx context.Context, name common.BlobName, wi WriterInfo, key EncryptionKey, r io.Reader) error {
+	switch name.Type() {
+	case blobtypes.Static:
+		return be.updateStatic(ctx, name, wi, key, r)
+	case blobtypes.DynamicLink:
+		return be.updateDynamicLink(ctx, name, wi, key, r)
 	}
-	defer w.Close()
-
-	// TODO: This should be a part of internal/blobtypes/generation
-
-	// TODO: Those values MUST be checked when reading the blob
-	//       to ensure that those can not be weakened on purpose
-
-	// hasher for key
-	hasher := sha256.New()
-	hasher.Write([]byte{0x00})
-
-	// hasher for IV
-	hasher2 := sha256.New()
-	hasher2.Write([]byte{0xFF})
-
-	// Copy to temporary fifo and calculate hash at the same time
-	_, err = io.Copy(
-		w,
-		io.TeeReader(io.TeeReader(r, hasher), hasher2),
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	hash := hasher.Sum(nil)
-	hash2 := hasher2.Sum(nil)
-
-	ki := &keyInfoStatic{
-		t:   keyTypeAES,
-		key: hash[:keySizeAES],
-		iv:  hash2[:aes.BlockSize],
-	}
-
-	reader, err := w.Done()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return ki, reader, nil
-
+	return blobtypes.ErrUnknownBlobType
 }
 
 func (be *beDatastore) Exists(ctx context.Context, name common.BlobName) (bool, error) {

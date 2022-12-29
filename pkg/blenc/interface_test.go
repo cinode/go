@@ -19,7 +19,6 @@ package blenc
 import (
 	"bytes"
 	"context"
-	"crypto/aes"
 	"crypto/sha256"
 	"testing"
 
@@ -33,24 +32,18 @@ func TestBlencCommonScenario(t *testing.T) {
 
 	data := []byte("Hello world!!!")
 
-	bn, ki, wi, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data))
+	bn, key, wi, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data))
 	require.NoError(t, err)
 	require.Equal(t, blobtypes.Static, bn.Type())
 	require.Len(t, bn.Hash(), sha256.Size)
 	require.Nil(t, wi) // Static blobs don't generate writer info
-
-	kType, key, iv, err := ki.GetSymmetricKey()
-	require.NoError(t, err)
-	require.Equal(t, keyTypeAES, kType)
-	require.Len(t, key, keySizeAES)
-	require.Len(t, iv, aes.BlockSize)
 
 	exists, err := be.Exists(context.Background(), bn)
 	require.NoError(t, err)
 	require.True(t, exists)
 
 	w := bytes.NewBuffer(nil)
-	err = be.Read(context.Background(), bn, ki, w)
+	err = be.Read(context.Background(), bn, key, w)
 	require.NoError(t, err)
 	require.Equal(t, data, w.Bytes())
 
@@ -63,18 +56,14 @@ func TestBlencCommonScenario(t *testing.T) {
 
 	data2 := []byte("Hello Cinode!")
 
-	bn2, ki2, wi2, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data2))
+	bn2, key2, wi2, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data2))
 	require.NoError(t, err)
 	require.NotEqual(t, bn, bn2)
 	require.Nil(t, wi2)
 
-	kType2, key2, iv2, err := ki2.GetSymmetricKey()
 	require.NoError(t, err)
-	require.Equal(t, keyTypeAES, kType2)
 	require.NotEqual(t, key, key2)
 	require.Equal(t, len(key), len(key2))
-	require.NotEqual(t, iv, iv2)
-	require.Equal(t, len(iv), len(iv2))
 }
 
 // func TestNewBE(t *testing.T) {

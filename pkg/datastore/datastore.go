@@ -18,11 +18,10 @@ package datastore
 
 import (
 	"context"
-	"errors"
 	"io"
 
 	"github.com/cinode/go/pkg/common"
-	"github.com/cinode/go/pkg/internal/blobtypes/propagation"
+	"github.com/cinode/go/pkg/internal/blobtypes"
 )
 
 type datastore struct {
@@ -36,78 +35,25 @@ func (ds *datastore) Kind() string {
 }
 
 func (ds *datastore) Read(ctx context.Context, name common.BlobName, output io.Writer) error {
-	handler, err := propagation.HandlerForType(name.Type())
-	if err != nil {
-		return err
+	switch name.Type() {
+	case blobtypes.Static:
+		return ds.readStatic(ctx, name, output)
+	case blobtypes.DynamicLink:
+		return ds.readDynamicLink(ctx, name, output)
+	default:
+		return blobtypes.ErrUnknownBlobType
 	}
-
-	rc, err := ds.s.openReadStream(ctx, name)
-	if err != nil {
-		return err
-	}
-	defer rc.Close()
-
-	return handler.Validate(
-		name.Hash(),
-		io.TeeReader(rc, output),
-	)
 }
 
 func (ds *datastore) Update(ctx context.Context, name common.BlobName, updateStream io.Reader) error {
-	handler, err := propagation.HandlerForType(name.Type())
-	if err != nil {
-		return err
+	switch name.Type() {
+	case blobtypes.Static:
+		return ds.updateStatic(ctx, name, updateStream)
+	case blobtypes.DynamicLink:
+		return ds.updateDynamicLink(ctx, name, updateStream)
+	default:
+		return blobtypes.ErrUnknownBlobType
 	}
-
-	outputStream, err := ds.s.openWriteStream(ctx, name)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		// Cancel the write operation if for whatever reason
-		// we don't finish the write operation
-		if outputStream != nil {
-			outputStream.Cancel()
-		}
-	}()
-
-	// Check if we can get the currentStream blob data
-	currentStream, err := ds.s.openReadStream(ctx, name)
-	if err != nil && !errors.Is(err, ErrNotFound) {
-		return err
-	}
-
-	defer func() {
-		if currentStream != nil {
-			currentStream.Close()
-		}
-	}()
-
-	if currentStream == nil {
-		// No content yet, only need to validate the updateStream
-		// and store in the result file
-		err := handler.Validate(name.Hash(), io.TeeReader(updateStream, outputStream))
-		if err != nil {
-			return err
-		}
-	} else {
-		err = handler.Ingest(name.Hash(), currentStream, updateStream, outputStream)
-		if err != nil {
-			return err
-		}
-
-		// Current dataset must be closed before closing the output stream
-		currentStream.Close()
-		currentStream = nil
-	}
-
-	err = outputStream.Close()
-	if err != nil {
-		return err
-	}
-
-	outputStream = nil
-	return nil
 }
 
 func (ds *datastore) Exists(ctx context.Context, name common.BlobName) (bool, error) {

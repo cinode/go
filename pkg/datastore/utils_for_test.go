@@ -18,14 +18,20 @@ package datastore
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
 	"io"
+	"testing"
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes"
+	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/chacha20"
 )
 
-var emptyBlobName = func() common.BlobName {
+var emptyBlobNameStatic = func() common.BlobName {
 	bn, err := common.BlobNameFromHashAndType(sha256.New().Sum(nil), blobtypes.Static)
 	if err != nil {
 		panic(err)
@@ -33,41 +39,13 @@ var emptyBlobName = func() common.BlobName {
 	return bn
 }()
 
-func testBlobNameFromString(n string) common.BlobName {
-	bn, err := common.BlobNameFromString(n)
+var emptyBlobNameDynamicLink = func() common.BlobName {
+	bn, err := common.BlobNameFromHashAndType(sha256.New().Sum(nil), blobtypes.DynamicLink)
 	if err != nil {
 		panic(err)
 	}
 	return bn
-}
-
-// func testBlobName(content []byte) string {
-// 	hash := sha256.Sum256(content)
-// 	n, err := common.BlobNameFromHashAndType(hash[:], propagation.BlobTypeStatic)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	return n.String()
-// }
-
-// func init() {
-// 	for _, b := range testBlobs {
-// 		fmt.Printf(
-// 			"{testBlobNameFromString(\"%s\"), []byte(\"%s\")},\n",
-// 			testBlobName(b.data),
-// 			string(b.data),
-// 		)
-// 	}
-// }
-
-var testBlobs = []struct {
-	name common.BlobName
-	data []byte
-}{
-	{testBlobNameFromString("KDc2ijtWc9mGxb5hP29YSBgkMLH8wCWnVimpvP3M6jdAk"), []byte("Test")},
-	{testBlobNameFromString("BG8WaXMAckEfbCuoiHpx2oMAS4zAaPqAqrgf5Q3YNzmHx"), []byte("Test1")},
-	{testBlobNameFromString("2GLoj4Bk7SvjQngCT85gxWRu2DXCCjs9XWKsSpM85Wq3Ve"), []byte("")},
-}
+}()
 
 type helperReader struct {
 	buf    io.Reader
@@ -111,4 +89,28 @@ func (h *helperReader) Read(b []byte) (n int, err error) {
 	}
 
 	return n, err
+}
+
+func newDynamicLinkData(t *testing.T, data []byte, version uint64) (*dynamiclink.DynamicLinkData, ed25519.PrivateKey) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	key := make([]byte, chacha20.KeySize)
+	_, err = rand.Read(key)
+	require.NoError(t, err)
+
+	iv := make([]byte, chacha20.NonceSizeX)
+	_, err = rand.Read(iv)
+	require.NoError(t, err)
+
+	dl := dynamiclink.DynamicLinkData{
+		PublicKey:      pub,
+		ContentVersion: version,
+		IV:             iv,
+		EncryptedLink:  data,
+	}
+
+	dl.Signature = dl.CalculateSignature(priv)
+
+	return &dl, priv
 }

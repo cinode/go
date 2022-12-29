@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -31,8 +32,10 @@ import (
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
+	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/structure"
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/chacha20"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -60,7 +63,7 @@ Serve files from static datastore from a directory.
 	return cmd
 }
 
-func getEntrypoint(datastoreDir string) ([]byte, blenc.KeyInfo, error) {
+func getEntrypoint(datastoreDir string) ([]byte, []byte, error) {
 	ep, err := os.Open(path.Join(datastoreDir, "entrypoint.txt"))
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't open entrypoint file from %s", datastoreDir)
@@ -77,42 +80,22 @@ func getEntrypoint(datastoreDir string) ([]byte, blenc.KeyInfo, error) {
 	}
 
 	if !scanner.Scan() {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - missing key info")
+		return nil, nil, fmt.Errorf("malformed entrypoint file - missing key")
 	}
 
-	keyInfoText := strings.Split(scanner.Text(), ":")
-	if len(keyInfoText) != 3 {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, must be 3 segments split by ':'")
-	}
-	keyType, err := hex.DecodeString(keyInfoText[0])
+	key, err := hex.DecodeString(scanner.Text())
 	if err != nil {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, key type segment can not be hex-decoded: %w", err)
-	}
-	if len(keyType) != 1 {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, key type segment must be one byte")
+		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key: %w", err)
 	}
 
-	keyKey, err := hex.DecodeString(keyInfoText[1])
-	if err != nil {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, key segment can not be hex-decoded: %w", err)
-	}
-
-	keyIV, err := hex.DecodeString(keyInfoText[2])
-	if err != nil {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key info, IV can not be hex-decoded: %w", err)
-	}
-	return bid, blenc.NewStaticKeyInfo(
-		keyType[0],
-		keyKey,
-		keyIV,
-	), nil
+	return bid, key, nil
 }
 
 func handleDir(
 	ctx context.Context,
 	be blenc.BE,
 	bid []byte,
-	ki blenc.KeyInfo,
+	key []byte,
 	w http.ResponseWriter,
 	r *http.Request,
 	subPath string,
@@ -125,7 +108,7 @@ func handleDir(
 	pathParts := strings.SplitN(subPath, "/", 2)
 
 	dirBytes := bytes.NewBuffer(nil)
-	err := be.Read(ctx, common.BlobName(bid), ki, dirBytes)
+	err := readWithLinkDereference(ctx, be, common.BlobName(bid), key, dirBytes)
 	if err != nil {
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
@@ -152,11 +135,7 @@ func handleDir(
 			ctx,
 			be,
 			entry.GetBid(),
-			blenc.NewStaticKeyInfo(
-				byte(entry.GetKeyInfo().GetType()),
-				entry.GetKeyInfo().GetKey(),
-				entry.GetKeyInfo().GetIv(),
-			),
+			entry.KeyInfo.GetKey(),
 			w, r,
 			pathParts[1],
 		)
@@ -172,16 +151,46 @@ func handleDir(
 	err = be.Read(
 		ctx,
 		common.BlobName(entry.Bid),
-		blenc.NewStaticKeyInfo(
-			byte(entry.GetKeyInfo().GetType()),
-			entry.GetKeyInfo().GetKey(),
-			entry.GetKeyInfo().GetIv(),
-		),
+		entry.KeyInfo.GetKey(),
 		w,
 	)
 	if err != nil {
 		// TODO: Log this, can't send an error back, it's too late
 	}
+}
+
+func readWithLinkDereference(ctx context.Context, be blenc.BE, name common.BlobName, key []byte, w io.Writer) error {
+	for redirectLevel := 0; redirectLevel < 10; redirectLevel++ {
+		switch name.Type() {
+
+		case blobtypes.Static:
+			return be.Read(ctx, name, key, w)
+
+		case blobtypes.DynamicLink:
+			buff := bytes.NewBuffer(nil)
+			err := be.Read(ctx, name, key, buff)
+			if err != nil {
+				return err
+			}
+
+			b := buff.Bytes()
+			if len(b) < 1+chacha20.KeySize+1 {
+				return fmt.Errorf("invalid dynamic link content")
+			}
+
+			if b[0] != 0 {
+				return fmt.Errorf("invalid dynamic link content: non-zero reserved byte")
+			}
+
+			key = b[1 : 1+chacha20.KeySize]
+			name = common.BlobName(b[1+chacha20.KeySize:])
+
+		default:
+			return blobtypes.ErrUnknownBlobType
+		}
+	}
+
+	return fmt.Errorf("Too many dynamic link redirects")
 }
 
 func serverHandler(datastoreDir string) (http.Handler, error) {

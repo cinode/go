@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/cinode/go/pkg/common"
+	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,31 +77,8 @@ func TestDatastoreWriteFailure(t *testing.T) {
 			},
 		}}
 
-		err := ds.Update(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
+		err := ds.Update(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
 		require.ErrorIs(t, err, errRet)
-	})
-
-	t.Run("error on opening current data", func(t *testing.T) {
-		errRet := errors.New("error")
-		cancelCalled := false
-		ds := &datastore{s: &mockStore{
-			fOpenWriteStream: func(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
-				return &mockWriteCloseCanceller{
-					fCancel: func() {
-						require.False(t, cancelCalled)
-						cancelCalled = true
-					},
-				}, nil
-			},
-			fOpenReadStream: func(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
-				return nil, errRet
-			},
-		}}
-
-		err := ds.Update(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
-		require.ErrorIs(t, err, errRet)
-
-		require.True(t, cancelCalled)
 	})
 
 	t.Run("error on closing write stream", func(t *testing.T) {
@@ -133,11 +111,21 @@ func TestDatastoreWriteFailure(t *testing.T) {
 			},
 		}}
 
-		err := ds.Update(context.Background(), emptyBlobName, bytes.NewBuffer(nil))
+		err := ds.Update(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
 		require.ErrorIs(t, err, errRet)
 
 		// Failed Close call will be followed by a Cancel call
 		require.True(t, closeCalled)
 		require.True(t, cancelCalled)
 	})
+}
+
+func TestDatastoreDetectCorruptedRead(t *testing.T) {
+	ds := InMemory()
+	mem := ds.(*datastore).s.(*memory)
+	mem.bmap[emptyBlobNameStatic.String()] = []byte("I should not be here")
+
+	data := bytes.NewBuffer(nil)
+	err := ds.Read(context.Background(), emptyBlobNameStatic, data)
+	require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
 }

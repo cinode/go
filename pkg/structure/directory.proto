@@ -4,9 +4,7 @@ option go_package = ".;structure";
 
 // KeyInfo represents encryption key information
 message KeyInfo {
-  uint32 type = 1;
-  bytes key = 2;
-  bytes iv = 3;
+  bytes key = 1;
 }
 
 // Directory represents a content of a static directory
