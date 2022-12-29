@@ -108,7 +108,7 @@ func compile(srcDir, dstDir string) error {
 func compileOneLevel(path string, be blenc.BE) (common.BlobName, []byte, error) {
 	st, err := os.Stat(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Couldn't check path: %w", err)
+		return nil, nil, fmt.Errorf("couldn't check path: %w", err)
 	}
 
 	if st.IsDir() {
@@ -119,14 +119,14 @@ func compileOneLevel(path string, be blenc.BE) (common.BlobName, []byte, error) 
 		return compileFile(path, be)
 	}
 
-	return nil, nil, fmt.Errorf("Neither dir nor a regular file: %v", path)
+	return nil, nil, fmt.Errorf("neither dir nor a regular file: %v", path)
 }
 
 func compileFile(path string, be blenc.BE) (common.BlobName, []byte, error) {
 	fmt.Println(" *", path)
 	fl, err := os.Open(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Couldn't read file %v: %w", path, err)
+		return nil, nil, fmt.Errorf("couldn't read file %v: %w", path, err)
 	}
 	defer fl.Close()
 	bn, ki, _, err := be.Create(context.Background(), blobtypes.Static, fl)
@@ -136,7 +136,7 @@ func compileFile(path string, be blenc.BE) (common.BlobName, []byte, error) {
 func compileDir(p string, be blenc.BE) (common.BlobName, []byte, error) {
 	fileList, err := os.ReadDir(p)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Couldn't read contents of dir %v: %w", p, err)
+		return nil, nil, fmt.Errorf("couldn't read contents of dir %v: %w", p, err)
 	}
 	dirStruct := structure.Directory{
 		Entries: make(map[string]*structure.Directory_Entry),
@@ -153,13 +153,13 @@ func compileDir(p string, be blenc.BE) (common.BlobName, []byte, error) {
 			if contentType == "" {
 				file, err := os.Open(subPath)
 				if err != nil {
-					return nil, nil, fmt.Errorf("Can not detect content type for %v: %w", subPath, err)
+					return nil, nil, fmt.Errorf("can not detect content type for %v: %w", subPath, err)
 				}
 				buffer := make([]byte, 512)
 				n, err := io.ReadFull(file, buffer)
 				file.Close()
 				if err != nil && err != io.ErrUnexpectedEOF {
-					return nil, nil, fmt.Errorf("Can not detect content type for %v: %w", subPath, err)
+					return nil, nil, fmt.Errorf("can not detect content type for %v: %w", subPath, err)
 				}
 				contentType = http.DetectContentType(buffer[:n])
 			}
@@ -175,7 +175,7 @@ func compileDir(p string, be blenc.BE) (common.BlobName, []byte, error) {
 
 	data, err := proto.Marshal(&dirStruct)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Can not serialize directory %v: %w", p, err)
+		return nil, nil, fmt.Errorf("can not serialize directory %v: %w", p, err)
 	}
 
 	bn, ki, _, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data))
