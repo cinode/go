@@ -78,7 +78,7 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 	cmd.Flags().StringVarP(&srcDir, "source", "s", "", "Source directory with content to compile")
 	cmd.Flags().StringVarP(&dstDir, "destination", "d", "", "Destination directory for blobs")
 	cmd.Flags().BoolVarP(&useStaticBlobs, "static", "t", false, "If set to true, compile static dataset and entrypoint.txt file with static dataset")
-	cmd.Flags().BytesBase64VarP(&rootWriterInfo, "writer-info", "w", nil, "Writer info for the rood dynamic link, if not specified, a random writer info will be generated and printed out")
+	cmd.Flags().BytesHexVarP(&rootWriterInfo, "writer-info", "w", nil, "Writer info for the rood dynamic link, if not specified, a random writer info will be generated and printed out")
 
 	return cmd
 }
