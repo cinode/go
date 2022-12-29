@@ -135,7 +135,7 @@ func (be *beDatastore) createDynamicLink(
 	// maybe we should consider different interfaces in datastore?
 	pr, pw := io.Pipe()
 	defer pr.Close()
-	go dl.SendToWriter(pw)
+	go func() { dl.SendToWriter(pw); pw.Close() }()
 	bn := dl.BlobName()
 	err = be.ds.Update(ctx, bn, pr)
 	if err != nil {
@@ -201,7 +201,7 @@ func (be *beDatastore) updateDynamicLink(
 	// Send update packet
 	pr, pw := io.Pipe()
 	defer pr.Close()
-	go dl.SendToWriter(pw)
+	go func() { dl.SendToWriter(pw); pw.Close() }()
 	err = be.ds.Update(ctx, name, pr)
 	if err != nil {
 		return err
