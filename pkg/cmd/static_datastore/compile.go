@@ -17,26 +17,18 @@ limitations under the License.
 package static_datastore
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"log"
-	"mime"
-	"net/http"
 	"os"
 	"path"
-	"path/filepath"
 
 	"github.com/cinode/go/pkg/blenc"
-	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/internal/blobtypes"
+	"github.com/cinode/go/pkg/protobuf"
 	"github.com/cinode/go/pkg/structure"
 	"github.com/spf13/cobra"
-	"golang.org/x/crypto/chacha20"
-	"google.golang.org/protobuf/proto"
 )
 
 func compileCmd() *cobra.Command {
@@ -63,15 +55,28 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 				return
 			}
 
-			wi, err := compileFS(srcDir, dstDir, useStaticBlobs, rootWriterInfo)
+			var wi *protobuf.WriterInfo
+			if len(rootWriterInfo) > 0 {
+				_wi, err := protobuf.WriterInfoFromBytes(rootWriterInfo)
+				if err != nil {
+					log.Fatalf("Couldn't parse writer info: %v", err)
+				}
+				wi = _wi
+			}
+
+			wi, err := compileFS(srcDir, dstDir, useStaticBlobs, wi)
 			if err != nil {
 				log.Fatal(err)
 			}
-			if len(wi) != 0 {
-				log.Printf("Generated new root dynamic link, writer info: %X", wi)
+			if wi != nil {
+				wiBytes, err := wi.ToBytes()
+				if err != nil {
+					log.Fatalf("Couldn't serialize writer info: %v", err)
+				}
+				log.Printf("Generated new root dynamic link, writer info: %X", wiBytes)
 			}
-			log.Println("")
-			fmt.Println("DONE")
+			log.Println()
+			log.Println("DONE")
 		},
 	}
 
@@ -83,170 +88,43 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 	return cmd
 }
 
-func appendBytes(parts ...[]byte) []byte {
-	out := []byte{}
-
-	for _, p := range parts {
-		out = append(out, p...)
-	}
-
-	return out
-}
-
-func compileFS(srcDir, dstDir string, static bool, writerInfo []byte) ([]byte, error) {
-	var wi []byte
+func compileFS(srcDir, dstDir string, static bool, writerInfo *protobuf.WriterInfo) (*protobuf.WriterInfo, error) {
+	var retWi *protobuf.WriterInfo
 
 	be := blenc.FromDatastore(datastore.InFileSystem(dstDir))
 
-	// Compile static files first
-	name, key, err := compileOneLevel(srcDir, be)
+	ep, err := structure.UploadStaticDirectory(context.Background(), os.DirFS(srcDir), be)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("couldn't upload directory content: %w", err)
 	}
 
 	if !static {
-		// Build dynamic link to the root
-
-		if len(key) != chacha20.KeySize {
-			panic("Invalid key length")
-		}
-
-		linkData := bytes.NewBuffer(nil)
-		linkData.WriteByte(0) // reserved byte
-		linkData.Write(key)
-		linkData.Write(name)
-
-		if len(writerInfo) == 0 {
-			// Creating new link
-			name, key, wi, err = be.Create(context.Background(), blobtypes.DynamicLink, bytes.NewReader(linkData.Bytes()))
+		if writerInfo == nil {
+			ep, retWi, err = structure.CreateLink(context.Background(), be, ep)
 			if err != nil {
-				log.Fatal(err)
+				return nil, fmt.Errorf("failed to update root link: %w", err)
 			}
-
-			// Writer info needs to be extended to contain name and key
-			wi = appendBytes(
-				[]byte{byte(len(name))},
-				name,
-				[]byte{byte(len(key))},
-				key,
-				wi,
-			)
-
 		} else {
-			// Update existing link
-
-			// extract name and key first, pure writerInfo does not explicitly expose those values
-			bnLen := writerInfo[0]
-			name = common.BlobName(writerInfo[1 : bnLen+1])
-			writerInfo = writerInfo[bnLen+1:]
-
-			keyLen := writerInfo[0]
-			key = writerInfo[1 : keyLen+1]
-			writerInfo = writerInfo[keyLen+1:]
-
-			err = be.Update(context.Background(), name, writerInfo, key, bytes.NewReader(linkData.Bytes()))
+			ep, err = structure.UpdateLink(context.Background(), be, writerInfo, ep)
 			if err != nil {
-				log.Fatal(err)
+				return nil, fmt.Errorf("failed to update root link: %w", err)
 			}
 		}
 	}
 
-	fl, err := os.Create(path.Join(dstDir, "entrypoint.txt"))
+	epBytes, err := ep.ToBytes()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to serialize entrypoint data: %w", err)
 	}
-	_, err = fmt.Fprintf(
-		fl,
-		"%s\n%s\n",
-		name,
-		hex.EncodeToString(key),
+
+	err = os.WriteFile(
+		path.Join(dstDir, "entrypoint.txt"),
+		[]byte(hex.EncodeToString(epBytes)),
+		0666,
 	)
 	if err != nil {
-		fl.Close()
-		return nil, err
+		return nil, fmt.Errorf("failed to write entrypoint data: %w", err)
 	}
 
-	err = fl.Close()
-	if err != nil {
-		return nil, err
-	}
-
-	return wi, nil
-}
-
-func compileOneLevel(path string, be blenc.BE) (common.BlobName, []byte, error) {
-	st, err := os.Stat(path)
-	if err != nil {
-		return nil, nil, fmt.Errorf("couldn't check path: %w", err)
-	}
-
-	if st.IsDir() {
-		return compileDir(path, be)
-	}
-
-	if st.Mode().IsRegular() {
-		return compileFile(path, be)
-	}
-
-	return nil, nil, fmt.Errorf("neither dir nor a regular file: %v", path)
-}
-
-func compileFile(path string, be blenc.BE) (common.BlobName, []byte, error) {
-	fmt.Println(" *", path)
-	fl, err := os.Open(path)
-	if err != nil {
-		return nil, nil, fmt.Errorf("couldn't read file %v: %w", path, err)
-	}
-	defer fl.Close()
-	bn, ki, _, err := be.Create(context.Background(), blobtypes.Static, fl)
-	return bn, ki, err
-}
-
-func compileDir(p string, be blenc.BE) (common.BlobName, []byte, error) {
-	fileList, err := os.ReadDir(p)
-	if err != nil {
-		return nil, nil, fmt.Errorf("couldn't read contents of dir %v: %w", p, err)
-	}
-	dirStruct := structure.Directory{
-		Entries: make(map[string]*structure.Directory_Entry),
-	}
-	for _, e := range fileList {
-		subPath := path.Join(p, e.Name())
-		name, key, err := compileOneLevel(subPath, be)
-		if err != nil {
-			return nil, nil, err
-		}
-		contentType := "application/cinode-dir"
-		if !e.IsDir() {
-			contentType = mime.TypeByExtension(filepath.Ext(e.Name()))
-			if contentType == "" {
-				file, err := os.Open(subPath)
-				if err != nil {
-					return nil, nil, fmt.Errorf("can not detect content type for %v: %w", subPath, err)
-				}
-				buffer := make([]byte, 512)
-				n, err := io.ReadFull(file, buffer)
-				file.Close()
-				if err != nil && err != io.ErrUnexpectedEOF {
-					return nil, nil, fmt.Errorf("can not detect content type for %v: %w", subPath, err)
-				}
-				contentType = http.DetectContentType(buffer[:n])
-			}
-		}
-		dirStruct.Entries[e.Name()] = &structure.Directory_Entry{
-			Bid: name,
-			KeyInfo: &structure.KeyInfo{
-				Key: key,
-			},
-			MimeType: contentType,
-		}
-	}
-
-	data, err := proto.Marshal(&dirStruct)
-	if err != nil {
-		return nil, nil, fmt.Errorf("can not serialize directory %v: %w", p, err)
-	}
-
-	bn, ki, _, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data))
-	return bn, ki, err
+	return retWi, nil
 }
