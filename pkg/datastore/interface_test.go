@@ -21,7 +21,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
@@ -42,7 +41,7 @@ func allTestInterfaces(t *testing.T) []DS {
 	return []DS{
 		InMemory(),
 		InFileSystem(t.TempDir()),
-		FromWeb(server.URL+"/", &http.Client{}),
+		FromWeb(server.URL + "/"),
 	}
 }
 

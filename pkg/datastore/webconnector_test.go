@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -30,7 +31,7 @@ import (
 )
 
 func TestWebConnectorInvalidUrl(t *testing.T) {
-	c := FromWeb("://bad.url", &http.Client{})
+	c := FromWeb("://bad.url")
 
 	err := c.Read(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
 	require.IsType(t, &url.Error{}, err)
@@ -51,7 +52,7 @@ func TestWebConnectorServerSideError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := FromWeb(server.URL+"/", &http.Client{})
+	c := FromWeb(server.URL + "/")
 
 	err := c.Read(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
 	require.ErrorIs(t, err, ErrWebConnectionError)
@@ -74,7 +75,7 @@ func TestWebConnectorDetectInvalidBlobRead(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ds2 := FromWeb(server.URL+"/", &http.Client{})
+	ds2 := FromWeb(server.URL + "/")
 
 	data := bytes.NewBuffer(nil)
 	err := ds2.Read(context.Background(), emptyBlobNameStatic, data)
@@ -83,7 +84,6 @@ func TestWebConnectorDetectInvalidBlobRead(t *testing.T) {
 }
 
 func TestWebConnectorInvalidErrorCode(t *testing.T) {
-
 	// Test web interface and web connector
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -94,9 +94,25 @@ func TestWebConnectorInvalidErrorCode(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ds2 := FromWeb(server.URL+"/", &http.Client{})
+	ds2 := FromWeb(server.URL + "/")
 
 	data := bytes.NewBuffer(nil)
 	err := ds2.Read(context.Background(), emptyBlobNameStatic, data)
 	require.ErrorIs(t, err, ErrWebConnectionError)
+}
+
+func TestWebConnectorOptions(t *testing.T) {
+	t.Run("http client", func(t *testing.T) {
+		cl := &http.Client{}
+		ds := FromWeb("http://test.local/", WebOptionHttpClient(cl))
+		require.Equal(t, cl, ds.(*webConnector).client)
+	})
+
+	t.Run("customize request", func(t *testing.T) {
+		testErr := errors.New("test error")
+		f := func(r *http.Request) error { return testErr }
+		ds := FromWeb("http://test.local/", WebOptionCustomizeRequest(f))
+		require.Equal(t, testErr, ds.(*webConnector).customizeRequest(nil))
+	})
+
 }
