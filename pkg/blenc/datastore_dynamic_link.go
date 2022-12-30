@@ -91,7 +91,7 @@ func (be *beDatastore) createDynamicLink(
 ) (
 	common.BlobName,
 	EncryptionKey,
-	WriterInfo,
+	AuthInfo,
 	error,
 ) {
 	// TODO: Customizable random source
@@ -151,7 +151,7 @@ func (be *beDatastore) createDynamicLink(
 func (be *beDatastore) updateDynamicLink(
 	ctx context.Context,
 	name common.BlobName,
-	wi WriterInfo,
+	authInfo AuthInfo,
 	key EncryptionKey,
 	r io.Reader,
 ) error {
@@ -162,11 +162,11 @@ func (be *beDatastore) updateDynamicLink(
 		return err
 	}
 
-	if len(wi) != 1+ed25519.SeedSize || wi[0] != 0 {
+	if len(authInfo) != 1+ed25519.SeedSize || authInfo[0] != 0 {
 		return ErrInvalidDynamicLinkWriterInfo
 	}
 
-	privKey := ed25519.NewKeyFromSeed(wi[1:])
+	privKey := ed25519.NewKeyFromSeed(authInfo[1:])
 	pubKey := privKey.Public().(ed25519.PublicKey)
 
 	dl := dynamiclink.DynamicLinkData{

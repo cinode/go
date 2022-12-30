@@ -52,7 +52,7 @@ func (be *beDatastore) Create(
 ) (
 	common.BlobName,
 	EncryptionKey,
-	WriterInfo,
+	AuthInfo,
 	error,
 ) {
 	switch blobType {
@@ -64,12 +64,12 @@ func (be *beDatastore) Create(
 	return nil, nil, nil, blobtypes.ErrUnknownBlobType
 }
 
-func (be *beDatastore) Update(ctx context.Context, name common.BlobName, wi WriterInfo, key EncryptionKey, r io.Reader) error {
+func (be *beDatastore) Update(ctx context.Context, name common.BlobName, authInfo AuthInfo, key EncryptionKey, r io.Reader) error {
 	switch name.Type() {
 	case blobtypes.Static:
-		return be.updateStatic(ctx, name, wi, key, r)
+		return be.updateStatic(ctx, name, authInfo, key, r)
 	case blobtypes.DynamicLink:
-		return be.updateDynamicLink(ctx, name, wi, key, r)
+		return be.updateDynamicLink(ctx, name, authInfo, key, r)
 	}
 	return blobtypes.ErrUnknownBlobType
 }

@@ -32,11 +32,11 @@ func TestBlencCommonScenario(t *testing.T) {
 
 	data := []byte("Hello world!!!")
 
-	bn, key, wi, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data))
+	bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data))
 	require.NoError(t, err)
 	require.Equal(t, blobtypes.Static, bn.Type())
 	require.Len(t, bn.Hash(), sha256.Size)
-	require.Nil(t, wi) // Static blobs don't generate writer info
+	require.Nil(t, ai) // Static blobs don't generate writer info
 
 	exists, err := be.Exists(context.Background(), bn)
 	require.NoError(t, err)
