@@ -36,18 +36,36 @@ var (
 )
 
 type webConnector struct {
-	baseURL string
-	client  *http.Client
+	baseURL          string
+	client           *http.Client
+	customizeRequest func(*http.Request) error
 }
 
 var _ DS = (*webConnector)(nil)
 
+type webConnectorOption func(*webConnector)
+
+func WebOptionHttpClient(client *http.Client) webConnectorOption {
+	return func(wc *webConnector) { wc.client = client }
+}
+
+func WebOptionCustomizeRequest(f func(*http.Request) error) webConnectorOption {
+	return func(wc *webConnector) { wc.customizeRequest = f }
+}
+
 // FromWeb returns Datastore implementation that connects to external url
-func FromWeb(baseURL string, client *http.Client) DS {
-	return &webConnector{
-		baseURL: baseURL,
-		client:  client,
+func FromWeb(baseURL string, options ...webConnectorOption) DS {
+	ret := &webConnector{
+		baseURL:          baseURL,
+		client:           http.DefaultClient,
+		customizeRequest: func(r *http.Request) error { return nil },
 	}
+
+	for _, o := range options {
+		o(ret)
+	}
+
+	return ret
 }
 
 func (w *webConnector) Kind() string {
@@ -76,7 +94,7 @@ func (w *webConnector) readStatic(ctx context.Context, name common.BlobName, out
 		return err
 	}
 
-	res, err := w.client.Do(req)
+	res, err := w.do(req)
 	if err != nil {
 		return err
 	}
@@ -111,7 +129,7 @@ func (w *webConnector) readDynamicLink(ctx context.Context, name common.BlobName
 		return err
 	}
 
-	res, err := w.client.Do(req)
+	res, err := w.do(req)
 	if err != nil {
 		return err
 	}
@@ -143,7 +161,7 @@ func (w *webConnector) Update(ctx context.Context, name common.BlobName, r io.Re
 
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.Header.Set("Accept", "application/json")
-	res, err := w.client.Do(req)
+	res, err := w.do(req)
 	if err != nil {
 		return err
 	}
@@ -162,7 +180,7 @@ func (w *webConnector) Exists(ctx context.Context, name common.BlobName) (bool, 
 	if err != nil {
 		return false, err
 	}
-	res, err := w.client.Do(req)
+	res, err := w.do(req)
 	if err != nil {
 		return false, err
 	}
@@ -190,13 +208,22 @@ func (w *webConnector) Delete(ctx context.Context, name common.BlobName) error {
 		return err
 	}
 
-	res, err := w.client.Do(req)
+	res, err := w.do(req)
 	if err != nil {
 		return err
 	}
 	defer res.Body.Close()
 
 	return w.errCheck(res)
+}
+
+func (w *webConnector) do(req *http.Request) (*http.Response, error) {
+	err := w.customizeRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return w.client.Do(req)
 }
 
 func (w *webConnector) errCheck(res *http.Response) error {

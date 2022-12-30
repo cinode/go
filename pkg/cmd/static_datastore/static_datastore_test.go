@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cinode/go/pkg/protobuf"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -96,8 +97,8 @@ func TestCompileAndReadTestSuite(t *testing.T) {
 func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 	dataset []datasetFile,
 	datastoreDir string,
-	wi []byte,
-) []byte {
+	wi *protobuf.WriterInfo,
+) *protobuf.WriterInfo {
 
 	s.T().Run("prepare dataset", func(t *testing.T) {
 

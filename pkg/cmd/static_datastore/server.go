@@ -17,12 +17,10 @@ limitations under the License.
 package static_datastore
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -30,13 +28,10 @@ import (
 	"strings"
 
 	"github.com/cinode/go/pkg/blenc"
-	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/internal/blobtypes"
+	"github.com/cinode/go/pkg/protobuf"
 	"github.com/cinode/go/pkg/structure"
 	"github.com/spf13/cobra"
-	"golang.org/x/crypto/chacha20"
-	"google.golang.org/protobuf/proto"
 )
 
 func serverCmd() *cobra.Command {
@@ -47,7 +42,7 @@ func serverCmd() *cobra.Command {
 		Use:   "server --datastore <datastore_dir>",
 		Short: "Serve files from datastore on given folder",
 		Long: `
-Serve files from static datastore from a directory.
+Serve files from datastore files from a directory.
 `,
 		Run: func(cmd *cobra.Command, args []string) {
 			if dataStoreDir == "" {
@@ -63,143 +58,44 @@ Serve files from static datastore from a directory.
 	return cmd
 }
 
-func getEntrypoint(datastoreDir string) ([]byte, []byte, error) {
-	ep, err := os.Open(path.Join(datastoreDir, "entrypoint.txt"))
+func getEntrypoint(datastoreDir string) (*protobuf.Entrypoint, error) {
+
+	data, err := os.ReadFile(path.Join(datastoreDir, "entrypoint.txt"))
 	if err != nil {
-		return nil, nil, fmt.Errorf("can't open entrypoint file from %s", datastoreDir)
+		return nil, fmt.Errorf("can't read entrypoint data from %s", datastoreDir)
 	}
-	defer ep.Close()
 
-	scanner := bufio.NewScanner(ep)
-	if !scanner.Scan() {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - missing bid")
-	}
-	bid, err := common.BlobNameFromString(scanner.Text())
+	data, err = hex.DecodeString(strings.TrimSpace(string(data)))
 	if err != nil {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - could not get blob name: %w", err)
+		return nil, fmt.Errorf("invalid entrypoint data file in %s - not a hexadecimal string", datastoreDir)
 	}
 
-	if !scanner.Scan() {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - missing key")
-	}
-
-	key, err := hex.DecodeString(scanner.Text())
-	if err != nil {
-		return nil, nil, fmt.Errorf("malformed entrypoint file - invalid key: %w", err)
-	}
-
-	return bid, key, nil
+	return protobuf.EntryPointFromBytes(data)
 }
 
 func handleDir(
 	ctx context.Context,
 	be blenc.BE,
-	bid []byte,
-	key []byte,
+	ep *protobuf.Entrypoint,
 	w http.ResponseWriter,
 	r *http.Request,
 	subPath string,
 ) {
 
-	if subPath == "" {
-		subPath = "index.html"
-	}
-
-	pathParts := strings.SplitN(subPath, "/", 2)
-
-	dirBytes := bytes.NewBuffer(nil)
-	err := readWithLinkDereference(ctx, be, common.BlobName(bid), key, dirBytes)
-	if err != nil {
-		http.Error(w, "Internal error", http.StatusInternalServerError)
-		return
-	}
-
-	dir := structure.Directory{}
-	if err := proto.Unmarshal(dirBytes.Bytes(), &dir); err != nil {
-		http.Error(w, "Internal error", http.StatusInternalServerError)
-		return
-	}
-
-	entry, exists := dir.GetEntries()[pathParts[0]]
-	if !exists {
-		http.NotFound(w, r)
-		return
-	}
-
-	if entry.GetMimeType() == "application/cinode-dir" {
-		if len(pathParts) == 0 {
-			http.Redirect(w, r, r.URL.Path+"/", http.StatusPermanentRedirect)
-			return
-		}
-		handleDir(
-			ctx,
-			be,
-			entry.GetBid(),
-			entry.KeyInfo.GetKey(),
-			w, r,
-			pathParts[1],
-		)
-		return
-	}
-
-	if len(pathParts) > 1 {
-		http.NotFound(w, r)
-		return
-	}
-
-	w.Header().Set("Content-Type", entry.GetMimeType())
-	err = be.Read(
-		ctx,
-		common.BlobName(entry.Bid),
-		entry.KeyInfo.GetKey(),
-		w,
-	)
-	if err != nil {
-		// TODO: Log this, can't send an error back, it's too late
-	}
-}
-
-func readWithLinkDereference(ctx context.Context, be blenc.BE, name common.BlobName, key []byte, w io.Writer) error {
-	for redirectLevel := 0; redirectLevel < 10; redirectLevel++ {
-		switch name.Type() {
-
-		case blobtypes.Static:
-			return be.Read(ctx, name, key, w)
-
-		case blobtypes.DynamicLink:
-			buff := bytes.NewBuffer(nil)
-			err := be.Read(ctx, name, key, buff)
-			if err != nil {
-				return err
-			}
-
-			b := buff.Bytes()
-			if len(b) < 1+chacha20.KeySize+1 {
-				return fmt.Errorf("invalid dynamic link content")
-			}
-
-			if b[0] != 0 {
-				return fmt.Errorf("invalid dynamic link content: non-zero reserved byte")
-			}
-
-			key = b[1 : 1+chacha20.KeySize]
-			name = common.BlobName(b[1+chacha20.KeySize:])
-
-		default:
-			return blobtypes.ErrUnknownBlobType
-		}
-	}
-
-	return fmt.Errorf("Too many dynamic link redirects")
 }
 
 func serverHandler(datastoreDir string) (http.Handler, error) {
-	epBID, epKI, err := getEntrypoint(datastoreDir)
+	ep, err := getEntrypoint(datastoreDir)
 	if err != nil {
 		return nil, err
 	}
 
-	be := blenc.FromDatastore(datastore.InFileSystem(datastoreDir))
+	dh := structure.CinodeFS{
+		BE:               blenc.FromDatastore(datastore.InFileSystem(datastoreDir)),
+		RootEntrypoint:   ep,
+		MaxLinkRedirects: 10,
+		IndexFile:        "index.html",
+	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
@@ -207,11 +103,29 @@ func serverHandler(datastoreDir string) (http.Handler, error) {
 			return
 		}
 
-		if strings.HasPrefix(r.URL.Path, "/") {
-			r.URL.Path = r.URL.Path[1:]
+		path := strings.TrimPrefix(r.URL.Path, "/")
+
+		fileEP, err := dh.FindEntrypoint(r.Context(), path)
+		switch {
+		case errors.Is(err, structure.ErrNotFound):
+			http.NotFound(w, r)
+			return
+		case err != nil:
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
 		}
 
-		handleDir(r.Context(), be, epBID, epKI, w, r, r.URL.Path)
+		if fileEP.MimeType == structure.CinodeDirMimeType {
+			http.Redirect(w, r, r.URL.Path+"/", http.StatusPermanentRedirect)
+			return
+		}
+
+		w.Header().Set("Content-Type", fileEP.GetMimeType())
+		err = dh.FetchContent(r.Context(), fileEP, w)
+		if err != nil {
+			log.Printf("Error sending file: %v", err)
+		}
+
 	}), nil
 }
 
