@@ -17,10 +17,10 @@ limitations under the License.
 package datastore
 
 import (
-	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/cinode/go/pkg/common"
@@ -137,10 +137,12 @@ func TestDatasetGeneration(t *testing.T) {
 		}
 		dl.Signature = dl.CalculateSignature(priv)
 
-		buf := bytes.NewBuffer(nil)
-		dl.SendToWriter(buf)
+		buf, err := io.ReadAll(dl.CreateReader())
+		if err != nil {
+			panic(err)
+		}
 
-		dumpBlob(dl.BlobName(), buf.Bytes(), data)
+		dumpBlob(dl.BlobName(), buf, data)
 	}
 
 	fmt.Printf("" +

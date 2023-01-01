@@ -131,44 +131,19 @@ func FromReader(name common.BlobName, r io.Reader) (*DynamicLinkData, error) {
 	return &dl, nil
 }
 
-func (d *DynamicLinkData) SendToWriter(w io.Writer) error {
-	// Reserved
-	_, err := w.Write([]byte{reservedByteValue})
-	if err != nil {
-		return err
-	}
+func (d *DynamicLinkData) getBytes() []byte {
+	w := bytes.NewBuffer(nil)
+	w.Write([]byte{reservedByteValue})
+	w.Write(d.PublicKey)
+	w.Write(storeUint64(d.ContentVersion))
+	w.Write(d.Signature)
+	w.Write(d.IV)
+	w.Write(d.EncryptedLink)
+	return w.Bytes()
+}
 
-	// Public key
-	_, err = w.Write(d.PublicKey)
-	if err != nil {
-		return err
-	}
-
-	// Content version
-	_, err = w.Write(storeUint64(d.ContentVersion))
-	if err != nil {
-		return err
-	}
-
-	// Signature
-	_, err = w.Write(d.Signature)
-	if err != nil {
-		return err
-	}
-
-	// IV
-	_, err = w.Write(d.IV)
-	if err != nil {
-		return err
-	}
-
-	// Encrypted link
-	_, err = w.Write(d.EncryptedLink)
-	if err != nil {
-		return err
-	}
-
-	return nil
+func (d *DynamicLinkData) CreateReader() io.Reader {
+	return bytes.NewReader(d.getBytes())
 }
 
 func (d *DynamicLinkData) CalculateIV(unencryptedLink []byte) []byte {

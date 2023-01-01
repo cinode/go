@@ -133,11 +133,8 @@ func (be *beDatastore) createDynamicLink(
 	// Send update packet
 	// TODO: A bit awkward to use the pipe here, but that's since the datastore.Update takes reader as a parameter
 	// maybe we should consider different interfaces in datastore?
-	pr, pw := io.Pipe()
-	defer pr.Close()
-	go func() { dl.SendToWriter(pw); pw.Close() }()
 	bn := dl.BlobName()
-	err = be.ds.Update(ctx, bn, pr)
+	err = be.ds.Update(ctx, bn, dl.CreateReader())
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -199,10 +196,7 @@ func (be *beDatastore) updateDynamicLink(
 	dl.Signature = dl.CalculateSignature(privKey)
 
 	// Send update packet
-	pr, pw := io.Pipe()
-	defer pr.Close()
-	go func() { dl.SendToWriter(pw); pw.Close() }()
-	err = be.ds.Update(ctx, name, pr)
+	err = be.ds.Update(ctx, name, dl.CreateReader())
 	if err != nil {
 		return err
 	}
