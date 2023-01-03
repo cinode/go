@@ -35,54 +35,48 @@ var (
 	ErrInvalidDynamicLinkWriterInfo = errors.New("incorrect dynamic link writer info")
 )
 
-func (be *beDatastore) readDynamicLink(
+func (be *beDatastore) openDynamicLink(
 	ctx context.Context,
 	name common.BlobName,
 	key EncryptionKey,
-	w io.Writer,
-) error {
+) (
+	io.ReadCloser,
+	error,
+) {
 
 	// TODO: Protect against long links - there should be max size limit and maybe some streaming involved?
 	// TODO: Validate the encryption key to avoid forcing weak keys
 	// TODO: Key info should not be a byte array, there should be some more abstract structure to allow more complex key lookup
 	// TODO: Prefer a stream-like approach when dealing with link data
 
-	buff := bytes.NewBuffer(nil)
-	err := be.ds.Read(ctx, name, buff)
+	rc, err := be.ds.Open(ctx, name)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	defer rc.Close()
 
-	dl, err := dynamiclink.FromReader(name, bytes.NewReader(buff.Bytes()))
+	dl, err := dynamiclink.FromReader(name, rc)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Decrypt link data
 	r, err := streamCipherReader(key, dl.IV, bytes.NewBuffer(dl.EncryptedLink))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	unencryptedLink, err := io.ReadAll(r)
 	if err != nil {
-		return err
-	}
-
-	// Send the link to writer
-	// Note: we're doing this before validating the IV - that's to ensure that this code can easily be converted
-	// to a stream-based approach later where the writer can get the data before the link is fully validated
-	_, err = w.Write(unencryptedLink)
-	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Ensure the IV does match to avoid enforcing weak IVs
 	if !bytes.Equal(dl.IV, dl.CalculateIV(unencryptedLink)) {
-		return fmt.Errorf("%w: invalid iv", blobtypes.ErrValidationFailed)
+		return nil, fmt.Errorf("%w: invalid iv", blobtypes.ErrValidationFailed)
 	}
 
-	return nil
+	return io.NopCloser(bytes.NewReader(unencryptedLink)), nil
 }
 
 func (be *beDatastore) createDynamicLink(

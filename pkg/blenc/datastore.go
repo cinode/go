@@ -35,14 +35,14 @@ type beDatastore struct {
 	ds datastore.DS
 }
 
-func (be *beDatastore) Read(ctx context.Context, name common.BlobName, key EncryptionKey, w io.Writer) error {
+func (be *beDatastore) Open(ctx context.Context, name common.BlobName, key EncryptionKey) (io.ReadCloser, error) {
 	switch name.Type() {
 	case blobtypes.Static:
-		return be.readStatic(ctx, name, key, w)
+		return be.openStatic(ctx, name, key)
 	case blobtypes.DynamicLink:
-		return be.readDynamicLink(ctx, name, key, w)
+		return be.openDynamicLink(ctx, name, key)
 	}
-	return blobtypes.ErrUnknownBlobType
+	return nil, blobtypes.ErrUnknownBlobType
 }
 
 func (be *beDatastore) Create(

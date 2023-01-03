@@ -34,14 +34,14 @@ func (ds *datastore) Kind() string {
 	return ds.s.kind()
 }
 
-func (ds *datastore) Read(ctx context.Context, name common.BlobName, output io.Writer) error {
+func (ds *datastore) Open(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	switch name.Type() {
 	case blobtypes.Static:
-		return ds.readStatic(ctx, name, output)
+		return ds.openStatic(ctx, name)
 	case blobtypes.DynamicLink:
-		return ds.readDynamicLink(ctx, name, output)
+		return ds.openDynamicLink(ctx, name)
 	default:
-		return blobtypes.ErrUnknownBlobType
+		return nil, blobtypes.ErrUnknownBlobType
 	}
 }
 

@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -121,7 +122,13 @@ func serverHandler(datastoreDir string) (http.Handler, error) {
 		}
 
 		w.Header().Set("Content-Type", fileEP.GetMimeType())
-		err = dh.FetchContent(r.Context(), fileEP, w)
+		rc, err := dh.OpenContent(r.Context(), fileEP)
+		if err != nil {
+			log.Printf("Error sending file: %v", err)
+		}
+		defer rc.Close()
+
+		_, err = io.Copy(w, rc)
 		if err != nil {
 			log.Printf("Error sending file: %v", err)
 		}

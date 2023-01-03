@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"io"
 	"net/http/httptest"
 	"sync"
 	"testing"
@@ -48,11 +49,13 @@ func allTestInterfaces(t *testing.T) []DS {
 func TestOpenNonExisting(t *testing.T) {
 	for _, ds := range allTestInterfaces(t) {
 		t.Run(ds.Kind(), func(t *testing.T) {
-			err := ds.Read(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
+			r, err := ds.Open(context.Background(), emptyBlobNameStatic)
 			require.ErrorIs(t, err, ErrNotFound)
+			require.Nil(t, r)
 
-			err = ds.Read(context.Background(), emptyBlobNameDynamicLink, bytes.NewBuffer(nil))
+			r, err = ds.Open(context.Background(), emptyBlobNameDynamicLink)
 			require.ErrorIs(t, err, ErrNotFound)
+			require.Nil(t, r)
 		})
 	}
 }
@@ -63,8 +66,9 @@ func TestOpenInvalidBlobType(t *testing.T) {
 			bn, err := common.BlobNameFromHashAndType(sha256.New().Sum(nil), common.NewBlobType(0xFF))
 			require.NoError(t, err)
 
-			err = ds.Read(context.Background(), bn, bytes.NewBuffer(nil))
+			r, err := ds.Open(context.Background(), bn)
 			require.ErrorIs(t, err, blobtypes.ErrUnknownBlobType)
+			require.Nil(t, r)
 
 			err = ds.Update(context.Background(), bn, bytes.NewBuffer(nil))
 			require.ErrorIs(t, err, blobtypes.ErrUnknownBlobType)
@@ -121,10 +125,15 @@ func TestSaveSuccessfulStatic(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, exists)
 
-				data := bytes.NewBuffer([]byte{})
-				err = ds.Read(context.Background(), b.name, data)
+				r, err := ds.Open(context.Background(), b.name)
 				require.NoError(t, err)
-				require.Equal(t, b.data, data.Bytes())
+
+				data, err := io.ReadAll(r)
+				require.NoError(t, err)
+				require.Equal(t, b.data, data)
+
+				err = r.Close()
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -172,10 +181,15 @@ func TestErrorWhileOverwriting(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, exists)
 
-				data := bytes.NewBuffer(nil)
-				err = ds.Read(context.Background(), b.name, data)
+				r, err := ds.Open(context.Background(), b.name)
 				require.NoError(t, err)
-				require.Equal(t, b.data, data.Bytes())
+
+				data, err := io.ReadAll(r)
+				require.NoError(t, err)
+				require.Equal(t, b.data, data)
+
+				err = r.Close()
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -218,8 +232,9 @@ func TestDeleteExisting(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, exists)
 
-			err = ds.Read(context.Background(), b.name, bytes.NewBuffer(nil))
+			r, err := ds.Open(context.Background(), b.name)
 			require.ErrorIs(t, err, ErrNotFound)
+			require.Nil(t, r)
 		})
 	}
 }
@@ -255,10 +270,15 @@ func TestSimultaneousReads(t *testing.T) {
 					for n := 0; n < readCnt; n++ {
 						b := testBlobs[(i+n)%len(testBlobs)]
 
-						buff := bytes.NewBuffer([]byte{})
-						err := ds.Read(context.Background(), b.name, buff)
+						r, err := ds.Open(context.Background(), b.name)
 						require.NoError(t, err)
-						require.Equal(t, b.data, buff.Bytes())
+
+						data, err := io.ReadAll(r)
+						require.NoError(t, err)
+						require.Equal(t, b.data, data)
+
+						err = r.Close()
+						require.NoError(t, err)
 					}
 				}(i)
 			}
@@ -303,10 +323,15 @@ func TestSimultaneousSaves(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, exists)
 
-			buf := bytes.NewBuffer([]byte{})
-			err = ds.Read(context.Background(), b.name, buf)
+			r, err := ds.Open(context.Background(), b.name)
 			require.NoError(t, err)
-			require.Equal(t, b.data, buf.Bytes())
+
+			data, err := io.ReadAll(r)
+			require.NoError(t, err)
+			require.Equal(t, b.data, data)
+
+			err = r.Close()
+			require.NoError(t, err)
 		})
 	}
 }
@@ -335,11 +360,13 @@ func (s *DatastoreTestSuite) updateDynamicLink(num int) {
 }
 
 func (s *DatastoreTestSuite) readDynamicLinkData() string {
-	buff := bytes.NewBuffer(nil)
-	err := s.ds.Read(context.Background(), dynamicLinkPropagationData[0].name, buff)
+	r, err := s.ds.Open(context.Background(), dynamicLinkPropagationData[0].name)
 	s.Require().NoError(err)
 
-	dl, err := dynamiclink.FromReader(dynamicLinkPropagationData[0].name, bytes.NewReader(buff.Bytes()))
+	dl, err := dynamiclink.FromReader(dynamicLinkPropagationData[0].name, r)
+	s.Require().NoError(err)
+
+	err = r.Close()
 	s.Require().NoError(err)
 
 	return string(dl.EncryptedLink)

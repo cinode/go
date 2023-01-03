@@ -17,7 +17,6 @@ limitations under the License.
 package structure
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"strings"
@@ -35,12 +34,11 @@ type CinodeFS struct {
 	IndexFile        string
 }
 
-func (d *CinodeFS) FetchContent(ctx context.Context, ep *protobuf.Entrypoint, output io.Writer) error {
-	return d.BE.Read(
+func (d *CinodeFS) OpenContent(ctx context.Context, ep *protobuf.Entrypoint) (io.ReadCloser, error) {
+	return d.BE.Open(
 		ctx,
 		common.BlobName(ep.BlobName),
 		blenc.EncryptionKey(ep.GetKeyInfo().GetKey()),
-		output,
 	)
 }
 
@@ -62,14 +60,19 @@ func (d *CinodeFS) findEntrypointInDir(ctx context.Context, ep *protobuf.Entrypo
 		remainingPath = d.IndexFile
 	}
 
-	buff := bytes.NewBuffer(nil)
-	err = d.FetchContent(ctx, ep, buff)
+	rc, err := d.OpenContent(ctx, ep)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+
+	data, err := io.ReadAll(rc)
 	if err != nil {
 		return nil, err
 	}
 
 	dirStruct := protobuf.Directory{}
-	err = proto.Unmarshal(buff.Bytes(), &dirStruct)
+	err = proto.Unmarshal(data, &dirStruct)
 	if err != nil {
 		return nil, err
 	}

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/common"
@@ -81,19 +82,23 @@ func DereferenceLink(ctx context.Context, be blenc.BE, link *protobuf.Entrypoint
 		}
 		maxRedirects--
 
-		linkData := bytes.NewBuffer(nil)
-
-		err := be.Read(
+		rc, err := be.Open(
 			ctx,
 			common.BlobName(link.BlobName),
 			blenc.EncryptionKey(link.GetKeyInfo().GetKey()),
-			linkData,
 		)
 		if err != nil {
 			return nil, err
 		}
+		defer rc.Close()
 
-		link, err = protobuf.EntryPointFromBytes(linkData.Bytes())
+		// TODO: Constrain the buffer size
+		data, err := io.ReadAll(rc)
+		if err != nil {
+			return nil, err
+		}
+
+		link, err = protobuf.EntryPointFromBytes(data)
 		if err != nil {
 			return nil, err
 		}

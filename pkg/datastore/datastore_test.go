@@ -125,7 +125,12 @@ func TestDatastoreDetectCorruptedRead(t *testing.T) {
 	mem := ds.(*datastore).s.(*memory)
 	mem.bmap[emptyBlobNameStatic.String()] = []byte("I should not be here")
 
-	data := bytes.NewBuffer(nil)
-	err := ds.Read(context.Background(), emptyBlobNameStatic, data)
+	r, err := ds.Open(context.Background(), emptyBlobNameStatic)
+	require.NoError(t, err)
+
+	_, err = io.ReadAll(r)
 	require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
+
+	err = r.Close()
+	require.NoError(t, err)
 }

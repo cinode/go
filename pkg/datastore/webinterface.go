@@ -113,10 +113,15 @@ func (i *webInterface) serveGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = i.ds.Read(r.Context(), name, w)
+	rc, err := i.ds.Open(r.Context(), name)
 	if !i.checkErr(err, w, r) {
 		return
 	}
+
+	defer rc.Close()
+	io.Copy(w, rc)
+	// TODO: Log error / drop the connection ? It may be too late to send the error to the user
+	// thus we have to assume that the blob will be validated on the other side
 }
 
 type partReader struct {

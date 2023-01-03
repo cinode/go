@@ -30,9 +30,11 @@ type EncryptionKey = []byte
 // implementation
 type BE interface {
 
-	// Open reads a data stream from a blob with given name and writes the stream
-	// to given writer
-	Read(ctx context.Context, name common.BlobName, key EncryptionKey, w io.Writer) error
+	// Open opens given blob data for reading.
+	//
+	// If returned error is not nil, the reader must be nil. Otherwise it is required to
+	// close the reader once done working with it.
+	Open(ctx context.Context, name common.BlobName, key EncryptionKey) (io.ReadCloser, error)
 
 	// Create completely new blob with given dataset, as a result, the blob name and optional
 	// AuthInfo that allows blob's update is returned
