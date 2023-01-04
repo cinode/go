@@ -64,10 +64,28 @@ func (ds *datastore) Delete(ctx context.Context, name common.BlobName) error {
 	return ds.s.delete(ctx, name)
 }
 
+// InMemory constructs an in-memory datastore
+//
+// The content is lost if the datastore is destroyed (either by garbage collection
+// or by program termination)
 func InMemory() DS {
 	return &datastore{s: newStorageMemory()}
 }
 
+// InFileSystem constructs a datastore using filesystem as a storage layer.
+//
+// Contrary to InRawFileSystem, this datastore is optimized for large datastores
+// and concurrent use.
 func InFileSystem(path string) DS {
 	return &datastore{s: newStorageFilesystem(path)}
+}
+
+// InRawFilesystem is a simplified storage that uses filesystem as a storage layer.
+//
+// Datastore files are stored directly under base58-encoded blob names.
+// This datastore should not be used for highly concurrent or highly modified
+// cases. The main purpose is to dump files to a disk in a form that can
+// be lated used in a classic web server and used as a static web source.
+func InRawFileSystem(path string) DS {
+	return &datastore{s: newStorageRawFilesystem(path)}
 }

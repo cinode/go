@@ -38,6 +38,7 @@ import (
 func serverCmd() *cobra.Command {
 
 	var dataStoreDir string
+	var useRawFilesystem bool
 
 	cmd := &cobra.Command{
 		Use:   "server --datastore <datastore_dir>",
@@ -50,11 +51,12 @@ Serve files from datastore files from a directory.
 				cmd.Help()
 				return
 			}
-			server(dataStoreDir)
+			server(dataStoreDir, useRawFilesystem)
 		},
 	}
 
 	cmd.Flags().StringVarP(&dataStoreDir, "datastore", "d", "", "Datastore directory containing blobs")
+	cmd.Flags().BoolVarP(&useRawFilesystem, "raw-filesystem", "r", false, "If set to true, use raw filesystem instead of the optimized one, can be used to create dataset for a standard http server")
 
 	return cmd
 }
@@ -85,14 +87,19 @@ func handleDir(
 
 }
 
-func serverHandler(datastoreDir string) (http.Handler, error) {
+func serverHandler(datastoreDir string, useRawFS bool) (http.Handler, error) {
 	ep, err := getEntrypoint(datastoreDir)
 	if err != nil {
 		return nil, err
 	}
 
 	dh := structure.CinodeFS{
-		BE:               blenc.FromDatastore(datastore.InFileSystem(datastoreDir)),
+		BE: blenc.FromDatastore(func() datastore.DS {
+			if useRawFS {
+				return datastore.InRawFileSystem(datastoreDir)
+			}
+			return datastore.InFileSystem(datastoreDir)
+		}()),
 		RootEntrypoint:   ep,
 		MaxLinkRedirects: 10,
 		IndexFile:        "index.html",
@@ -136,11 +143,11 @@ func serverHandler(datastoreDir string) (http.Handler, error) {
 	}), nil
 }
 
-func server(datastoreDir string) {
+func server(datastoreDir string, useRawFS bool) {
 
 	fmt.Println("Serving files from", datastoreDir)
 
-	hnd, err := serverHandler(datastoreDir)
+	hnd, err := serverHandler(datastoreDir, useRawFS)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -42,6 +42,7 @@ func allTestInterfaces(t *testing.T) []DS {
 	return []DS{
 		InMemory(),
 		InFileSystem(t.TempDir()),
+		InRawFileSystem(t.TempDir()),
 		FromWeb(server.URL + "/"),
 	}
 }
