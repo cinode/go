@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes"
@@ -44,6 +45,7 @@ func allTestInterfaces(t *testing.T) []DS {
 		InFileSystem(t.TempDir()),
 		InRawFileSystem(t.TempDir()),
 		FromWeb(server.URL + "/"),
+		NewMultiSource(InMemory(), time.Hour),
 	}
 }
 
