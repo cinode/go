@@ -18,7 +18,6 @@ package static_datastore
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -28,6 +27,7 @@ import (
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/protobuf"
 	"github.com/cinode/go/pkg/structure"
+	"github.com/jbenet/go-base58"
 	"github.com/spf13/cobra"
 )
 
@@ -36,7 +36,7 @@ func compileCmd() *cobra.Command {
 	var srcDir, dstDir string
 	var useStaticBlobs bool
 	var useRawFilesystem bool
-	var rootWriterInfo []byte
+	var rootWriterInfoStr string
 
 	cmd := &cobra.Command{
 		Use:   "compile --source <src_dir> --destination <dst_dir>",
@@ -57,8 +57,8 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 			}
 
 			var wi *protobuf.WriterInfo
-			if len(rootWriterInfo) > 0 {
-				_wi, err := protobuf.WriterInfoFromBytes(rootWriterInfo)
+			if len(rootWriterInfoStr) > 0 {
+				_wi, err := protobuf.WriterInfoFromBytes(base58.Decode(rootWriterInfoStr))
 				if err != nil {
 					log.Fatalf("Couldn't parse writer info: %v", err)
 				}
@@ -74,7 +74,7 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 				if err != nil {
 					log.Fatalf("Couldn't serialize writer info: %v", err)
 				}
-				log.Printf("Generated new root dynamic link, writer info: %X", wiBytes)
+				log.Printf("Generated new root dynamic link, writer info: %s", base58.Encode(wiBytes))
 			}
 			log.Println()
 			log.Println("DONE")
@@ -85,7 +85,7 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 	cmd.Flags().StringVarP(&dstDir, "destination", "d", "", "Destination directory for blobs")
 	cmd.Flags().BoolVarP(&useStaticBlobs, "static", "t", false, "If set to true, compile static dataset and entrypoint.txt file with static dataset")
 	cmd.Flags().BoolVarP(&useRawFilesystem, "raw-filesystem", "r", false, "If set to true, use raw filesystem instead of the optimized one, can be used to create dataset for a standard http server")
-	cmd.Flags().BytesHexVarP(&rootWriterInfo, "writer-info", "w", nil, "Writer info for the rood dynamic link, if not specified, a random writer info will be generated and printed out")
+	cmd.Flags().StringVarP(&rootWriterInfoStr, "writer-info", "w", "", "Writer info for the root dynamic link, if not specified, a random writer info will be generated and printed out")
 
 	return cmd
 }
@@ -126,7 +126,7 @@ func compileFS(srcDir, dstDir string, static bool, writerInfo *protobuf.WriterIn
 
 	err = os.WriteFile(
 		path.Join(dstDir, "entrypoint.txt"),
-		[]byte(hex.EncodeToString(epBytes)),
+		[]byte(base58.Encode(epBytes)),
 		0666,
 	)
 	if err != nil {
