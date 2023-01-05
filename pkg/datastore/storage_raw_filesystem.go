@@ -76,6 +76,11 @@ func (w *rawFilesystemWriter) Cancel() {
 }
 
 func (fs *rawFileSystem) openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
+	// Ensure dir exists
+	err := os.MkdirAll(fs.path, 0755)
+	if err != nil {
+		return nil, err
+	}
 
 	tempNum := atomic.AddUint64(&fs.tempFileNum, 1)
 
