@@ -37,7 +37,7 @@ type BlobName []byte
 // BlobNameFromHashAndType generates the name of a blob from some hash (e.g. sha256 of blob's content)
 // and given blob type
 func BlobNameFromHashAndType(hash []byte, t BlobType) (BlobName, error) {
-	if len(hash) == 0 {
+	if len(hash) == 0 || len(hash) > 0x7E {
 		return nil, ErrInvalidBlobName
 	}
 
@@ -57,7 +57,7 @@ func BlobNameFromHashAndType(hash []byte, t BlobType) (BlobName, error) {
 // BlobNameFromString decodes base58-encoded string into blob name
 func BlobNameFromString(s string) (BlobName, error) {
 	decoded := base58.Decode(s)
-	if len(decoded) == 0 {
+	if len(decoded) == 0 || len(decoded) > 0x7F {
 		return nil, ErrInvalidBlobName
 	}
 	return BlobName(decoded), nil
