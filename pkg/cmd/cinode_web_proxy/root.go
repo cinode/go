@@ -18,7 +18,6 @@ package cinode_web_proxy
 
 import (
 	"bytes"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -33,6 +32,7 @@ import (
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/protobuf"
 	"github.com/cinode/go/pkg/structure"
+	"github.com/jbenet/go-base58"
 )
 
 const (
@@ -72,7 +72,7 @@ func buildDS(name string) (datastore.DS, error) {
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	entrypointHex, found := os.LookupEnv("CINODE_ENTRYPOINT")
+	entrypointB58, found := os.LookupEnv("CINODE_ENTRYPOINT")
 	if !found {
 		entrypointFile, found := os.LookupEnv("CINODE_ENTRYPOINT_FILE")
 		if !found {
@@ -82,11 +82,11 @@ func Execute() {
 		if err != nil {
 			log.Fatalf("Could not read entrypoint file at '%s': %v", entrypointFile, err)
 		}
-		entrypointHex = string(bytes.TrimSpace(entrypointFileData))
+		entrypointB58 = string(bytes.TrimSpace(entrypointFileData))
 	}
-	entrypointRaw, err := hex.DecodeString(entrypointHex)
-	if err != nil {
-		log.Fatalf("Could not decode hex entrypoint data: %v", err)
+	entrypointRaw := base58.Decode(entrypointB58)
+	if len(entrypointRaw) == 0 {
+		log.Fatalf("Could not decode hex entrypoint data")
 	}
 	entrypoint, err := protobuf.EntryPointFromBytes(entrypointRaw)
 	if err != nil {

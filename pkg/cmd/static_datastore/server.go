@@ -17,8 +17,6 @@ limitations under the License.
 package static_datastore
 
 import (
-	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -32,6 +30,7 @@ import (
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/protobuf"
 	"github.com/cinode/go/pkg/structure"
+	"github.com/jbenet/go-base58"
 	"github.com/spf13/cobra"
 )
 
@@ -68,23 +67,12 @@ func getEntrypoint(datastoreDir string) (*protobuf.Entrypoint, error) {
 		return nil, fmt.Errorf("can't read entrypoint data from %s", datastoreDir)
 	}
 
-	data, err = hex.DecodeString(strings.TrimSpace(string(data)))
-	if err != nil {
-		return nil, fmt.Errorf("invalid entrypoint data file in %s - not a hexadecimal string", datastoreDir)
+	data = base58.Decode(strings.TrimSpace(string(data)))
+	if len(data) == 0 {
+		return nil, fmt.Errorf("invalid entrypoint data file in %s - not a valid base58-encoded string", datastoreDir)
 	}
 
 	return protobuf.EntryPointFromBytes(data)
-}
-
-func handleDir(
-	ctx context.Context,
-	be blenc.BE,
-	ep *protobuf.Entrypoint,
-	w http.ResponseWriter,
-	r *http.Request,
-	subPath string,
-) {
-
 }
 
 func serverHandler(datastoreDir string, useRawFS bool) (http.Handler, error) {
