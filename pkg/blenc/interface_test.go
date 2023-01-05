@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"io"
 	"testing"
 
 	"github.com/cinode/go/pkg/datastore"
@@ -42,10 +43,12 @@ func TestBlencCommonScenario(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, exists)
 
-	w := bytes.NewBuffer(nil)
-	err = be.Read(context.Background(), bn, key, w)
+	rc, err := be.Open(context.Background(), bn, key)
 	require.NoError(t, err)
-	require.Equal(t, data, w.Bytes())
+
+	readData, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	require.Equal(t, data, readData)
 
 	err = be.Delete(context.Background(), bn)
 	require.NoError(t, err)

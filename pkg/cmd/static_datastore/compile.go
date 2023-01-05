@@ -35,6 +35,7 @@ func compileCmd() *cobra.Command {
 
 	var srcDir, dstDir string
 	var useStaticBlobs bool
+	var useRawFilesystem bool
 	var rootWriterInfo []byte
 
 	cmd := &cobra.Command{
@@ -64,7 +65,7 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 				wi = _wi
 			}
 
-			wi, err := compileFS(srcDir, dstDir, useStaticBlobs, wi)
+			wi, err := compileFS(srcDir, dstDir, useStaticBlobs, wi, useRawFilesystem)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -83,15 +84,21 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 	cmd.Flags().StringVarP(&srcDir, "source", "s", "", "Source directory with content to compile")
 	cmd.Flags().StringVarP(&dstDir, "destination", "d", "", "Destination directory for blobs")
 	cmd.Flags().BoolVarP(&useStaticBlobs, "static", "t", false, "If set to true, compile static dataset and entrypoint.txt file with static dataset")
+	cmd.Flags().BoolVarP(&useRawFilesystem, "raw-filesystem", "r", false, "If set to true, use raw filesystem instead of the optimized one, can be used to create dataset for a standard http server")
 	cmd.Flags().BytesHexVarP(&rootWriterInfo, "writer-info", "w", nil, "Writer info for the rood dynamic link, if not specified, a random writer info will be generated and printed out")
 
 	return cmd
 }
 
-func compileFS(srcDir, dstDir string, static bool, writerInfo *protobuf.WriterInfo) (*protobuf.WriterInfo, error) {
+func compileFS(srcDir, dstDir string, static bool, writerInfo *protobuf.WriterInfo, useRawFS bool) (*protobuf.WriterInfo, error) {
 	var retWi *protobuf.WriterInfo
 
-	be := blenc.FromDatastore(datastore.InFileSystem(dstDir))
+	be := blenc.FromDatastore(func() datastore.DS {
+		if useRawFS {
+			return datastore.InRawFileSystem(dstDir)
+		}
+		return datastore.InFileSystem(dstDir)
+	}())
 
 	ep, err := structure.UploadStaticDirectory(context.Background(), os.DirFS(srcDir), be)
 	if err != nil {

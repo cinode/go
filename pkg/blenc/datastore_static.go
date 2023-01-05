@@ -28,26 +28,31 @@ import (
 	"golang.org/x/crypto/chacha20"
 )
 
-func (be *beDatastore) readStatic(ctx context.Context, name common.BlobName, key EncryptionKey, w io.Writer) error {
+type mergeReaderCloser struct {
+	io.Reader
+	io.Closer
+}
+
+func (be *beDatastore) openStatic(ctx context.Context, name common.BlobName, key EncryptionKey) (io.ReadCloser, error) {
 
 	// TODO: Validate the key - to avoid forcing weak keys
 
 	iv := make([]byte, chacha20.NonceSizeX)
 
-	// TODO: This should be reversed - we should use streamCipherReader here since we're reading encrypted data,
-	// currently it works because stream ciphers we're using are xor-based thus reader and writer is performing the same logic,
-	// it will break if we start using stream cipher where there's asymmetry between encryption and decryption algorithm
-
-	cw, err := streamCipherWriter(key, iv, w)
+	rc, err := be.ds.Open(ctx, name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	err = be.ds.Read(ctx, name, cw)
+	scr, err := streamCipherReader(key, iv, rc)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+
+	return &mergeReaderCloser{
+		Reader: scr,
+		Closer: rc,
+	}, nil
 }
 
 func (be *beDatastore) createStatic(

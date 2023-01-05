@@ -17,6 +17,7 @@ limitations under the License.
 package datastore
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -25,21 +26,22 @@ import (
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
 )
 
-func (ds *datastore) readDynamicLink(ctx context.Context, name common.BlobName, output io.Writer) error {
+func (ds *datastore) openDynamicLink(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	rc, err := ds.s.openReadStream(ctx, name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer rc.Close()
 
 	// Reading the link will validate if it is cryptographically correct,
-	// the TeeReader will send the link data to the output while it's being validated
-	_, err = dynamiclink.FromReader(name, io.TeeReader(rc, output))
+	// the TeeReader will fetch the link data to the buffer
+	buff := bytes.NewBuffer(nil)
+	_, err = dynamiclink.FromReader(name, io.TeeReader(rc, buff))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return io.NopCloser(bytes.NewReader(buff.Bytes())), nil
 }
 
 func (ds *datastore) loadCurrentDynamicLink(ctx context.Context, name common.BlobName) (*dynamiclink.DynamicLinkData, error) {

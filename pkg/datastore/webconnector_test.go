@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -33,7 +34,7 @@ import (
 func TestWebConnectorInvalidUrl(t *testing.T) {
 	c := FromWeb("://bad.url")
 
-	err := c.Read(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
+	_, err := c.Open(context.Background(), emptyBlobNameStatic)
 	require.IsType(t, &url.Error{}, err)
 
 	_, err = c.Exists(context.Background(), emptyBlobNameStatic)
@@ -54,7 +55,7 @@ func TestWebConnectorServerSideError(t *testing.T) {
 
 	c := FromWeb(server.URL + "/")
 
-	err := c.Read(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
+	_, err := c.Open(context.Background(), emptyBlobNameStatic)
 	require.ErrorIs(t, err, ErrWebConnectionError)
 
 	_, err = c.Exists(context.Background(), emptyBlobNameStatic)
@@ -77,9 +78,14 @@ func TestWebConnectorDetectInvalidBlobRead(t *testing.T) {
 
 	ds2 := FromWeb(server.URL + "/")
 
-	data := bytes.NewBuffer(nil)
-	err := ds2.Read(context.Background(), emptyBlobNameStatic, data)
+	rc, err := ds2.Open(context.Background(), emptyBlobNameStatic)
+	require.NoError(t, err)
+
+	_, err = io.ReadAll(rc)
 	require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
+
+	err = rc.Close()
+	require.NoError(t, err)
 
 }
 
@@ -96,8 +102,7 @@ func TestWebConnectorInvalidErrorCode(t *testing.T) {
 
 	ds2 := FromWeb(server.URL + "/")
 
-	data := bytes.NewBuffer(nil)
-	err := ds2.Read(context.Background(), emptyBlobNameStatic, data)
+	_, err := ds2.Open(context.Background(), emptyBlobNameStatic)
 	require.ErrorIs(t, err, ErrWebConnectionError)
 }
 

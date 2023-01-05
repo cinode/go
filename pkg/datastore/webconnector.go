@@ -29,6 +29,7 @@ import (
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
+	"github.com/cinode/go/pkg/internal/utilities/validatingreader"
 )
 
 var (
@@ -72,18 +73,18 @@ func (w *webConnector) Kind() string {
 	return "Web"
 }
 
-func (w *webConnector) Read(ctx context.Context, name common.BlobName, output io.Writer) error {
+func (w *webConnector) Open(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	switch name.Type() {
 	case blobtypes.Static:
-		return w.readStatic(ctx, name, output)
+		return w.openStatic(ctx, name)
 	case blobtypes.DynamicLink:
-		return w.readDynamicLink(ctx, name, output)
+		return w.openDynamicLink(ctx, name)
 	default:
-		return blobtypes.ErrUnknownBlobType
+		return nil, blobtypes.ErrUnknownBlobType
 	}
 }
 
-func (w *webConnector) readStatic(ctx context.Context, name common.BlobName, output io.Writer) error {
+func (w *webConnector) openStatic(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
@@ -91,34 +92,24 @@ func (w *webConnector) readStatic(ctx context.Context, name common.BlobName, out
 		nil,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	res, err := w.do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer res.Body.Close()
 
 	err = w.errCheck(res)
 	if err != nil {
-		return err
+		res.Body.Close()
+		return nil, err
 	}
 
-	hasher := sha256.New()
-	_, err = io.Copy(output, io.TeeReader(res.Body, hasher))
-	if err != nil {
-		return err
-	}
-
-	if !bytes.Equal(name.Hash(), hasher.Sum(nil)) {
-		return blobtypes.ErrValidationFailed
-	}
-
-	return nil
+	return validatingreader.NewHashValidation(res.Body, sha256.New(), name.Hash(), blobtypes.ErrValidationFailed), nil
 }
 
-func (w *webConnector) readDynamicLink(ctx context.Context, name common.BlobName, output io.Writer) error {
+func (w *webConnector) openDynamicLink(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
@@ -126,26 +117,27 @@ func (w *webConnector) readDynamicLink(ctx context.Context, name common.BlobName
 		nil,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	res, err := w.do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer res.Body.Close()
 
 	err = w.errCheck(res)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	_, err = dynamiclink.FromReader(name, io.TeeReader(res.Body, output))
+	buff := bytes.NewBuffer(nil)
+	_, err = dynamiclink.FromReader(name, io.TeeReader(res.Body, buff))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return io.NopCloser(bytes.NewReader(buff.Bytes())), nil
 }
 
 func (w *webConnector) Update(ctx context.Context, name common.BlobName, r io.Reader) error {

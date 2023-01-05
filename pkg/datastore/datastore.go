@@ -34,14 +34,14 @@ func (ds *datastore) Kind() string {
 	return ds.s.kind()
 }
 
-func (ds *datastore) Read(ctx context.Context, name common.BlobName, output io.Writer) error {
+func (ds *datastore) Open(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	switch name.Type() {
 	case blobtypes.Static:
-		return ds.readStatic(ctx, name, output)
+		return ds.openStatic(ctx, name)
 	case blobtypes.DynamicLink:
-		return ds.readDynamicLink(ctx, name, output)
+		return ds.openDynamicLink(ctx, name)
 	default:
-		return blobtypes.ErrUnknownBlobType
+		return nil, blobtypes.ErrUnknownBlobType
 	}
 }
 
@@ -64,10 +64,28 @@ func (ds *datastore) Delete(ctx context.Context, name common.BlobName) error {
 	return ds.s.delete(ctx, name)
 }
 
+// InMemory constructs an in-memory datastore
+//
+// The content is lost if the datastore is destroyed (either by garbage collection
+// or by program termination)
 func InMemory() DS {
 	return &datastore{s: newStorageMemory()}
 }
 
+// InFileSystem constructs a datastore using filesystem as a storage layer.
+//
+// Contrary to InRawFileSystem, this datastore is optimized for large datastores
+// and concurrent use.
 func InFileSystem(path string) DS {
 	return &datastore{s: newStorageFilesystem(path)}
+}
+
+// InRawFilesystem is a simplified storage that uses filesystem as a storage layer.
+//
+// Datastore files are stored directly under base58-encoded blob names.
+// This datastore should not be used for highly concurrent or highly modified
+// cases. The main purpose is to dump files to a disk in a form that can
+// be lated used in a classic web server and used as a static web source.
+func InRawFileSystem(path string) DS {
+	return &datastore{s: newStorageRawFilesystem(path)}
 }

@@ -112,7 +112,7 @@ func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 			s.Require().NoError(err)
 		}
 
-		retWi, err := compileFS(dir, datastoreDir, false, wi)
+		retWi, err := compileFS(dir, datastoreDir, false, wi, false)
 		require.NoError(t, err)
 		wi = retWi
 	})
@@ -124,7 +124,7 @@ func (s *CompileAndReadTestSuite) validateDataset(
 	dataset []datasetFile,
 	datastoreDir string,
 ) {
-	hnd, err := serverHandler(datastoreDir)
+	hnd, err := serverHandler(datastoreDir, false)
 	s.Require().NoError(err)
 	testServer := httptest.NewServer(hnd)
 	defer testServer.Close()

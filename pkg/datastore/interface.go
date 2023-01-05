@@ -55,18 +55,17 @@ type DS interface {
 	// Kind returns string representation of datastore kind (i.e. "Memory")
 	Kind() string
 
-	// Read returns a read stream for given blob name or an error. In case blob
+	// Open returns a read stream for given blob name or an error. In case blob
 	// is not found in datastore, returned error must be of ErrNotFound type.
 	//
-	// The content of the blob will be written to the `output` stream.
-	// Some data may already be partially written even though the function
-	// may return an error. In such case the content written to the output
-	// stream should be discarded.
+	// The blob may be detected to be invalid (not passing the validation),
+	// in that case, either the Open call or the Read method from the returned
+	// reader will return ErrInvalidData error.
 	//
-	// If it does not, ErrInvalidData must be returned instead of io.EOF.
-	// This check is needed to ensure the underlying data has not been
-	// tempered with (chosen ciphertext attack)
-	Read(ctx context.Context, name common.BlobName, output io.Writer) error
+	// If a non-nil error is returned, the writer will be nil. Otherwise it
+	// is necessary to call the `Close` on the returned reader once done
+	// with the reader.
+	Open(ctx context.Context, name common.BlobName) (io.ReadCloser, error)
 
 	// Update retrieves an update for given blob. The data is read from given
 	// reader until it returns either EOF, ending successful save, or any other

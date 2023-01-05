@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -131,44 +132,19 @@ func FromReader(name common.BlobName, r io.Reader) (*DynamicLinkData, error) {
 	return &dl, nil
 }
 
-func (d *DynamicLinkData) SendToWriter(w io.Writer) error {
-	// Reserved
-	_, err := w.Write([]byte{reservedByteValue})
-	if err != nil {
-		return err
-	}
+func (d *DynamicLinkData) getBytes() []byte {
+	w := bytes.NewBuffer(nil)
+	w.Write([]byte{reservedByteValue})
+	w.Write(d.PublicKey)
+	w.Write(storeUint64(d.ContentVersion))
+	w.Write(d.Signature)
+	w.Write(d.IV)
+	w.Write(d.EncryptedLink)
+	return w.Bytes()
+}
 
-	// Public key
-	_, err = w.Write(d.PublicKey)
-	if err != nil {
-		return err
-	}
-
-	// Content version
-	_, err = w.Write(storeUint64(d.ContentVersion))
-	if err != nil {
-		return err
-	}
-
-	// Signature
-	_, err = w.Write(d.Signature)
-	if err != nil {
-		return err
-	}
-
-	// IV
-	_, err = w.Write(d.IV)
-	if err != nil {
-		return err
-	}
-
-	// Encrypted link
-	_, err = w.Write(d.EncryptedLink)
-	if err != nil {
-		return err
-	}
-
-	return nil
+func (d *DynamicLinkData) CreateReader() io.Reader {
+	return bytes.NewReader(d.getBytes())
 }
 
 func (d *DynamicLinkData) CalculateIV(unencryptedLink []byte) []byte {
@@ -208,23 +184,23 @@ func (d *DynamicLinkData) verifyPublicData(name common.BlobName) error {
 }
 
 func (d *DynamicLinkData) bytesToSign() []byte {
-	b := bytes.NewBuffer(nil)
+	h := sha512.New()
 
 	// Content indicator
-	b.WriteByte(signatureForLinkData)
+	h.Write([]byte{signatureForLinkData})
 
 	// Blob name, length-prefixed
 	bn := d.BlobName()
-	b.WriteByte(byte(len(bn)))
-	b.Write(bn)
+	h.Write([]byte{byte(len(bn))})
+	h.Write(bn)
 
 	// Version
-	b.Write(storeUint64(d.ContentVersion))
+	h.Write(storeUint64(d.ContentVersion))
 
 	// Encrypted link
-	b.Write(d.EncryptedLink)
+	h.Write(d.EncryptedLink)
 
-	return b.Bytes()
+	return h.Sum(nil)
 }
 
 func (d *DynamicLinkData) BlobName() common.BlobName {
