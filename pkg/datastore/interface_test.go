@@ -393,13 +393,13 @@ func (s *DatastoreTestSuite) TestDynamicLinkPropagation() {
 	s.expectDynamicLinkData(1)
 
 	s.updateDynamicLink(2)
-	s.expectDynamicLinkData(2)
+	s.expectDynamicLinkData(1)
 
 	s.updateDynamicLink(1)
-	s.expectDynamicLinkData(2)
+	s.expectDynamicLinkData(1)
 
 	s.updateDynamicLink(0)
-	s.expectDynamicLinkData(2)
+	s.expectDynamicLinkData(1)
 }
 
 // // Invalid names behave just as if there was no blob with such name.
