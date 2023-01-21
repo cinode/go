@@ -169,7 +169,8 @@ func genAll(gp gp) ([]byte, []byte, []byte, []byte) {
 	buff := []byte{}
 	buff = append(buff, *gp.reservedByte)
 	buff = append(buff, gp.privKey.Public().(ed25519.PublicKey)...)
-	buff = binary.BigEndian.AppendUint64(buff, *gp.nonce)
+	buff = append(buff, 0, 0, 0, 0, 0, 0, 0, 0)
+	binary.BigEndian.PutUint64(buff[len(buff)-8:], *gp.nonce)
 
 	hash := sha256.Sum256(buff)
 
@@ -258,7 +259,8 @@ func genAll(gp gp) ([]byte, []byte, []byte, []byte) {
 	signature = gp.signaturePostProcess(signature)
 
 	// Add changing data to the link buffer
-	buff = binary.BigEndian.AppendUint64(buff, *gp.contentVersion)
+	buff = append(buff, 0, 0, 0, 0, 0, 0, 0, 0)
+	binary.BigEndian.PutUint64(buff[len(buff)-8:], *gp.contentVersion)
 	buff = append(buff, signature...)
 	buff = append(buff, byte(len(iv)))
 	buff = append(buff, iv...)
