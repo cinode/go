@@ -16,11 +16,19 @@ limitations under the License.
 
 package protobuf
 
+//go:generate protoc --go_out=. protobuf.proto
+
 import (
+	"errors"
+	"time"
+
 	"google.golang.org/protobuf/proto"
 )
 
-//go:generate protoc --go_out=. protobuf.proto
+var (
+	ErrInvalidEntrypoint     = errors.New("invalid entrypoint")
+	ErrInvalidEntrypointTime = errors.New("%w: time validation failed")
+)
 
 func (ep *Entrypoint) ToBytes() ([]byte, error) {
 	return proto.Marshal(ep)
@@ -46,4 +54,20 @@ func WriterInfoFromBytes(b []byte) (*WriterInfo, error) {
 		return nil, err
 	}
 	return ret, nil
+}
+
+func (ep *Entrypoint) Validate(currentTime time.Time) error {
+	currentTimeMicro := currentTime.UnixMicro()
+
+	if ep.GetNotValidAfterUnixMicro() != 0 &&
+		currentTimeMicro > ep.GetNotValidAfterUnixMicro() {
+		return ErrInvalidEntrypointTime
+	}
+
+	if ep.GetNotValidBeforeUnixMicro() != 0 &&
+		currentTimeMicro < ep.GetNotValidBeforeUnixMicro() {
+		return ErrInvalidEntrypointTime
+	}
+
+	return nil
 }

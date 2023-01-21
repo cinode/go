@@ -20,6 +20,7 @@ import (
 	"context"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/common"
@@ -32,6 +33,7 @@ type CinodeFS struct {
 	RootEntrypoint   *protobuf.Entrypoint
 	MaxLinkRedirects int
 	IndexFile        string
+	CurrentTimeF     func() time.Time
 }
 
 func (d *CinodeFS) OpenContent(ctx context.Context, ep *protobuf.Entrypoint) (io.ReadCloser, error) {
@@ -43,11 +45,19 @@ func (d *CinodeFS) OpenContent(ctx context.Context, ep *protobuf.Entrypoint) (io
 }
 
 func (d *CinodeFS) FindEntrypoint(ctx context.Context, path string) (*protobuf.Entrypoint, error) {
-	return d.findEntrypointInDir(ctx, d.RootEntrypoint, path)
+	return d.findEntrypointInDir(ctx, d.RootEntrypoint, path, d.currentTime())
 }
 
-func (d *CinodeFS) findEntrypointInDir(ctx context.Context, ep *protobuf.Entrypoint, remainingPath string) (*protobuf.Entrypoint, error) {
-	ep, err := DereferenceLink(ctx, d.BE, ep, d.MaxLinkRedirects)
+func (d *CinodeFS) findEntrypointInDir(
+	ctx context.Context,
+	ep *protobuf.Entrypoint,
+	remainingPath string,
+	currentTime time.Time,
+) (
+	*protobuf.Entrypoint,
+	error,
+) {
+	ep, err := DereferenceLink(ctx, d.BE, ep, d.MaxLinkRedirects, currentTime)
 	if err != nil {
 		return nil, err
 	}
@@ -85,12 +95,19 @@ func (d *CinodeFS) findEntrypointInDir(ctx context.Context, ep *protobuf.Entrypo
 
 	if len(pathParts) == 1 {
 		// Found the entry, no need to descend any further, only dereference the link
-		entry, err = DereferenceLink(ctx, d.BE, entry, d.MaxLinkRedirects)
+		entry, err = DereferenceLink(ctx, d.BE, entry, d.MaxLinkRedirects, currentTime)
 		if err != nil {
 			return nil, err
 		}
 		return entry, nil
 	}
 
-	return d.findEntrypointInDir(ctx, entry, pathParts[1])
+	return d.findEntrypointInDir(ctx, entry, pathParts[1], currentTime)
+}
+
+func (d *CinodeFS) currentTime() time.Time {
+	if d.CurrentTimeF != nil {
+		return d.CurrentTimeF()
+	}
+	return time.Now()
 }
