@@ -34,3 +34,10 @@ message Entrypoint {
 message Directory {
   map<string, Entrypoint> entries = 1;
 }
+
+// WriterInfo contains information that allows updating given blob
+message WriterInfo {
+  bytes blobName = 1;
+  bytes key = 2;
+  bytes authInfo = 3;
+}
