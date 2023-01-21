@@ -1,0 +1,20 @@
+{
+   "name": "dynamic/attacks/private/012_key_validation_block_length_larger",
+   "description": "Invalid key validation block - length larger",
+   "details": [
+      "For client validation purposes, unencrypted data contains key validation block",
+      "next to the link information itself. The data is length prefixed and must be of",
+      "a specific length to be accepted.",
+      "",
+      "This test checks whether key validation block larger than the desired value",
+      "will result in rejection of the encryption key."
+   ],
+   "added_at": "2023-01-21",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKU9fgR8I0fY7cY5iwC/yPrD+aIKELJkIjWYLhcKqU9ZciIPl7qf8/DgFCjrUAEBRFlZCJlWz6XBT3JZ8Ov5ZvdalhSSnmgRIAYYXKRv7zWmirtl2shP5vNnXbdjutf0Zbxc0dL3ms7w+00+Vk9Uvo6OJeF9b1pjaOFE6bWDZTLh+9fo0RM9wJMpkZlp71yH/ZNFAU5wKpQNOVvkKi3elbkbj68Qikt3wMDBpd7ebB+OTKQKe1kMGyJmmwx95RmO51L+gXM=",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "invalid key validation block signature"
+}

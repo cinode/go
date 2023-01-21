@@ -1,0 +1,19 @@
+{
+   "name": "dynamic/attacks/public/013_signature_mismatch_content_version",
+   "description": "Signature mismatch - content version",
+   "details": [
+      "Dynamic link signature is protecting both unchanging and changing blob",
+      "data. To enable forward progress, the link with higher content version",
+      "does replace the link with the lower one. The signature thus has to",
+      "include the content version so that the attacker can not reuse an older",
+      "version of the link to replace newer one by bumping the content version."
+   ],
+   "added_at": "2023-01-20",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKU9fgR8I0fY7Qogx5LtF4ZYWbK12PQ08ULIo7ZOsSC1lBHWNWFk7M9SNAWJOdg8QUw0QVhT9foW2p0Q4WMjtMb27atGsFfncwMYgm05+huh8d3zeW9XerZOUfldOReVCs5vEHMup4ZuuB1tjnuCVe6CyjUitoF4dX7LnAzC6/0oZLQWJ981eHqMv6KOKu6NLZ+tFKuOeE1lVdNCY8KgippFYCz2jk88cdqkz1UONhTgJZdgVmCHw5iFW2GAbzYEIqi6Bc0=",
+   "decrypted_dataset": null,
+   "valid_publicly": false,
+   "valid_privately": false,
+   "go_error_contains": "signature mismatch"
+}

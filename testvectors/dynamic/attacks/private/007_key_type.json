@@ -1,0 +1,16 @@
+{
+   "name": "dynamic/attacks/private/007_key_type",
+   "description": "Invalid encryption key - keygen type",
+   "details": [
+      "Encryption key contains encryption algorithm type information encoded before",
+      "key bytes. This test ensures that invalid encryption algorithm is rejected."
+   ],
+   "added_at": "2023-01-21",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "+3nSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKU9fgR8I0fY7b7wUpRMFnd/leuABxZsdZGBPNzSj+NXl6yzwRkQ0fpq+sKA9fiCeVABPLrD4DXr4jBCixNYVnXVU+REJ3vHTgEYgm05+huh8d3zeW9XerZOUfldOReVCs5vEHMup4ZuuB1tjnuCVe6CyjUitoF4dX7LnAzC6/0oZLQWJ981eHqMv6KOKu6NLZ+tFKuOeE1lVdNCY8KgippFYCz2jk88cdqkz1UONhTgJZdgVmCHw5iFW2GAbzYEIqi6Bc0=",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "wrong key type"
+}

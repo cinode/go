@@ -1,0 +1,19 @@
+{
+   "name": "dynamic/attacks/public/014_signature_mismatch_encrypted_link_data",
+   "description": "Signature mismatch - encrypted link data",
+   "details": [
+      "Dynamic link signature is protecting both unchanging and changing blob",
+      "data. The signature must protect the main encrypted link data.",
+      "The signature has to be calculated over the encrypted data so that the",
+      "network can detect invalid signatures without revealing the unencrypted",
+      "information."
+   ],
+   "added_at": "2023-01-20",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKU9fgR8I0fY7QGb/0oxpi8wgoi+3zJjvzV4kQm3BTEPPRT4VwfKUdNCNpboQTggatG3n4DX9irZ20nnS5PTsL5LAIeaRO40Zg8Ygm05+huh8d3zeW9XerZOUfldOReVCs5vEHMup4ZuuB1tjnuCVe6CyjUitoF4dX7LnAzC6/0oZLQWJ981eHqMv6KOKu6NLZ+tFKuOeE1lVdNCY8KgippFYCz2jk88cdqkz1UONhTgJZdgVmCHw5iFW2GAbzYEIqi6Bc0=",
+   "decrypted_dataset": null,
+   "valid_publicly": false,
+   "valid_privately": false,
+   "go_error_contains": "signature mismatch"
+}

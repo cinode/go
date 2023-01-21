@@ -1,0 +1,17 @@
+{
+   "name": "dynamic/attacks/public/006_blob_mismatch_priv_key",
+   "description": "Blob name mismatch for key",
+   "details": [
+      "Blob name is built based on unchanging data in the dynamic link",
+      "this test blob ensures that the public key must remain the same",
+      "to keep the same blob name"
+   ],
+   "added_at": "2023-01-20",
+   "blob_name": "TMyaPVUeSqwNqcK8XFWwFZ0ojka9EPkiIKA2ASygDFCS",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKU9fgR8I0fY7b7wUpRMFnd/leuABxZsdZGBPNzSj+NXl6yzwRkQ0fpq+sKA9fiCeVABPLrD4DXr4jBCixNYVnXVU+REJ3vHTgEYgm05+huh8d3zeW9XerZOUfldOReVCs5vEHMup4ZuuB1tjnuCVe6CyjUitoF4dX7LnAzC6/0oZLQWJ981eHqMv6KOKu6NLZ+tFKuOeE1lVdNCY8KgippFYCz2jk88cdqkz1UONhTgJZdgVmCHw5iFW2GAbzYEIqi6Bc0=",
+   "decrypted_dataset": null,
+   "valid_publicly": false,
+   "valid_privately": false,
+   "go_error_contains": "blob name mismatch"
+}

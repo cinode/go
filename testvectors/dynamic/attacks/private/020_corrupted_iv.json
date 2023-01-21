@@ -1,0 +1,18 @@
+{
+   "name": "dynamic/attacks/private/020_corrupted_iv",
+   "description": "Invalid encryption iv - corrupted iv",
+   "details": [
+      "Data link encryption iv is calculated by using a hash function.",
+      "The iv value is calculated from both changing and unchanging data.",
+      "",
+      "This test ensures that corrupted iv is rejected while trying to read the plaintext link data."
+   ],
+   "added_at": "2023-01-21",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKU9fgR8I0fY7X4eFerFrC1xTXDUIo2f17lBIR0gT0bVoVV9Gjjyo+druTpw2AdnwUCK1gXLv068p2uJVVeG+FwbRSiW+FbejQwYgm05+huh8d3zeW9XDbZOUfldOReVCs5v46ga30Y88GdePhn8IwwGgAXSbNIvHpCU1gnoqj7bYF8IMccqSjFjbUGj0EoESwMghcMUN+BSMFKv9Tx3OF0IjdSLvoj/jWfIAA5dPrhLcAgnvLDgnoTRaiyF8QBeVgJI2BE=",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "iv mismatch"
+}

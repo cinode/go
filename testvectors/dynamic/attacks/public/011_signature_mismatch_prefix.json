@@ -1,0 +1,21 @@
+{
+   "name": "dynamic/attacks/public/011_signature_mismatch_prefix",
+   "description": "Signature mismatch - prefix byte",
+   "details": [
+      "Dynamic link signature is protecting both unchanging and changing blob",
+      "data. Also to enable signatures for different independent data sources,",
+      "those are using additional prefixes to avoid signature collisions that could",
+      "be exploited by an attacker (e.g. by causing reveal of signature for",
+      "data in one source that has the same byte sequence as in other source).",
+      "This test ensures that the signature won't match if the data source prefix",
+      "is different."
+   ],
+   "added_at": "2023-01-20",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKU9fgR8I0fY7agXrtZdy7RUD/+mAgukotWKbMMBRPFal1oK3aQDF53et0su2Lj3GzGw2biPY0jr3ITHta+NaP0T3hyJaAOobQ8Ygm05+huh8d3zeW9XerZOUfldOReVCs5vEHMup4ZuuB1tjnuCVe6CyjUitoF4dX7LnAzC6/0oZLQWJ981eHqMv6KOKu6NLZ+tFKuOeE1lVdNCY8KgippFYCz2jk88cdqkz1UONhTgJZdgVmCHw5iFW2GAbzYEIqi6Bc0=",
+   "decrypted_dataset": null,
+   "valid_publicly": false,
+   "valid_privately": false,
+   "go_error_contains": "signature mismatch"
+}

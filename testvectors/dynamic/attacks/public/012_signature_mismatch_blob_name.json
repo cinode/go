@@ -1,0 +1,25 @@
+{
+   "name": "dynamic/attacks/public/012_signature_mismatch_blob_name",
+   "description": "Signature mismatch - blob name",
+   "details": [
+      "Dynamic link signature is protecting both unchanging and changing blob",
+      "data. The same public/private key pair can be used for different blob names.",
+      "To ensure that the signature for different blob names is different,",
+      "the blob name itself is included in the signed dataset.",
+      "",
+      "This prevents an attack where targeted person uses the same private key",
+      "but different nonces to sign data of different security level. If the same",
+      "signature would be created for the same dataset in different blob names,",
+      "attacker could use this to trick the victim to sign some less important",
+      "information and reuse it to replace other blob name that is of a high",
+      "importance."
+   ],
+   "added_at": "2023-01-20",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKU9fgR8I0fY7f7gNzYRsk/6x72XLTG5dUijqQb2y8XV3tvv+LPT0EuRCY76ZCrkz7V08q6l/2+BYuqQyrA8pPKI9dIRqLb/0A4Ygm05+huh8d3zeW9XerZOUfldOReVCs5vEHMup4ZuuB1tjnuCVe6CyjUitoF4dX7LnAzC6/0oZLQWJ981eHqMv6KOKu6NLZ+tFKuOeE1lVdNCY8KgippFYCz2jk88cdqkz1UONhTgJZdgVmCHw5iFW2GAbzYEIqi6Bc0=",
+   "decrypted_dataset": null,
+   "valid_publicly": false,
+   "valid_privately": false,
+   "go_error_contains": "signature mismatch"
+}

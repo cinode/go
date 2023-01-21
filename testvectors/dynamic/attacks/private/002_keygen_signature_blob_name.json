@@ -1,0 +1,19 @@
+{
+   "name": "dynamic/attacks/private/002_keygen_signature_blob_name",
+   "description": "Invalid encryption key - keygen signature blob name",
+   "details": [
+      "Data link encryption key is deterministically calculated from link's configuration.",
+      "It must be calculate based on unchanging link dataset and private key.",
+      "",
+      "This test ensures that an invalid blob name used in key generation signature will",
+      "result in rejection of the encryption key."
+   ],
+   "added_at": "2023-01-21",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKU9fgR8I0fY7YMNYQpS56L4vAWk3/DapkQi713+as/tplIfR0JlRCVIyMElE1Qsrbr11X5ILtrnRHPUyszubBWJ+LHKjUNYLAsYzmA431vnLdfwqLEe/fmw+eXYdx6z1apQJeCEomt/+QTY8HBZWC1gC4GKcdLid6boHf79eRdv19tjrorCNwHQMh+t4wuY1o+WjWiokPaF9jAPrGTZi9a1JqnyupKCtj6NlZ3gyS41e09jqwc9VqsN+uDUhpboa0tIdj0=",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "invalid key validation block signature"
+}

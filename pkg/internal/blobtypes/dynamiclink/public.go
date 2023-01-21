@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
-	"crypto/sha512"
 	"fmt"
 	"hash"
 	"io"
@@ -40,15 +39,18 @@ var (
 	ErrInvalidDynamicLinkDataTruncated    = fmt.Errorf("%w: data truncated", ErrInvalidDynamicLinkData)
 	ErrInvalidDynamicLinkDataBlockSize    = fmt.Errorf("%w: block size too large", ErrInvalidDynamicLinkData)
 
-	ErrInvalidDynamicLinkIV  = fmt.Errorf("%w: invalid iv", ErrInvalidDynamicLinkData)
-	ErrInvalidDynamicLinkKey = fmt.Errorf("%w: invalid key", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkIVMismatch                     = fmt.Errorf("%w: iv mismatch", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkKeyMismatch                    = fmt.Errorf("%w: key mismatch", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkKeyValidationBlock             = fmt.Errorf("%w: invalid key validation block", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkKeyValidationBlockReservedByte = fmt.Errorf("%w reserved byte", ErrInvalidDynamicLinkKeyValidationBlock)
+	ErrInvalidDynamicLinkKeyValidationBlockSignature    = fmt.Errorf("%w signature", ErrInvalidDynamicLinkKeyValidationBlock)
 )
 
 const (
 	reservedByteValue byte = 0
 
-	signatureForLinkData                byte = 0
-	signatureForEncryptionKeyGeneration byte = 0xFF
+	signatureForLinkData                byte = 0x00
+	signatureForEncryptionKeyGeneration byte = 0x01
 )
 
 // Public represents public link static data
@@ -205,7 +207,7 @@ func (d *PublicReader) GetPublicDataReader() io.Reader {
 }
 
 func (d *PublicReader) toSignDataHasherPrefilled() hash.Hash {
-	h := sha512.New()
+	h := sha256.New()
 
 	storeByte(h, signatureForLinkData)
 	storeDynamicSizeBuff(h, d.BlobName())
@@ -234,7 +236,6 @@ func (d *PublicReader) GreaterThan(d2 *PublicReader) bool {
 func (d *PublicReader) ivGeneratorPrefilled() cipherfactory.IVGenerator {
 	ivGenerator := cipherfactory.NewIVGenerator(blobtypes.DynamicLink)
 
-	storeByte(ivGenerator, reservedByteValue)
 	storeDynamicSizeBuff(ivGenerator, d.BlobName())
 	storeUint64(ivGenerator, d.contentVersion)
 
@@ -251,7 +252,7 @@ func (d *PublicReader) validateKeyInLinkData(key cipherfactory.Key, r io.Reader)
 		return err
 	}
 	if len(kvb) == 0 || kvb[0] != reservedByteValue {
-		return ErrInvalidDynamicLinkKey
+		return ErrInvalidDynamicLinkKeyValidationBlockReservedByte
 	}
 	signature := kvb[1:]
 
@@ -262,7 +263,7 @@ func (d *PublicReader) validateKeyInLinkData(key cipherfactory.Key, r io.Reader)
 
 	// Key validation block contains the signature of data seed
 	if !ed25519.Verify(d.publicKey, dataSeed, signature) {
-		return ErrInvalidDynamicLinkKey
+		return ErrInvalidDynamicLinkKeyValidationBlockSignature
 	}
 
 	// That signature is fed into the key generator and builds the key
@@ -271,7 +272,7 @@ func (d *PublicReader) validateKeyInLinkData(key cipherfactory.Key, r io.Reader)
 	generatedKey := keyGenerator.Generate()
 
 	if !bytes.Equal(generatedKey, key) {
-		return ErrInvalidDynamicLinkKey
+		return ErrInvalidDynamicLinkKeyMismatch
 	}
 
 	return nil
@@ -298,7 +299,7 @@ func (d *PublicReader) GetLinkDataReader(key cipherfactory.Key) (io.Reader, erro
 		r,
 		func() error {
 			if !bytes.Equal(ivHasher.Generate(), d.iv) {
-				return ErrInvalidDynamicLinkIV
+				return ErrInvalidDynamicLinkIVMismatch
 			}
 
 			return nil

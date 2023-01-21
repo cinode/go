@@ -1,0 +1,21 @@
+{
+   "name": "dynamic/attacks/private/005_keygen_hash_encryption_alg",
+   "description": "Invalid encryption key - keygen hash encryption alg",
+   "details": [
+      "Data link encryption key is calculated by using a hash function.",
+      "To avoid potential security issue where the same hash function with",
+      "the same input data is reused for different encryption algorithms,",
+      "there's an encoded encryption algorithm info before the final data to be hashed.",
+      "",
+      "This test ensures that invalid encryption algorithm information used in the hashed",
+      "data results with an invalid key that is rejected while trying to read the plaintext link data."
+   ],
+   "added_at": "2023-01-21",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AAUewgRMphOrK0UFnoJcSaTYf8NVAe/JjSo339Ycc99H",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKU9fgR8I0fY7QdZ2cBep8L5ukuvi8HJcwOuARV9NC4AmGJu6JBgiuAgrB4aLXqdYXRp5g0maShytZZdq6qNMlIi1VNkSZHo1QoYgm05+huh8d3zeW9XerZOUfldOReVCs5vMXIdaqAhWuxpHlq7VN9HkV/Z63QUO2pYFF1hCAxJ3s9TJYvZP0KBjp/Zg/jwwtKDyixFxgmmZPdxjaNXeBpUNC1/0aNTpeCV73Sao+fTLr7TCP9deX77VwCyRoAWlQnym2E=",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "key mismatch"
+}

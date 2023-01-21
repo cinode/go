@@ -30,7 +30,7 @@ var (
 	// key can not be interpreted
 	ErrInvalidEncryptionConfig = errors.New("invalid encryption config")
 
-	ErrInvalidEncryptionConfigKeyType = fmt.Errorf("%w: wrong keyType", ErrInvalidEncryptionConfig)
+	ErrInvalidEncryptionConfigKeyType = fmt.Errorf("%w: wrong key type", ErrInvalidEncryptionConfig)
 	ErrInvalidEncryptionConfigKeySize = fmt.Errorf("%w: wrong XChaCha20 key size, expected %d bytes", ErrInvalidEncryptionConfig, chacha20.KeySize+1)
 	ErrInvalidEncryptionConfigIVSize  = fmt.Errorf("%w: wrong XChaCha20 iv size, expected %d bytes", ErrInvalidEncryptionConfig, chacha20.NonceSizeX)
 )
