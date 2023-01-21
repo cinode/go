@@ -47,6 +47,11 @@ var emptyBlobNameDynamicLink = func() common.BlobName {
 	return bn
 }()
 
+var emptyBlobNamesOfAllTypes = []common.BlobName{
+	emptyBlobNameStatic,
+	emptyBlobNameDynamicLink,
+}
+
 type helperReader struct {
 	buf    io.Reader
 	onRead func() error
