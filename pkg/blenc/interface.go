@@ -22,10 +22,11 @@ import (
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
+	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 )
 
 type AuthInfo = []byte
-type EncryptionKey = []byte
+type EncryptionKey = cipherfactory.Key
 
 var (
 	ErrNotFound = datastore.ErrNotFound

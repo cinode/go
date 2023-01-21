@@ -33,10 +33,10 @@ import (
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/internal/blobtypes"
+	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 	"github.com/cinode/go/pkg/protobuf"
 	"github.com/cinode/go/pkg/structure"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/chacha20"
 )
 
 func TestWebProxyHandlerInvalidEntrypoint(t *testing.T) {
@@ -54,7 +54,7 @@ func TestWebProxyHandlerInvalidEntrypoint(t *testing.T) {
 			BlobName: n,
 			MimeType: structure.CinodeDirMimeType,
 			KeyInfo: &protobuf.KeyInfo{
-				Key: make([]byte, chacha20.KeySize),
+				Key: cipherfactory.NewKeyGenerator(blobtypes.Static).Generate(),
 			},
 		},
 	)

@@ -30,7 +30,6 @@ import (
 	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 	"github.com/cinode/go/pkg/internal/utilities/validatingreader"
-	"golang.org/x/crypto/chacha20"
 )
 
 var (
@@ -39,8 +38,10 @@ var (
 	ErrInvalidDynamicLinkDataBlobName     = fmt.Errorf("%w: blob name mismatch", ErrInvalidDynamicLinkData)
 	ErrInvalidDynamicLinkDataSignature    = fmt.Errorf("%w: signature mismatch", ErrInvalidDynamicLinkData)
 	ErrInvalidDynamicLinkDataTruncated    = fmt.Errorf("%w: data truncated", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkDataBlockSize    = fmt.Errorf("%w: block size too large", ErrInvalidDynamicLinkData)
 
-	ErrInvalidDynamicLinkIV = fmt.Errorf("%w: invalid iv", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkIV  = fmt.Errorf("%w: invalid iv", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkKey = fmt.Errorf("%w: invalid key", ErrInvalidDynamicLinkData)
 )
 
 const (
@@ -60,9 +61,10 @@ type Public struct {
 
 func (d *Public) BlobName() common.BlobName {
 	hasher := sha256.New()
-	hasher.Write([]byte{reservedByteValue})
-	hasher.Write(d.publicKey)
-	hasher.Write(storeUint64(d.nonce))
+
+	storeByte(hasher, reservedByteValue)
+	storeBuff(hasher, d.publicKey)
+	storeUint64(hasher, d.nonce)
 
 	bn, _ := common.BlobNameFromHashAndType(hasher.Sum(nil), blobtypes.DynamicLink)
 	return bn
@@ -90,7 +92,6 @@ func FromPublicData(name common.BlobName, r io.Reader) (*PublicReader, error) {
 			publicKey: make([]byte, ed25519.PublicKeySize),
 		},
 		signature: make([]byte, ed25519.SignatureSize),
-		iv:        make([]byte, chacha20.NonceSizeX),
 	}
 
 	// 1. Static data independent from the linked blob
@@ -132,7 +133,7 @@ func FromPublicData(name common.BlobName, r io.Reader) (*PublicReader, error) {
 		return nil, err
 	}
 
-	err = readBuff(r, dl.iv, "iv")
+	dl.iv, err = readDynamicSizeBuff(r, "iv")
 	if err != nil {
 		return nil, err
 	}
@@ -187,14 +188,15 @@ func (d *PublicReader) GetPublicDataReader() io.Reader {
 
 	// Preamble - static link data
 	w := bytes.NewBuffer(nil)
-	w.Write([]byte{reservedByteValue})
-	w.Write(d.publicKey)
-	w.Write(storeUint64(d.nonce))
+
+	storeByte(w, reservedByteValue)
+	storeBuff(w, d.publicKey)
+	storeUint64(w, d.nonce)
 
 	// Preamble - dynamic link data
-	w.Write(storeUint64(d.contentVersion))
-	w.Write(d.signature)
-	w.Write(d.iv)
+	storeUint64(w, d.contentVersion)
+	storeBuff(w, d.signature)
+	storeDynamicSizeBuff(w, d.iv)
 
 	return io.MultiReader(
 		bytes.NewReader(w.Bytes()), // Preamble
@@ -205,16 +207,9 @@ func (d *PublicReader) GetPublicDataReader() io.Reader {
 func (d *PublicReader) toSignDataHasherPrefilled() hash.Hash {
 	h := sha512.New()
 
-	// Content indicator
-	h.Write([]byte{signatureForLinkData})
-
-	// Blob name, length-prefixed
-	bn := d.BlobName()
-	h.Write([]byte{byte(len(bn))})
-	h.Write(bn)
-
-	// Version
-	h.Write(storeUint64(d.contentVersion))
+	storeByte(h, signatureForLinkData)
+	storeDynamicSizeBuff(h, d.BlobName())
+	storeUint64(h, d.contentVersion)
 
 	return h
 }
@@ -236,26 +231,53 @@ func (d *PublicReader) GreaterThan(d2 *PublicReader) bool {
 	return bytes.Compare(hs1[:], hs2[:]) > 0
 }
 
-func (d *PublicReader) ivCalculationHasherPrefilled() hash.Hash {
-	hasher := sha256.New()
+func (d *PublicReader) ivGeneratorPrefilled() cipherfactory.IVGenerator {
+	ivGenerator := cipherfactory.NewIVGenerator(blobtypes.DynamicLink)
 
-	// Reserved byte
-	hasher.Write([]byte{reservedByteValue})
+	storeByte(ivGenerator, reservedByteValue)
+	storeDynamicSizeBuff(ivGenerator, d.BlobName())
+	storeUint64(ivGenerator, d.contentVersion)
 
-	// Blob name, length-prefixed
-	bn := d.BlobName()
-	hasher.Write([]byte{byte(len(bn))})
-	hasher.Write(bn)
-
-	// Version
-	hasher.Write(storeUint64(d.contentVersion))
-
-	return hasher
+	return ivGenerator
 }
 
-func (d *PublicReader) GetLinkDataReader(key []byte) (io.Reader, error) {
+func (d *PublicReader) validateKeyInLinkData(key cipherfactory.Key, r io.Reader) error {
+	// At the beginning of the data there's the key validation block,
+	// that block contains a proof that the encryption key was deterministically derived
+	// from the blob name (thus preventing weak key attack)
 
-	// TODO: Validate the key with key validation block
+	kvb, err := readDynamicSizeBuff(r, "key validation block")
+	if err != nil {
+		return err
+	}
+	if len(kvb) == 0 || kvb[0] != reservedByteValue {
+		return ErrInvalidDynamicLinkKey
+	}
+	signature := kvb[1:]
+
+	dataSeed := append(
+		[]byte{signatureForEncryptionKeyGeneration},
+		d.BlobName()...,
+	)
+
+	// Key validation block contains the signature of data seed
+	if !ed25519.Verify(d.publicKey, dataSeed, signature) {
+		return ErrInvalidDynamicLinkKey
+	}
+
+	// That signature is fed into the key generator and builds the key
+	keyGenerator := cipherfactory.NewKeyGenerator(blobtypes.DynamicLink)
+	keyGenerator.Write(signature)
+	generatedKey := keyGenerator.Generate()
+
+	if !bytes.Equal(generatedKey, key) {
+		return ErrInvalidDynamicLinkKey
+	}
+
+	return nil
+}
+
+func (d *PublicReader) GetLinkDataReader(key cipherfactory.Key) (io.Reader, error) {
 
 	r, err := cipherfactory.StreamCipherReader(key, d.iv, d.GetEncryptedLinkReader())
 	if err != nil {
@@ -264,14 +286,18 @@ func (d *PublicReader) GetLinkDataReader(key []byte) (io.Reader, error) {
 
 	// While reading the data, it will be tee-ed to the hasher for IV calculation.
 	// That hasher will then
-	ivHasher := d.ivCalculationHasherPrefilled()
+	ivHasher := d.ivGeneratorPrefilled()
+	r = io.TeeReader(r, ivHasher)
+
+	err = d.validateKeyInLinkData(key, r)
+	if err != nil {
+		return nil, err
+	}
 
 	return validatingreader.CheckOnEOF(
-		io.TeeReader(r, ivHasher),
+		r,
 		func() error {
-			calculatedIV := ivHasher.Sum(nil)[:chacha20.NonceSizeX]
-
-			if !bytes.Equal(calculatedIV, d.iv) {
+			if !bytes.Equal(ivHasher.Generate(), d.iv) {
 				return ErrInvalidDynamicLinkIV
 			}
 

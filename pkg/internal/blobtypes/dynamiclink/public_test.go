@@ -28,6 +28,7 @@ import (
 	"testing/iotest"
 
 	"github.com/cinode/go/pkg/common"
+	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 	"github.com/stretchr/testify/require"
 )
@@ -68,9 +69,6 @@ func TestFromPublicData(t *testing.T) {
 		injectedErr := errors.New("test")
 
 		for validBytes := range data {
-			if validBytes < 41 {
-				continue
-			}
 			t.Run(fmt.Sprint(validBytes), func(t *testing.T) {
 				rdr := io.MultiReader(
 					bytes.NewReader(data[:validBytes]),
@@ -78,8 +76,15 @@ func TestFromPublicData(t *testing.T) {
 				)
 
 				dl, err := FromPublicData(dl.BlobName(), rdr)
-				require.ErrorIs(t, err, injectedErr)
-				require.Nil(t, dl)
+				if err == nil {
+					// Error is not returned directly from the method but
+					// will appear later while trying to read the link data
+					_, err = io.ReadAll(dl.GetEncryptedLinkReader())
+					require.ErrorIs(t, err, injectedErr)
+				} else {
+					require.ErrorIs(t, err, injectedErr)
+					require.Nil(t, dl)
+				}
 			})
 		}
 	})
@@ -285,11 +290,10 @@ func TestPublicReaderGetLinkDataReader(t *testing.T) {
 		// Flip a single bit in IV
 		pr.iv[len(pr.iv)/2] ^= 0x80
 
-		rdr2, err := pr.GetLinkDataReader(key)
-		require.NoError(t, err)
-
-		_, err = io.ReadAll(rdr2)
-		require.ErrorIs(t, err, ErrInvalidDynamicLinkIV)
+		// Because the IV is incorrect, key validation block that is encrypted will be invalid
+		// thus the method will complain about key, not the IV that will fail first
+		_, err = pr.GetLinkDataReader(key)
+		require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
 	})
 
 	t.Run("nil key", func(t *testing.T) {
@@ -300,6 +304,6 @@ func TestPublicReaderGetLinkDataReader(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = pr.GetLinkDataReader(nil)
-		require.ErrorIs(t, err, cipherfactory.ErrInvalidEncryptionConfigKeySize)
+		require.ErrorIs(t, err, cipherfactory.ErrInvalidEncryptionConfigKeyType)
 	})
 }

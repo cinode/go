@@ -19,13 +19,12 @@ package dynamiclink
 import (
 	"bytes"
 	"crypto/ed25519"
-	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"io"
 
+	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
-	"golang.org/x/crypto/chacha20"
 )
 
 var (
@@ -107,24 +106,38 @@ func (dl *Publisher) AuthInfo() []byte {
 	return ret[:]
 }
 
-func (dl *Publisher) calculateEncryptionKey() []byte {
+func (dl *Publisher) calculateEncryptionKey() ([]byte, []byte) {
 	dataSeed := append(
 		[]byte{signatureForEncryptionKeyGeneration},
 		dl.BlobName()...,
 	)
 
-	// TODO: Add key validation block
-
 	signature := ed25519.Sign(dl.privKey, dataSeed)
-	signatureHash := sha256.Sum256(signature)
-	return signatureHash[:chacha20.KeySize]
+
+	keyGenerator := cipherfactory.NewKeyGenerator(blobtypes.DynamicLink)
+	keyGenerator.Write(signature)
+	key := keyGenerator.Generate()
+
+	kvb := append([]byte{reservedByteValue}, signature...)
+
+	// Key validation block - it is used to ensure the key was generated in a correct way
+	return key, kvb
 }
 
 func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader, []byte, error) {
-	unencryptedLink, err := io.ReadAll(r)
+	encryptionKey, kvb := dl.calculateEncryptionKey()
+
+	// key validation block precedes the link data
+	unencryptedLinkBuff := bytes.NewBuffer(nil)
+	unencryptedLinkBuff.Write([]byte{byte(len(kvb))})
+	unencryptedLinkBuff.Write(kvb)
+
+	_, err := io.Copy(unencryptedLinkBuff, r)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	unencryptedLink := unencryptedLinkBuff.Bytes()
 
 	pr := PublicReader{
 		Public: dl.Public,
@@ -132,11 +145,9 @@ func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader,
 
 	pr.contentVersion = version
 
-	hasher := pr.ivCalculationHasherPrefilled()
-	hasher.Write(unencryptedLink)
-	pr.iv = hasher.Sum(nil)[:chacha20.NonceSizeX]
-
-	encryptionKey := dl.calculateEncryptionKey()
+	ivGenerator := pr.ivGeneratorPrefilled()
+	ivGenerator.Write(unencryptedLink)
+	pr.iv = ivGenerator.Generate()
 
 	encryptedLinkBuff := bytes.NewBuffer(nil)
 	w, err := cipherfactory.StreamCipherWriter(encryptionKey, pr.iv, encryptedLinkBuff)

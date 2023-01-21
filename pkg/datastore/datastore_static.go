@@ -37,7 +37,12 @@ func (ds *datastore) openStatic(ctx context.Context, name common.BlobName) (io.R
 		io.Reader
 		io.Closer
 	}{
-		Reader: validatingreader.NewHashValidation(rc, sha256.New(), name.Hash(), blobtypes.ErrValidationFailed),
+		Reader: validatingreader.NewHashValidation(
+			rc,
+			sha256.New(),
+			name.Hash(),
+			blobtypes.ErrValidationFailed,
+		),
 		Closer: rc,
 	}, nil
 }

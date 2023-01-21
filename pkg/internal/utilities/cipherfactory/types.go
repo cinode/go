@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,16 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package cipherfactory
 
-type BlobType struct {
-	t byte
-}
+// Key with cipher type
+type Key []byte
 
-func NewBlobType(t byte) BlobType {
-	return BlobType{t: t}
-}
-
-func (b BlobType) IDByte() byte {
-	return b.t
-}
+// IV
+type IV []byte

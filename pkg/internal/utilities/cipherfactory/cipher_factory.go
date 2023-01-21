@@ -30,11 +30,16 @@ var (
 	// key can not be interpreted
 	ErrInvalidEncryptionConfig = errors.New("invalid encryption config")
 
-	ErrInvalidEncryptionConfigKeySize = fmt.Errorf("%w: wrong XChaCha20 key size, expected %d bytes", ErrInvalidEncryptionConfig, chacha20.KeySize)
+	ErrInvalidEncryptionConfigKeyType = fmt.Errorf("%w: wrong keyType", ErrInvalidEncryptionConfig)
+	ErrInvalidEncryptionConfigKeySize = fmt.Errorf("%w: wrong XChaCha20 key size, expected %d bytes", ErrInvalidEncryptionConfig, chacha20.KeySize+1)
 	ErrInvalidEncryptionConfigIVSize  = fmt.Errorf("%w: wrong XChaCha20 iv size, expected %d bytes", ErrInvalidEncryptionConfig, chacha20.NonceSizeX)
 )
 
-func StreamCipherReader(key []byte, iv []byte, r io.Reader) (io.Reader, error) {
+const (
+	reservedByteForKeyType byte = 0
+)
+
+func StreamCipherReader(key Key, iv IV, r io.Reader) (io.Reader, error) {
 	stream, err := _cipherForKeyIV(key, iv)
 	if err != nil {
 		return nil, err
@@ -42,7 +47,7 @@ func StreamCipherReader(key []byte, iv []byte, r io.Reader) (io.Reader, error) {
 	return &cipher.StreamReader{S: stream, R: r}, nil
 }
 
-func StreamCipherWriter(key []byte, iv []byte, w io.Writer) (io.Writer, error) {
+func StreamCipherWriter(key Key, iv IV, w io.Writer) (io.Writer, error) {
 	stream, err := _cipherForKeyIV(key, iv)
 	if err != nil {
 		return nil, err
@@ -50,13 +55,18 @@ func StreamCipherWriter(key []byte, iv []byte, w io.Writer) (io.Writer, error) {
 	return cipher.StreamWriter{S: stream, W: w}, nil
 }
 
-func _cipherForKeyIV(key []byte, iv []byte) (cipher.Stream, error) {
-
-	if len(key) != chacha20.KeySize {
-		return nil, fmt.Errorf("%w, got %d bytes", ErrInvalidEncryptionConfigKeySize, len(key))
+func _cipherForKeyIV(key Key, iv IV) (cipher.Stream, error) {
+	if len(key) == 0 || key[0] != reservedByteForKeyType {
+		return nil, ErrInvalidEncryptionConfigKeyType
 	}
+
+	if len(key) != chacha20.KeySize+1 {
+		return nil, fmt.Errorf("%w, got %d bytes", ErrInvalidEncryptionConfigKeySize, len(key)+1)
+	}
+
 	if len(iv) != chacha20.NonceSizeX {
 		return nil, fmt.Errorf("%w, got %d bytes", ErrInvalidEncryptionConfigIVSize, len(iv))
 	}
-	return chacha20.NewUnauthenticatedCipher(key, iv)
+
+	return chacha20.NewUnauthenticatedCipher(key[1:], iv)
 }

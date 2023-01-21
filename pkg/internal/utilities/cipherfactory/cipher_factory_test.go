@@ -37,23 +37,23 @@ func TestCipherForKeyIV(t *testing.T) {
 			"Empty key",
 			nil,
 			nil,
-			ErrInvalidEncryptionConfigKeySize,
+			ErrInvalidEncryptionConfigKeyType,
 		},
 		{
 			"Invalid Chacha20 key size",
-			make([]byte, chacha20.KeySize-1),
+			make([]byte, chacha20.KeySize),
 			make([]byte, chacha20.NonceSizeX),
 			ErrInvalidEncryptionConfigKeySize,
 		},
 		{
 			"Invalid Chacha20 nonce size",
-			make([]byte, chacha20.KeySize),
+			make([]byte, chacha20.KeySize+1),
 			make([]byte, chacha20.NonceSizeX-1),
 			ErrInvalidEncryptionConfigIVSize,
 		},
 		{
 			"Valid chacha20 key",
-			make([]byte, chacha20.KeySize),
+			make([]byte, chacha20.KeySize+1),
 			make([]byte, chacha20.NonceSizeX),
 			nil,
 		},
@@ -75,7 +75,7 @@ func TestCipherForKeyIV(t *testing.T) {
 }
 
 func TestStreamCipherRoundtrip(t *testing.T) {
-	key := make([]byte, chacha20.KeySize)
+	key := make([]byte, chacha20.KeySize+1)
 	iv := make([]byte, chacha20.NonceSizeX)
 
 	data := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06}

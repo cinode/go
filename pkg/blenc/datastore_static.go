@@ -17,6 +17,7 @@ limitations under the License.
 package blenc
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -26,32 +27,36 @@ import (
 	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 	"github.com/cinode/go/pkg/internal/utilities/securefifo"
-	"golang.org/x/crypto/chacha20"
+	"github.com/cinode/go/pkg/internal/utilities/validatingreader"
 )
 
-type mergeReaderCloser struct {
-	io.Reader
-	io.Closer
-}
-
 func (be *beDatastore) openStatic(ctx context.Context, name common.BlobName, key EncryptionKey) (io.ReadCloser, error) {
-
-	// TODO: Validate the key - to avoid forcing weak keys
-
-	iv := make([]byte, chacha20.NonceSizeX)
 
 	rc, err := be.ds.Open(ctx, name)
 	if err != nil {
 		return nil, err
 	}
 
-	scr, err := cipherfactory.StreamCipherReader(key, iv, rc)
+	scr, err := cipherfactory.StreamCipherReader(key, key.DefaultIV(), rc)
 	if err != nil {
 		return nil, err
 	}
 
-	return &mergeReaderCloser{
-		Reader: scr,
+	keyGenerator := cipherfactory.NewKeyGenerator(blobtypes.Static)
+
+	return &struct {
+		io.Reader
+		io.Closer
+	}{
+		Reader: validatingreader.CheckOnEOF(
+			io.TeeReader(scr, keyGenerator),
+			func() error {
+				if !bytes.Equal(key, keyGenerator.Generate()) {
+					return blobtypes.ErrValidationFailed
+				}
+				return nil
+			},
+		),
 		Closer: rc,
 	}, nil
 }
@@ -77,18 +82,14 @@ func (be *beDatastore) createStatic(
 	}
 	defer tempWriteBufferEncrypted.Close()
 
-	// Generate encryption key
-	// 		Key - sha256(content)
-	//		IV - constant (zeroed iv)
-
-	keyHasher := sha256.New()
-	_, err = io.Copy(tempWriteBufferPlain, io.TeeReader(r, keyHasher))
+	keyGenerator := cipherfactory.NewKeyGenerator(blobtypes.Static)
+	_, err = io.Copy(tempWriteBufferPlain, io.TeeReader(r, keyGenerator))
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	key := keyHasher.Sum(nil)[:chacha20.KeySize]
-	iv := make([]byte, chacha20.NonceSizeX)
+	key := keyGenerator.Generate()
+	iv := key.DefaultIV() // We can use this since each blob will have different key
 
 	rClone, err := tempWriteBufferPlain.Done() // rClone will allow re-reading the source data
 	if err != nil {
