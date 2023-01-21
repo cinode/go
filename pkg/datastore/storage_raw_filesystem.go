@@ -34,10 +34,12 @@ type rawFileSystem struct {
 
 var _ storage = (*rawFileSystem)(nil)
 
-func newStorageRawFilesystem(path string) *rawFileSystem {
-	return &rawFileSystem{
-		path: path,
+func newStorageRawFilesystem(path string) (*rawFileSystem, error) {
+	err := os.MkdirAll(path, 0755)
+	if err != nil {
+		return nil, err
 	}
+	return &rawFileSystem{path: path}, nil
 }
 
 func (fs *rawFileSystem) kind() string {
@@ -76,12 +78,6 @@ func (w *rawFilesystemWriter) Cancel() {
 }
 
 func (fs *rawFileSystem) openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
-	// Ensure dir exists
-	err := os.MkdirAll(fs.path, 0755)
-	if err != nil {
-		return nil, err
-	}
-
 	tempNum := atomic.AddUint64(&fs.tempFileNum, 1)
 
 	tempFileName := filepath.Join(fs.path, fmt.Sprintf("tempfile_%d", tempNum))

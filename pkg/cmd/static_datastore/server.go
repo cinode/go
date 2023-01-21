@@ -81,13 +81,18 @@ func serverHandler(datastoreDir string, useRawFS bool) (http.Handler, error) {
 		return nil, err
 	}
 
+	ds, err := func() (datastore.DS, error) {
+		if useRawFS {
+			return datastore.InRawFileSystem(datastoreDir)
+		}
+		return datastore.InFileSystem(datastoreDir)
+	}()
+	if err != nil {
+		return nil, err
+	}
+
 	dh := structure.CinodeFS{
-		BE: blenc.FromDatastore(func() datastore.DS {
-			if useRawFS {
-				return datastore.InRawFileSystem(datastoreDir)
-			}
-			return datastore.InFileSystem(datastoreDir)
-		}()),
+		BE:               blenc.FromDatastore(ds),
 		RootEntrypoint:   ep,
 		MaxLinkRedirects: 10,
 		IndexFile:        "index.html",

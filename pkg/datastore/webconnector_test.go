@@ -32,9 +32,13 @@ import (
 )
 
 func TestWebConnectorInvalidUrl(t *testing.T) {
-	c := FromWeb("://bad.url")
+	_, err := FromWeb("://bad.url")
+	require.IsType(t, &url.Error{}, err)
 
-	_, err := c.Open(context.Background(), emptyBlobNameStatic)
+	c, err := FromWeb("httpz://bad.url")
+	require.NoError(t, err)
+
+	_, err = c.Open(context.Background(), emptyBlobNameStatic)
 	require.IsType(t, &url.Error{}, err)
 
 	_, err = c.Exists(context.Background(), emptyBlobNameStatic)
@@ -53,9 +57,10 @@ func TestWebConnectorServerSideError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := FromWeb(server.URL + "/")
+	c, err := FromWeb(server.URL + "/")
+	require.NoError(t, err)
 
-	_, err := c.Open(context.Background(), emptyBlobNameStatic)
+	_, err = c.Open(context.Background(), emptyBlobNameStatic)
 	require.ErrorIs(t, err, ErrWebConnectionError)
 
 	_, err = c.Exists(context.Background(), emptyBlobNameStatic)
@@ -76,7 +81,8 @@ func TestWebConnectorDetectInvalidBlobRead(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ds2 := FromWeb(server.URL + "/")
+	ds2, err := FromWeb(server.URL + "/")
+	require.NoError(t, err)
 
 	rc, err := ds2.Open(context.Background(), emptyBlobNameStatic)
 	require.NoError(t, err)
@@ -100,23 +106,26 @@ func TestWebConnectorInvalidErrorCode(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ds2 := FromWeb(server.URL + "/")
+	ds2, err := FromWeb(server.URL + "/")
+	require.NoError(t, err)
 
-	_, err := ds2.Open(context.Background(), emptyBlobNameStatic)
+	_, err = ds2.Open(context.Background(), emptyBlobNameStatic)
 	require.ErrorIs(t, err, ErrWebConnectionError)
 }
 
 func TestWebConnectorOptions(t *testing.T) {
 	t.Run("http client", func(t *testing.T) {
 		cl := &http.Client{}
-		ds := FromWeb("http://test.local/", WebOptionHttpClient(cl))
+		ds, err := FromWeb("http://test.local/", WebOptionHttpClient(cl))
+		require.NoError(t, err)
 		require.Equal(t, cl, ds.(*webConnector).client)
 	})
 
 	t.Run("customize request", func(t *testing.T) {
 		testErr := errors.New("test error")
 		f := func(r *http.Request) error { return testErr }
-		ds := FromWeb("http://test.local/", WebOptionCustomizeRequest(f))
+		ds, err := FromWeb("http://test.local/", WebOptionCustomizeRequest(f))
+		require.NoError(t, err)
 		require.Equal(t, testErr, ds.(*webConnector).customizeRequest(nil))
 	})
 

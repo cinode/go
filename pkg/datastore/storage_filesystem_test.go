@@ -26,7 +26,9 @@ import (
 )
 
 func temporaryFS(t *testing.T) *fileSystem {
-	return newStorageFilesystem(t.TempDir())
+	ds, err := newStorageFilesystem(t.TempDir())
+	require.NoError(t, err)
+	return ds
 }
 
 func touchFile(t *testing.T, fName string) string {

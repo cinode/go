@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes"
@@ -55,7 +56,12 @@ func WebOptionCustomizeRequest(f func(*http.Request) error) webConnectorOption {
 }
 
 // FromWeb returns Datastore implementation that connects to external url
-func FromWeb(baseURL string, options ...webConnectorOption) DS {
+func FromWeb(baseURL string, options ...webConnectorOption) (DS, error) {
+	_, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, err
+	}
+
 	ret := &webConnector{
 		baseURL:          baseURL,
 		client:           http.DefaultClient,
@@ -66,7 +72,7 @@ func FromWeb(baseURL string, options ...webConnectorOption) DS {
 		o(ret)
 	}
 
-	return ret
+	return ret, nil
 }
 
 func (w *webConnector) Kind() string {

@@ -49,14 +49,14 @@ func buildDS(name string) (datastore.DS, error) {
 		return datastore.InMemory(), nil
 
 	case strings.HasPrefix(name, filePrefix):
-		return datastore.InFileSystem(name[len(filePrefix):]), nil
+		return datastore.InFileSystem(name[len(filePrefix):])
 
 	case strings.HasPrefix(name, rawFilePrefix):
-		return datastore.InRawFileSystem(name[len(rawFilePrefix):]), nil
+		return datastore.InRawFileSystem(name[len(rawFilePrefix):])
 
 	case strings.HasPrefix(name, webPrefixHttp),
 		strings.HasPrefix(name, webPrefixHttps):
-		return datastore.FromWeb(name), nil
+		return datastore.FromWeb(name)
 
 	case strings.HasPrefix(name, memoryPrefix):
 		if name != memoryPrefix {
@@ -65,7 +65,7 @@ func buildDS(name string) (datastore.DS, error) {
 		return datastore.InMemory(), nil
 
 	default:
-		return datastore.InFileSystem(name), nil
+		return datastore.InFileSystem(name)
 	}
 }
 

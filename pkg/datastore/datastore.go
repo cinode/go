@@ -76,8 +76,12 @@ func InMemory() DS {
 //
 // Contrary to InRawFileSystem, this datastore is optimized for large datastores
 // and concurrent use.
-func InFileSystem(path string) DS {
-	return &datastore{s: newStorageFilesystem(path)}
+func InFileSystem(path string) (DS, error) {
+	s, err := newStorageFilesystem(path)
+	if err != nil {
+		return nil, err
+	}
+	return &datastore{s: s}, nil
 }
 
 // InRawFilesystem is a simplified storage that uses filesystem as a storage layer.
@@ -86,6 +90,10 @@ func InFileSystem(path string) DS {
 // This datastore should not be used for highly concurrent or highly modified
 // cases. The main purpose is to dump files to a disk in a form that can
 // be lated used in a classic web server and used as a static web source.
-func InRawFileSystem(path string) DS {
-	return &datastore{s: newStorageRawFilesystem(path)}
+func InRawFileSystem(path string) (DS, error) {
+	s, err := newStorageRawFilesystem(path)
+	if err != nil {
+		return nil, err
+	}
+	return &datastore{s: s}, nil
 }

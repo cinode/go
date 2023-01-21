@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"testing"
 
 	"github.com/cinode/go/pkg/common"
@@ -133,4 +134,16 @@ func TestDatastoreDetectCorruptedRead(t *testing.T) {
 
 	err = r.Close()
 	require.NoError(t, err)
+}
+
+func TestInvalidInFileSystemParameters(t *testing.T) {
+	ds, err := InFileSystem("/some:invalid;path?*")
+	require.IsType(t, &fs.PathError{}, err)
+	require.Nil(t, ds)
+}
+
+func TestInvalidInRawFileSystemParameters(t *testing.T) {
+	ds, err := InRawFileSystem("/some:invalid;path?*")
+	require.IsType(t, &fs.PathError{}, err)
+	require.Nil(t, ds)
 }

@@ -40,13 +40,24 @@ func allTestInterfaces(t *testing.T) []DS {
 	server := httptest.NewServer(WebInterface(InMemory()))
 	t.Cleanup(func() { server.Close() })
 
-	return []DS{
+	ret := []DS{
 		InMemory(),
-		InFileSystem(t.TempDir()),
-		InRawFileSystem(t.TempDir()),
-		FromWeb(server.URL + "/"),
 		NewMultiSource(InMemory(), time.Hour),
 	}
+
+	ds, err := InFileSystem(t.TempDir())
+	require.NoError(t, err)
+	ret = append(ret, ds)
+
+	ds, err = InRawFileSystem(t.TempDir())
+	require.NoError(t, err)
+	ret = append(ret, ds)
+
+	ds, err = FromWeb(server.URL + "/")
+	require.NoError(t, err)
+	ret = append(ret, ds)
+
+	return ret
 }
 
 func TestOpenNonExisting(t *testing.T) {

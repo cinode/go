@@ -34,10 +34,12 @@ type fileSystem struct {
 	path string
 }
 
-func newStorageFilesystem(path string) *fileSystem {
-	return &fileSystem{
-		path: path,
+func newStorageFilesystem(path string) (*fileSystem, error) {
+	err := os.MkdirAll(path, 0755)
+	if err != nil {
+		return nil, err
 	}
+	return &fileSystem{path: path}, nil
 }
 
 func (fs *fileSystem) kind() string {
