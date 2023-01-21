@@ -19,7 +19,6 @@ package blenc
 import (
 	"bytes"
 	"context"
-	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -29,6 +28,7 @@ import (
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
+	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 )
 
 var (
@@ -61,7 +61,7 @@ func (be *beDatastore) openDynamicLink(
 	}
 
 	// Decrypt link data
-	r, err := streamCipherReader(key, dl.IV, bytes.NewBuffer(dl.EncryptedLink))
+	r, err := cipherfactory.StreamCipherReader(key, dl.IV, bytes.NewBuffer(dl.EncryptedLink))
 	if err != nil {
 		return nil, err
 	}
@@ -91,38 +91,18 @@ func (be *beDatastore) createDynamicLink(
 	// TODO: Customizable random source
 	// TODO: Customizable version source
 
-	unencryptedLink, err := io.ReadAll(r)
+	version := uint64(time.Now().UnixMicro())
+	randSource := rand.Reader
+
+	dl, err := dynamiclink.Create(randSource)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	pubKey, privKey, err := ed25519.GenerateKey(rand.Reader)
+	encryptionKey, err := dl.UpdateLinkData(r, version)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
-	dl := dynamiclink.DynamicLinkData{
-		PublicKey:      pubKey,
-		ContentVersion: uint64(time.Now().UnixMicro()),
-	}
-
-	dl.IV = dl.CalculateIV(unencryptedLink)
-
-	encryptionKey := dl.CalculateEncryptionKey(privKey)
-
-	encryptedLinkBuff := bytes.NewBuffer(nil)
-	w, err := streamCipherWriter(encryptionKey, dl.IV, encryptedLinkBuff)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	_, err = w.Write(unencryptedLink)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	dl.EncryptedLink = encryptedLinkBuff.Bytes()
-	dl.Signature = dl.CalculateSignature(privKey)
 
 	// Send update packet
 	// TODO: A bit awkward to use the pipe here, but that's since the datastore.Update takes reader as a parameter
@@ -135,7 +115,7 @@ func (be *beDatastore) createDynamicLink(
 
 	return bn,
 		encryptionKey,
-		append([]byte{0}, privKey.Seed()...),
+		dl.AuthInfo(),
 		nil
 }
 
@@ -147,47 +127,27 @@ func (be *beDatastore) updateDynamicLink(
 	r io.Reader,
 ) error {
 	// TODO: Customizable version source
+	newVersion := uint64(time.Now().UnixMicro())
 
-	unencryptedLink, err := io.ReadAll(r)
+	dl, err := dynamiclink.FromAuthInfo(authInfo)
 	if err != nil {
 		return err
 	}
 
-	if len(authInfo) != 1+ed25519.SeedSize || authInfo[0] != 0 {
-		return ErrInvalidDynamicLinkWriterInfo
+	encryptionKey, err := dl.UpdateLinkData(r, newVersion)
+	if err != nil {
+		return err
 	}
 
-	privKey := ed25519.NewKeyFromSeed(authInfo[1:])
-	pubKey := privKey.Public().(ed25519.PublicKey)
+	// Sanity checks
+	// TODO: Have some test cases trying to attack lack of those checks - e.g. invalid key generated for the blog
 
-	dl := dynamiclink.DynamicLinkData{
-		PublicKey:      pubKey,
-		ContentVersion: uint64(time.Now().UnixMicro()),
-	}
-
-	// Generate deterministic encryption key
-	if !bytes.Equal(dl.CalculateEncryptionKey(privKey), key) {
+	if !bytes.Equal(encryptionKey, key) {
 		return errors.New("could not prepare dynamic link update - encryption key mismatch")
 	}
 	if !bytes.Equal(name, dl.BlobName()) {
 		return errors.New("could not prepare dynamic link update - blob name mismatch")
 	}
-
-	// Encrypt and sign the link
-	dl.IV = dl.CalculateIV(unencryptedLink)
-	encryptedLinkBuff := bytes.NewBuffer(nil)
-	w, err := streamCipherWriter(key, dl.IV, encryptedLinkBuff)
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write(unencryptedLink)
-	if err != nil {
-		return err
-	}
-
-	dl.EncryptedLink = encryptedLinkBuff.Bytes()
-	dl.Signature = dl.CalculateSignature(privKey)
 
 	// Send update packet
 	err = be.ds.Update(ctx, name, dl.CreateReader())

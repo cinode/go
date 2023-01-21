@@ -22,6 +22,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 
@@ -34,6 +35,7 @@ var (
 	ErrInvalidDynamicLinkData          = fmt.Errorf("%w: invalid dynamic link data", blobtypes.ErrValidationFailed)
 	ErrInvalidDynamicLinkDataBlobName  = fmt.Errorf("%w: blob name mismatch", ErrInvalidDynamicLinkData)
 	ErrInvalidDynamicLinkDataSignature = fmt.Errorf("%w: signature is invalid", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkAuthInfo = errors.New("invalid dynamic link auth info")
 )
 
 const (
@@ -45,6 +47,7 @@ const (
 
 type DynamicLinkData struct {
 	PublicKey      ed25519.PublicKey
+	Nonce          uint64
 	ContentVersion uint64
 	Signature      []byte
 	IV             []byte
@@ -104,6 +107,11 @@ func FromReader(name common.BlobName, r io.Reader) (*DynamicLinkData, error) {
 		return nil, err
 	}
 
+	dl.Nonce, err = readUint64(r)
+	if err != nil {
+		return nil, err
+	}
+
 	dl.ContentVersion, err = readUint64(r)
 	if err != nil {
 		return nil, err
@@ -136,6 +144,7 @@ func (d *DynamicLinkData) getBytes() []byte {
 	w := bytes.NewBuffer(nil)
 	w.Write([]byte{reservedByteValue})
 	w.Write(d.PublicKey)
+	w.Write(storeUint64(d.Nonce))
 	w.Write(storeUint64(d.ContentVersion))
 	w.Write(d.Signature)
 	w.Write(d.IV)
@@ -165,10 +174,6 @@ func (d *DynamicLinkData) CalculateIV(unencryptedLink []byte) []byte {
 	hasher.Write(unencryptedLink)
 
 	return hasher.Sum(nil)[:chacha20.NonceSizeX]
-}
-
-func (d *DynamicLinkData) CalculateSignature(privKey ed25519.PrivateKey) []byte {
-	return ed25519.Sign(privKey, d.bytesToSign())
 }
 
 func (d *DynamicLinkData) verifyPublicData(name common.BlobName) error {
@@ -207,6 +212,7 @@ func (d *DynamicLinkData) BlobName() common.BlobName {
 	hasher := sha256.New()
 	hasher.Write([]byte{reservedByteValue})
 	hasher.Write(d.PublicKey)
+	hasher.Write(storeUint64(d.Nonce))
 
 	bn, _ := common.BlobNameFromHashAndType(hasher.Sum(nil), blobtypes.DynamicLink)
 	return bn

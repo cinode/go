@@ -24,6 +24,7 @@ import (
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes"
+	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 	"github.com/cinode/go/pkg/internal/utilities/securefifo"
 	"golang.org/x/crypto/chacha20"
 )
@@ -44,7 +45,7 @@ func (be *beDatastore) openStatic(ctx context.Context, name common.BlobName, key
 		return nil, err
 	}
 
-	scr, err := streamCipherReader(key, iv, rc)
+	scr, err := cipherfactory.StreamCipherReader(key, iv, rc)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +98,7 @@ func (be *beDatastore) createStatic(
 
 	// Encrypt data with calculated key, hash encrypted data to generate blob name
 	blobNameHasher := sha256.New()
-	encWriter, err := streamCipherWriter(
+	encWriter, err := cipherfactory.StreamCipherWriter(
 		key, iv,
 		io.MultiWriter(
 			tempWriteBufferEncrypted, // Stream out encrypted data to temporary fifo

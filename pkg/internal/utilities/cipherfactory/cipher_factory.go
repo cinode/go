@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package blenc
+package cipherfactory
 
 import (
 	"crypto/cipher"
@@ -29,7 +29,7 @@ import (
 // key can not be interpreted
 var ErrInvalidKey = errors.New("invalid encryption key")
 
-func streamCipherReader(key EncryptionKey, iv []byte, r io.Reader) (io.Reader, error) {
+func StreamCipherReader(key []byte, iv []byte, r io.Reader) (io.Reader, error) {
 	stream, err := _cipherForKeyIV(key, iv)
 	if err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func streamCipherReader(key EncryptionKey, iv []byte, r io.Reader) (io.Reader, e
 	return &cipher.StreamReader{S: stream, R: r}, nil
 }
 
-func streamCipherWriter(key EncryptionKey, iv []byte, w io.Writer) (io.Writer, error) {
+func StreamCipherWriter(key []byte, iv []byte, w io.Writer) (io.Writer, error) {
 	stream, err := _cipherForKeyIV(key, iv)
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func streamCipherWriter(key EncryptionKey, iv []byte, w io.Writer) (io.Writer, e
 	return cipher.StreamWriter{S: stream, W: w}, nil
 }
 
-func _cipherForKeyIV(key EncryptionKey, iv []byte) (cipher.Stream, error) {
+func _cipherForKeyIV(key []byte, iv []byte) (cipher.Stream, error) {
 
 	if len(key) != chacha20.KeySize {
 		return nil, fmt.Errorf("%w: invalid XChaCha20 key size, expected %d bytes", ErrInvalidKey, chacha20.KeySize)

@@ -336,7 +336,7 @@ func (s *DatastoreTestSuite) updateDynamicLink(num int) {
 	s.Require().NoError(err)
 }
 
-func (s *DatastoreTestSuite) readDynamicLinkData() string {
+func (s *DatastoreTestSuite) readDynamicLinkData() []byte {
 	r, err := s.ds.Open(context.Background(), dynamicLinkPropagationData[0].name)
 	s.Require().NoError(err)
 
@@ -346,7 +346,7 @@ func (s *DatastoreTestSuite) readDynamicLinkData() string {
 	err = r.Close()
 	s.Require().NoError(err)
 
-	return string(dl.EncryptedLink)
+	return dl.EncryptedLink
 }
 
 func (s *DatastoreTestSuite) expectDynamicLinkData(num int) {

@@ -130,28 +130,27 @@ func (s *CompileAndReadTestSuite) validateDataset(
 	defer testServer.Close()
 
 	for _, td := range dataset {
-		s.Run(td.fName, func() {
-			res, err := http.Get(testServer.URL + td.fName)
-			s.Require().NoError(err)
-			defer res.Body.Close()
+		// s.Run(td.fName, func() {
+		res, err := http.Get(testServer.URL + td.fName)
+		s.Require().NoError(err)
+		defer res.Body.Close()
 
-			data, err := io.ReadAll(res.Body)
-			s.Require().NoError(err)
+		data, err := io.ReadAll(res.Body)
+		s.Require().NoError(err)
+		s.Require().Equal([]byte(td.contents), data)
 
-			s.Require().Equal([]byte(td.contents), data)
+		res, err = http.Post(testServer.URL+td.fName, "plain/text", bytes.NewReader([]byte("test")))
+		s.Require().NoError(err)
+		defer res.Body.Close()
 
-			res, err = http.Post(testServer.URL+td.fName, "plain/text", bytes.NewReader([]byte("test")))
-			s.Require().NoError(err)
-			defer res.Body.Close()
+		s.Require().Equal(http.StatusMethodNotAllowed, res.StatusCode)
 
-			s.Require().Equal(http.StatusMethodNotAllowed, res.StatusCode)
+		res, err = http.Get(testServer.URL + td.fName + ".notfound")
+		s.Require().NoError(err)
+		defer res.Body.Close()
 
-			res, err = http.Get(testServer.URL + td.fName + ".notfound")
-			s.Require().NoError(err)
-			defer res.Body.Close()
-
-			s.Require().Equal(http.StatusNotFound, res.StatusCode)
-		})
+		s.Require().Equal(http.StatusNotFound, res.StatusCode)
+		// })
 	}
 
 	s.Run("Default to index.html", func() {

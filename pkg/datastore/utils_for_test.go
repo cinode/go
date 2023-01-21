@@ -18,17 +18,11 @@ package datastore
 
 import (
 	"bytes"
-	"crypto/ed25519"
-	"crypto/rand"
 	"crypto/sha256"
 	"io"
-	"testing"
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes"
-	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/chacha20"
 )
 
 var emptyBlobNameStatic = func() common.BlobName {
@@ -94,28 +88,4 @@ func (h *helperReader) Read(b []byte) (n int, err error) {
 	}
 
 	return n, err
-}
-
-func newDynamicLinkData(t *testing.T, data []byte, version uint64) (*dynamiclink.DynamicLinkData, ed25519.PrivateKey) {
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	require.NoError(t, err)
-
-	key := make([]byte, chacha20.KeySize)
-	_, err = rand.Read(key)
-	require.NoError(t, err)
-
-	iv := make([]byte, chacha20.NonceSizeX)
-	_, err = rand.Read(iv)
-	require.NoError(t, err)
-
-	dl := dynamiclink.DynamicLinkData{
-		PublicKey:      pub,
-		ContentVersion: version,
-		IV:             iv,
-		EncryptedLink:  data,
-	}
-
-	dl.Signature = dl.CalculateSignature(priv)
-
-	return &dl, priv
 }
