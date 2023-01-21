@@ -39,7 +39,7 @@ const (
 )
 
 var (
-	ErrNotFound      = errors.New("not found")
+	ErrNotFound      = blenc.ErrNotFound
 	ErrNotADirectory = errors.New("entry is not a directory")
 	ErrNotAFile      = errors.New("entry is not a file")
 )

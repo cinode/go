@@ -21,10 +21,15 @@ import (
 	"io"
 
 	"github.com/cinode/go/pkg/common"
+	"github.com/cinode/go/pkg/datastore"
 )
 
 type AuthInfo = []byte
 type EncryptionKey = []byte
+
+var (
+	ErrNotFound = datastore.ErrNotFound
+)
 
 // BE interface describes functionality exposed by Blob Encryption layer
 // implementation

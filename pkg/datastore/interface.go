@@ -26,10 +26,7 @@ import (
 
 var (
 	// ErrNotFound will be used when blob with given name was not found in datastore
-	ErrNotFound = errors.New("blob not found")
-
-	// ErrInvalidData indicates that the data retrieved in the Update call did not pass the validation and was rejected
-	ErrInvalidData = errors.New("invalid data")
+	ErrNotFound = errors.New("not found")
 )
 
 // DS interface contains the public interface of any conformant datastore
