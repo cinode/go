@@ -25,9 +25,14 @@ import (
 	"golang.org/x/crypto/chacha20"
 )
 
-// ErrInvalidKey is used as an error when given string representation if the
-// key can not be interpreted
-var ErrInvalidKey = errors.New("invalid encryption key")
+var (
+	// ErrEncryptionConfig is used as an error when given string representation if the
+	// key can not be interpreted
+	ErrInvalidEncryptionConfig = errors.New("invalid encryption config")
+
+	ErrInvalidEncryptionConfigKeySize = fmt.Errorf("%w: wrong XChaCha20 key size, expected %d bytes", ErrInvalidEncryptionConfig, chacha20.KeySize)
+	ErrInvalidEncryptionConfigIVSize  = fmt.Errorf("%w: wrong XChaCha20 iv size, expected %d bytes", ErrInvalidEncryptionConfig, chacha20.NonceSizeX)
+)
 
 func StreamCipherReader(key []byte, iv []byte, r io.Reader) (io.Reader, error) {
 	stream, err := _cipherForKeyIV(key, iv)
@@ -48,10 +53,10 @@ func StreamCipherWriter(key []byte, iv []byte, w io.Writer) (io.Writer, error) {
 func _cipherForKeyIV(key []byte, iv []byte) (cipher.Stream, error) {
 
 	if len(key) != chacha20.KeySize {
-		return nil, fmt.Errorf("%w: invalid XChaCha20 key size, expected %d bytes", ErrInvalidKey, chacha20.KeySize)
+		return nil, fmt.Errorf("%w, got %d bytes", ErrInvalidEncryptionConfigKeySize, len(key))
 	}
 	if len(iv) != chacha20.NonceSizeX {
-		return nil, fmt.Errorf("%w: invalid XChaCha20 iv size, expected %d bytes", ErrInvalidKey, chacha20.NonceSizeX)
+		return nil, fmt.Errorf("%w, got %d bytes", ErrInvalidEncryptionConfigIVSize, len(iv))
 	}
 	return chacha20.NewUnauthenticatedCipher(key, iv)
 }

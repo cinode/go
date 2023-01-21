@@ -17,7 +17,6 @@ limitations under the License.
 package datastore
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -31,35 +30,46 @@ func (ds *datastore) openDynamicLink(ctx context.Context, name common.BlobName) 
 	if err != nil {
 		return nil, err
 	}
-	defer rc.Close()
 
-	// Reading the link will validate if it is cryptographically correct,
-	// the TeeReader will fetch the link data to the buffer
-	buff := bytes.NewBuffer(nil)
-	_, err = dynamiclink.FromReader(name, io.TeeReader(rc, buff))
+	dl, err := dynamiclink.FromPublicData(name, rc)
 	if err != nil {
+		rc.Close()
 		return nil, err
 	}
 
-	return io.NopCloser(bytes.NewReader(buff.Bytes())), nil
+	return struct {
+		io.Reader
+		io.Closer
+	}{
+		Reader: dl.GetPublicDataReader(),
+		Closer: rc,
+	}, nil
 }
 
-func (ds *datastore) loadCurrentDynamicLink(ctx context.Context, name common.BlobName) (*dynamiclink.DynamicLinkData, error) {
+// loadCurrentDynamicLink returns existing dynamic link data if present (nil if not found). That link is not meant to be
+// read from - only for comparison
+func (ds *datastore) newLinkGreaterThanCurrent(
+	ctx context.Context,
+	name common.BlobName,
+	newLink *dynamiclink.PublicReader,
+) (
+	bool, error,
+) {
 	rc, err := ds.s.openReadStream(ctx, name)
 	if errors.Is(err, ErrNotFound) {
-		return nil, nil
+		return true, nil
 	}
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 	defer rc.Close()
 
-	dl, err := dynamiclink.FromReader(name, rc)
+	dl, err := dynamiclink.FromPublicData(name, rc)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 
-	return dl, nil
+	return newLink.GreaterThan(dl), nil
 }
 
 func (ds *datastore) updateDynamicLink(ctx context.Context, name common.BlobName, updateStream io.Reader) error {
@@ -69,22 +79,25 @@ func (ds *datastore) updateDynamicLink(ctx context.Context, name common.BlobName
 	}
 	defer ws.Cancel()
 
-	// Parse and validate the link content, any invalid link will not pass,
-	// The TeeReader will send the new link to the storage, however that update will not be
-	// confirmed until the selection between two versions of the link is done
-	updatedLink, err := dynamiclink.FromReader(name, io.TeeReader(updateStream, ws))
+	// Start parsing the update link - it will raise an error if link can not be validated
+	updatedLink, err := dynamiclink.FromPublicData(name, updateStream)
 	if err != nil {
 		return err
 	}
 
-	// Load existing link
-	currentLink, err := ds.loadCurrentDynamicLink(ctx, name)
+	greater, err := ds.newLinkGreaterThanCurrent(ctx, name, updatedLink)
 	if err != nil {
 		return err
 	}
 
 	// Update the link if the new one turns out to be a better choice
-	if currentLink == nil || updatedLink.GreaterThan(currentLink) {
+	if greater {
+		// Copy the data to local storage, this will also additionally
+		// validate the data from the link
+		_, err := io.Copy(ws, updatedLink.GetPublicDataReader())
+		if err != nil {
+			return err
+		}
 
 		// Only now confirm the update - a successful close replaces
 		// the current link with the updated one

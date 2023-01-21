@@ -16,40 +16,29 @@ limitations under the License.
 
 package validatingreader
 
-import (
-	"bytes"
-	"hash"
-	"io"
-)
+import "io"
 
-type hashValidatingReader struct {
+type onEofCheckReader struct {
 	r            io.Reader
-	hasher       hash.Hash
-	expectedHash []byte
-	err          error
+	onCloseCheck func() error
 }
 
-func (h hashValidatingReader) Read(b []byte) (int, error) {
+func (h onEofCheckReader) Read(b []byte) (int, error) {
 	n, err := h.r.Read(b)
-	h.hasher.Write(b[:n])
 
-	if err == io.EOF && !bytes.Equal(h.expectedHash, h.hasher.Sum(nil)) {
-		return n, h.err
+	if err == io.EOF {
+		err2 := h.onCloseCheck()
+		if err2 != nil {
+			return n, err2
+		}
 	}
 
 	return n, err
 }
 
-func NewHashValidation(
-	r io.Reader,
-	hasher hash.Hash,
-	expectedHash []byte,
-	err error,
-) io.Reader {
-	return &hashValidatingReader{
+func CheckOnEOF(r io.Reader, check func() error) io.Reader {
+	return onEofCheckReader{
 		r:            r,
-		hasher:       hasher,
-		expectedHash: expectedHash,
-		err:          err,
+		onCloseCheck: check,
 	}
 }

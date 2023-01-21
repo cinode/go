@@ -21,14 +21,11 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"io"
 	"time"
 
 	"github.com/cinode/go/pkg/common"
-	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
-	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 )
 
 var (
@@ -53,30 +50,27 @@ func (be *beDatastore) openDynamicLink(
 	if err != nil {
 		return nil, err
 	}
-	defer rc.Close()
 
-	dl, err := dynamiclink.FromReader(name, rc)
+	dl, err := dynamiclink.FromPublicData(name, rc)
 	if err != nil {
+		rc.Close()
+		return nil, err
+	}
+
+	linkReader, err := dl.GetLinkDataReader(key)
+	if err != nil {
+		rc.Close()
 		return nil, err
 	}
 
 	// Decrypt link data
-	r, err := cipherfactory.StreamCipherReader(key, dl.IV, bytes.NewBuffer(dl.EncryptedLink))
-	if err != nil {
-		return nil, err
-	}
-
-	unencryptedLink, err := io.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-
-	// Ensure the IV does match to avoid enforcing weak IVs
-	if !bytes.Equal(dl.IV, dl.CalculateIV(unencryptedLink)) {
-		return nil, fmt.Errorf("%w: invalid iv", blobtypes.ErrValidationFailed)
-	}
-
-	return io.NopCloser(bytes.NewReader(unencryptedLink)), nil
+	return struct {
+		io.Reader
+		io.Closer
+	}{
+		Reader: linkReader,
+		Closer: rc,
+	}, nil
 }
 
 func (be *beDatastore) createDynamicLink(
@@ -99,7 +93,7 @@ func (be *beDatastore) createDynamicLink(
 		return nil, nil, nil, err
 	}
 
-	encryptionKey, err := dl.UpdateLinkData(r, version)
+	pr, encryptionKey, err := dl.UpdateLinkData(r, version)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -108,7 +102,7 @@ func (be *beDatastore) createDynamicLink(
 	// TODO: A bit awkward to use the pipe here, but that's since the datastore.Update takes reader as a parameter
 	// maybe we should consider different interfaces in datastore?
 	bn := dl.BlobName()
-	err = be.ds.Update(ctx, bn, dl.CreateReader())
+	err = be.ds.Update(ctx, bn, pr.GetPublicDataReader())
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -134,7 +128,7 @@ func (be *beDatastore) updateDynamicLink(
 		return err
 	}
 
-	encryptionKey, err := dl.UpdateLinkData(r, newVersion)
+	pr, encryptionKey, err := dl.UpdateLinkData(r, newVersion)
 	if err != nil {
 		return err
 	}
@@ -150,7 +144,7 @@ func (be *beDatastore) updateDynamicLink(
 	}
 
 	// Send update packet
-	err = be.ds.Update(ctx, name, dl.CreateReader())
+	err = be.ds.Update(ctx, name, pr.GetPublicDataReader())
 	if err != nil {
 		return err
 	}

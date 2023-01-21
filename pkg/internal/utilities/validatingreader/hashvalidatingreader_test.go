@@ -27,16 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockCloser struct {
-	io.Reader
-
-	closeFunc func() error
-}
-
-func (m mockCloser) Close() error {
-	return m.closeFunc()
-}
-
 func TestHashValidatingReader(t *testing.T) {
 
 	for _, data := range [][]byte{
@@ -48,13 +38,8 @@ func TestHashValidatingReader(t *testing.T) {
 		t.Run("valid hash", func(t *testing.T) {
 			hash := sha256.Sum256(data)
 
-			closeErr := errors.New("Test error during close")
-
 			r := validatingreader.NewHashValidation(
-				mockCloser{
-					Reader:    bytes.NewReader(data),
-					closeFunc: func() error { return closeErr },
-				},
+				bytes.NewReader(data),
 				sha256.New(),
 				hash[:],
 				errors.New("Test error"),
@@ -63,9 +48,6 @@ func TestHashValidatingReader(t *testing.T) {
 			readBack, err := io.ReadAll(r)
 			require.NoError(t, err)
 			require.EqualValues(t, data, readBack)
-
-			err = r.Close()
-			require.ErrorIs(t, err, closeErr)
 		})
 
 		t.Run("invalid hash", func(t *testing.T) {
@@ -74,13 +56,8 @@ func TestHashValidatingReader(t *testing.T) {
 
 			retErr := errors.New("Test error")
 
-			closeErr := errors.New("Test error during close")
-
 			r := validatingreader.NewHashValidation(
-				mockCloser{
-					Reader:    bytes.NewReader(data),
-					closeFunc: func() error { return closeErr },
-				},
+				bytes.NewReader(data),
 				sha256.New(),
 				hash[:],
 				retErr,
@@ -89,10 +66,6 @@ func TestHashValidatingReader(t *testing.T) {
 			readBack, err := io.ReadAll(r)
 			require.ErrorIs(t, err, retErr)
 			require.EqualValues(t, data, readBack)
-
-			err = r.Close()
-			require.ErrorIs(t, err, closeErr)
 		})
 	}
-
 }

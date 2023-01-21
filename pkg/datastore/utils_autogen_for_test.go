@@ -105,13 +105,17 @@ func TestDatasetGeneration(t *testing.T) {
 		)
 	}
 
+	errPanic := func(err error) {
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	static := func(data string) {
 		content := []byte(data)
 		hash := sha256.Sum256(content)
 		n, err := common.BlobNameFromHashAndType(hash[:], blobtypes.Static)
-		if err != nil {
-			panic(err)
-		}
+		errPanic(err)
 		dumpBlob(n, content, []byte(data))
 	}
 
@@ -130,17 +134,21 @@ func TestDatasetGeneration(t *testing.T) {
 		}
 
 		dl, err := dynamiclink.Create(bytes.NewReader(pseudoRandBuffer))
-		if err != nil {
-			panic(err)
-		}
-		dl.UpdateLinkData(bytes.NewBufferString(data), version)
+		errPanic(err)
 
-		buf, err := io.ReadAll(dl.CreateReader())
-		if err != nil {
-			panic(err)
-		}
+		pr, _, err := dl.UpdateLinkData(bytes.NewBufferString(data), version)
+		errPanic(err)
 
-		dumpBlob(dl.BlobName(), buf, dl.EncryptedLink)
+		buf, err := io.ReadAll(pr.GetPublicDataReader())
+		errPanic(err)
+
+		pr, err = dynamiclink.FromPublicData(dl.BlobName(), bytes.NewReader(buf))
+		errPanic(err)
+
+		elink, err := io.ReadAll(pr.GetEncryptedLinkReader())
+		errPanic(err)
+
+		dumpBlob(dl.BlobName(), buf, elink)
 	}
 
 	fmt.Printf("" +

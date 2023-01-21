@@ -19,40 +19,54 @@ package dynamiclink
 import (
 	"bytes"
 	"crypto/ed25519"
+	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"io"
 
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
+	"golang.org/x/crypto/chacha20"
 )
 
-type PublisherDynamicLinkData struct {
-	DynamicLinkData
+var (
+	ErrInvalidDynamicLinkAuthInfo = errors.New("invalid dynamic link auth info")
+)
+
+type Publisher struct {
+	Public
 	privKey ed25519.PrivateKey
 }
 
-func Create(randSource io.Reader) (*PublisherDynamicLinkData, error) {
+func nonceFromRand(randSource io.Reader) (uint64, error) {
+	var nonceBytes [8]byte
+	_, err := io.ReadFull(randSource, nonceBytes[:])
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint64(nonceBytes[:]), nil
+}
+
+func Create(randSource io.Reader) (*Publisher, error) {
 	pubKey, privKey, err := ed25519.GenerateKey(randSource)
 	if err != nil {
 		return nil, err
 	}
 
-	var nonceBytes [8]byte
-	_, err = io.ReadFull(randSource, nonceBytes[:])
+	nonce, err := nonceFromRand(randSource)
 	if err != nil {
 		return nil, err
 	}
-	nonce := binary.BigEndian.Uint64(nonceBytes[:])
 
-	return &PublisherDynamicLinkData{
-		DynamicLinkData: DynamicLinkData{
-			PublicKey: pubKey,
-			Nonce:     nonce,
+	return &Publisher{
+		Public: Public{
+			publicKey: pubKey,
+			nonce:     nonce,
 		},
 		privKey: privKey,
 	}, nil
 }
 
-func FromAuthInfo(authInfo []byte) (*PublisherDynamicLinkData, error) {
+func FromAuthInfo(authInfo []byte) (*Publisher, error) {
 	if len(authInfo) != 1+ed25519.SeedSize+8 || authInfo[0] != 0 {
 		return nil, ErrInvalidDynamicLinkAuthInfo
 	}
@@ -61,47 +75,85 @@ func FromAuthInfo(authInfo []byte) (*PublisherDynamicLinkData, error) {
 	pubKey := privKey.Public().(ed25519.PublicKey)
 	nonce := binary.BigEndian.Uint64(authInfo[1+ed25519.SeedSize:])
 
-	return &PublisherDynamicLinkData{
-		DynamicLinkData: DynamicLinkData{
-			PublicKey: pubKey,
-			Nonce:     nonce,
+	return &Publisher{
+		Public: Public{
+			publicKey: pubKey,
+			nonce:     nonce,
 		},
 		privKey: privKey,
 	}, nil
 }
 
-func (dl *PublisherDynamicLinkData) AuthInfo() []byte {
-	var ret [1 + ed25519.SeedSize + 8]byte
-	ret[0] = 0
-	copy(ret[1:], dl.privKey.Seed())
-	binary.BigEndian.PutUint64(ret[1+ed25519.SeedSize:], dl.Nonce)
-	return ret[:]
-}
-
-func (dl *PublisherDynamicLinkData) UpdateLinkData(r io.Reader, version uint64) ([]byte, error) {
-	unencryptedLink, err := io.ReadAll(r)
+func ReNonce(p *Publisher, randSource io.Reader) (*Publisher, error) {
+	nonce, err := nonceFromRand(randSource)
 	if err != nil {
 		return nil, err
 	}
 
-	dl.ContentVersion = version
-	dl.IV = dl.CalculateIV(unencryptedLink)
+	return &Publisher{
+		Public: Public{
+			publicKey: p.publicKey,
+			nonce:     nonce,
+		},
+		privKey: p.privKey,
+	}, nil
+}
 
-	encryptionKey := dl.CalculateEncryptionKey(dl.privKey)
+func (dl *Publisher) AuthInfo() []byte {
+	var ret [1 + ed25519.SeedSize + 8]byte
+	ret[0] = reservedByteValue
+	copy(ret[1:], dl.privKey.Seed())
+	binary.BigEndian.PutUint64(ret[1+ed25519.SeedSize:], dl.nonce)
+	return ret[:]
+}
+
+func (dl *Publisher) calculateEncryptionKey() []byte {
+	dataSeed := append(
+		[]byte{signatureForEncryptionKeyGeneration},
+		dl.BlobName()...,
+	)
+
+	// TODO: Add key validation block
+
+	signature := ed25519.Sign(dl.privKey, dataSeed)
+	signatureHash := sha256.Sum256(signature)
+	return signatureHash[:chacha20.KeySize]
+}
+
+func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader, []byte, error) {
+	unencryptedLink, err := io.ReadAll(r)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	pr := PublicReader{
+		Public: dl.Public,
+	}
+
+	pr.contentVersion = version
+
+	hasher := pr.ivCalculationHasherPrefilled()
+	hasher.Write(unencryptedLink)
+	pr.iv = hasher.Sum(nil)[:chacha20.NonceSizeX]
+
+	encryptionKey := dl.calculateEncryptionKey()
 
 	encryptedLinkBuff := bytes.NewBuffer(nil)
-	w, err := cipherfactory.StreamCipherWriter(encryptionKey, dl.IV, encryptedLinkBuff)
+	w, err := cipherfactory.StreamCipherWriter(encryptionKey, pr.iv, encryptedLinkBuff)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	_, err = w.Write(unencryptedLink)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	dl.EncryptedLink = encryptedLinkBuff.Bytes()
-	dl.Signature = ed25519.Sign(dl.privKey, dl.bytesToSign())
+	signatureHasher := pr.toSignDataHasherPrefilled()
+	signatureHasher.Write(encryptedLinkBuff.Bytes())
 
-	return encryptionKey, nil
+	pr.signature = ed25519.Sign(dl.privKey, signatureHasher.Sum(nil))
+	pr.r = bytes.NewReader(encryptedLinkBuff.Bytes())
+
+	return &pr, encryptionKey, nil
 }

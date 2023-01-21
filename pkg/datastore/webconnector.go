@@ -112,7 +112,13 @@ func (w *webConnector) openStatic(ctx context.Context, name common.BlobName) (io
 		return nil, err
 	}
 
-	return validatingreader.NewHashValidation(res.Body, sha256.New(), name.Hash(), blobtypes.ErrValidationFailed), nil
+	return struct {
+		io.Reader
+		io.Closer
+	}{
+		Reader: validatingreader.NewHashValidation(res.Body, sha256.New(), name.Hash(), blobtypes.ErrValidationFailed),
+		Closer: res.Body,
+	}, nil
 }
 
 func (w *webConnector) openDynamicLink(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
@@ -138,7 +144,7 @@ func (w *webConnector) openDynamicLink(ctx context.Context, name common.BlobName
 	}
 
 	buff := bytes.NewBuffer(nil)
-	_, err = dynamiclink.FromReader(name, io.TeeReader(res.Body, buff))
+	_, err = dynamiclink.FromPublicData(name, io.TeeReader(res.Body, buff))
 	if err != nil {
 		return nil, err
 	}

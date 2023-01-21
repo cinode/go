@@ -37,19 +37,19 @@ func TestCipherForKeyIV(t *testing.T) {
 			"Empty key",
 			nil,
 			nil,
-			ErrInvalidKey,
+			ErrInvalidEncryptionConfigKeySize,
 		},
 		{
 			"Invalid Chacha20 key size",
 			make([]byte, chacha20.KeySize-1),
 			make([]byte, chacha20.NonceSizeX),
-			ErrInvalidKey,
+			ErrInvalidEncryptionConfigKeySize,
 		},
 		{
 			"Invalid Chacha20 nonce size",
 			make([]byte, chacha20.KeySize),
 			make([]byte, chacha20.NonceSizeX-1),
-			ErrInvalidKey,
+			ErrInvalidEncryptionConfigIVSize,
 		},
 		{
 			"Valid chacha20 key",
