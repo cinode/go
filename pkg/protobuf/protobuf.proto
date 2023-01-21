@@ -26,6 +26,8 @@ message Entrypoint {
   bytes blobName = 1;
   KeyInfo keyInfo = 2;
   string mimeType = 3;
+  uint64 notValidBeforeUnixMicrosec = 4;
+  uint64 notValidAfterUnixMicrosec = 5;
 }
 
 // Directory represents a content of a static directory
