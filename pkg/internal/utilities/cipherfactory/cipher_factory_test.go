@@ -18,7 +18,7 @@ package cipherfactory
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -91,7 +91,7 @@ func TestStreamCipherRoundtrip(t *testing.T) {
 	reader, err := StreamCipherReader(key, iv, bytes.NewReader(buf.Bytes()))
 	require.NoError(t, err)
 
-	readBack, err := ioutil.ReadAll(reader)
+	readBack, err := io.ReadAll(reader)
 	require.NoError(t, err)
 	require.Equal(t, data, readBack)
 }
