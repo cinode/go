@@ -35,69 +35,67 @@ import (
 	"github.com/jbenet/go-base58"
 )
 
-const (
-	filePrefix     = "file://"
-	rawFilePrefix  = "file-raw://"
-	webPrefixHttp  = "http://"
-	webPrefixHttps = "https://"
-	memoryPrefix   = "memory://"
-)
-
-func buildDS(name string) (datastore.DS, error) {
-	switch {
-	case name == "":
-		return datastore.InMemory(), nil
-
-	case strings.HasPrefix(name, filePrefix):
-		return datastore.InFileSystem(name[len(filePrefix):]), nil
-
-	case strings.HasPrefix(name, rawFilePrefix):
-		return datastore.InRawFileSystem(name[len(rawFilePrefix):]), nil
-
-	case strings.HasPrefix(name, webPrefixHttp),
-		strings.HasPrefix(name, webPrefixHttps):
-		return datastore.FromWeb(name), nil
-
-	case strings.HasPrefix(name, memoryPrefix):
-		if name != memoryPrefix {
-			return nil, fmt.Errorf("memory datastream must not use any parameters, use `%s`", memoryPrefix)
-		}
-		return datastore.InMemory(), nil
-
-	default:
-		return datastore.InFileSystem(name), nil
-	}
-}
-
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+	entrypoint, err := getEntrypoint()
+	if err != nil {
+		log.Fatalf("Failed to initialize entrypoint: %v", err)
+	}
+
+	mainDS, err := getMainDS()
+	if err != nil {
+		log.Fatalf("Could not create main datastore: %v", err)
+	}
+
+	additionalDSs, err := getAdditionalDSs()
+	if err != nil {
+		log.Fatalf("Could not create additional datastores: %v", err)
+	}
+
+	handler := setupCinodeProxy(mainDS, additionalDSs, entrypoint)
+
+	log.Println("Listening on http://localhost:8080")
+	err = http.ListenAndServe(":8080", handler)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func getEntrypoint() (*protobuf.Entrypoint, error) {
 	entrypointB58, found := os.LookupEnv("CINODE_ENTRYPOINT")
 	if !found {
 		entrypointFile, found := os.LookupEnv("CINODE_ENTRYPOINT_FILE")
 		if !found {
-			log.Fatal("Missing CINODE_ENTRYPOINT or CINODE_ENTRYPOINT_FILE env var")
+			return nil, errors.New("missing CINODE_ENTRYPOINT or CINODE_ENTRYPOINT_FILE env var")
 		}
 		entrypointFileData, err := os.ReadFile(entrypointFile)
 		if err != nil {
-			log.Fatalf("Could not read entrypoint file at '%s': %v", entrypointFile, err)
+			return nil, fmt.Errorf("could not read entrypoint file at '%s': %w", entrypointFile, err)
 		}
 		entrypointB58 = string(bytes.TrimSpace(entrypointFileData))
 	}
 	entrypointRaw := base58.Decode(entrypointB58)
 	if len(entrypointRaw) == 0 {
-		log.Fatalf("Could not decode hex entrypoint data")
+		return nil, errors.New("could not decode base58 entrypoint data")
 	}
 	entrypoint, err := protobuf.EntryPointFromBytes(entrypointRaw)
 	if err != nil {
-		log.Fatalf("Could not unmarshal entrypoint data: %v", err)
+		return nil, fmt.Errorf("could not unmarshal entrypoint data: %w", err)
 	}
 
-	mainDS, err := buildDS(os.Getenv("CINODE_MAIN_DATASTORE"))
-	if err != nil {
-		log.Fatalf("Could not create main datastore: %v", err)
-	}
+	return entrypoint, nil
+}
 
+func getMainDS() (datastore.DS, error) {
+	location := os.Getenv("CINODE_MAIN_DATASTORE")
+	if location == "" {
+		return datastore.InMemory(), nil
+	}
+	return datastore.FromLocation(location)
+}
+
+func getAdditionalDSs() ([]datastore.DS, error) {
 	additionalDSs := []datastore.DS{}
 	additionalDSEnvNames := []string{}
 	for _, e := range os.Environ() {
@@ -109,13 +107,22 @@ func Execute() {
 	sort.Strings(additionalDSEnvNames)
 
 	for _, envName := range additionalDSEnvNames {
-		ds, err := buildDS(os.Getenv(envName))
+		location := os.Getenv(envName)
+		ds, err := datastore.FromLocation(location)
 		if err != nil {
-			log.Fatalf("Could not create additional datastore from env var %s: %v", envName, err)
+			return nil, fmt.Errorf("invalid datastore location '%s' from env var '%s': %w", location, envName, err)
 		}
 		additionalDSs = append(additionalDSs, ds)
 	}
 
+	return additionalDSs, nil
+}
+
+func setupCinodeProxy(
+	mainDS datastore.DS,
+	additionalDSs []datastore.DS,
+	entrypoint *protobuf.Entrypoint,
+) http.Handler {
 	fs := structure.CinodeFS{
 		BE: blenc.FromDatastore(
 			datastore.NewMultiSource(mainDS, time.Hour, additionalDSs...),
@@ -163,9 +170,5 @@ func Execute() {
 
 	})
 
-	log.Println("Listening on http://localhost:8080")
-	err = http.ListenAndServe(":8080", handler)
-	if err != nil {
-		log.Fatal(err)
-	}
+	return handler
 }

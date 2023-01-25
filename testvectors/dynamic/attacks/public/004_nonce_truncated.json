@@ -1,0 +1,12 @@
+{
+   "name": "dynamic/attacks/public/004_nonce_truncated",
+   "description": "Truncated nonce",
+   "added_at": "2023-01-20",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Lg==",
+   "decrypted_dataset": null,
+   "valid_publicly": false,
+   "valid_privately": false,
+   "go_error_contains": "data truncated while reading nonce"
+}

@@ -1,0 +1,21 @@
+{
+   "name": "dynamic/attacks/private/015_iv_gen_hash_blob_type",
+   "description": "Invalid encryption iv - iv gen hash blob type",
+   "details": [
+      "Data link encryption iv is calculated by using a hash function.",
+      "To avoid potential security issue where the same hash function with",
+      "the same input data is reused for different blob type, there's an encoded",
+      "blob type information before the final data to be hashed.",
+      "",
+      "This test ensures that invalid blob type used in the hashed data results",
+      "with an invalid iv that is rejected while trying to read the plaintext link data."
+   ],
+   "added_at": "2023-01-21",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKVk2y9TAAyCb/Ebm2gHhx7GJ6oX06SHjCZ4/AJVbq1MQuYT38/fbAAUpctSD9JghNMB6m41v9L4Kgdfh+reCIsMPX4EfCNH2O0YTnNDjEr91dQiRYJgQgmLUNH37MQ1oZ6XdthPCK3BvMOsNHBdwO8eNd+ibqqITqBMS61VaiJKEAJoNLsMFJRgeP+H5Bft65bfF3ZHC6bRkx/Y1ymvcaP8h0zSO/CHYW6Gbzox18ed4ptNL5V1NQclX7qC1neHRDTl2rw=",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "iv mismatch"
+}

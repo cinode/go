@@ -1,0 +1,21 @@
+{
+   "name": "dynamic/attacks/private/021_truncated_link_data_reserved_byte",
+   "description": "Truncated link data - missing reserved byte",
+   "details": [
+      "The link data can be properly encrypted and signed passing",
+      "public verification. However the internal dataset may be",
+      "corrupted. A truncated dataset should also be detected.",
+      "",
+      "The dataset can not be empty since there would be no",
+      "reserved internal byte value in such case. This test",
+      "checks whether such truncated link data would be detected."
+   ],
+   "added_at": "2023-01-24",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKUHeMyp4G+pBxwaPOgem0NVaCjhVE0yDbXoYREyuJwuRUUo+T7FcT777UdowHb0jzdSqZDrVwDqaiWKjjwDfBQOPX4EfCNH2O0Y6b69T2nhGzJfvAl0Es0uiM9HUbCInDJ8",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "data truncated while reading internal reserved byte"
+}

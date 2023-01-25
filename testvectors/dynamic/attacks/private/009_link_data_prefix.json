@@ -1,0 +1,19 @@
+{
+   "name": "dynamic/attacks/private/009_link_data_prefix",
+   "description": "Invalid link data - prefix",
+   "details": [
+      "For client validation purposes, unencrypted data contains key validation block",
+      "next to the link information itself. That data contains prefix so that it can be",
+      "modified in the future supporting different validation block formats.",
+      "",
+      "This test checks if invalid prefix value makes the blob invalid."
+   ],
+   "added_at": "2023-01-21",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKV5QfahnFZvrGyiym1MN41V/z35hHqNoRRf6+NZeAVNyHx7n+UEHN5199I9lWF19gb/uHfwn94NnQMTHTD07gMCPX4EfCNH2O0YsylB+erSnppPCvYPKE9Wgh1F3ItklGwFgDDDupjfJ9u1x/j9hoEPwdxJzL40S+XhhhV3r/iSXrwOb4cJVl4NjRCKovkK4cKT0l1MQUvoANm3aFgTq8shbVBxKgPipOz9b1KYpvJOxrBzPliX+jw2blZ/yDLMlYPGXc0=",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "invalid value of the internal reserved byte"
+}

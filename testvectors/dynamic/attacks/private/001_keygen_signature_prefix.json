@@ -1,0 +1,24 @@
+{
+   "name": "dynamic/attacks/private/001_keygen_signature_prefix",
+   "description": "Invalid encryption key - keygen signature data prefix",
+   "details": [
+      "Data link encryption key is deterministically calculated from link's configuration.",
+      "It must be calculate based on unchanging link dataset and private key.",
+      "",
+      "When generating the encryption key, private key is used to calculate a signature",
+      "of blob's unchanging data. That signature must be different to the signature",
+      "used to sign the encrypted data itself thus a different prefix is used for each",
+      "signing schemes.",
+      "",
+      "This test ensures that an invalid prefix determining the kind of data being signed",
+      "results in encryption key validation failure."
+   ],
+   "added_at": "2023-01-20",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKWeenwoCRo7EevCHoIOhEm+RxHgfLMBVlMwVyQSxuluK4FiYzC6i6xdWPVEw2cMlT7f5BRgpsuVnXSiLp22a04FPX4EfCNH2O0YqBk7CjwA3PJLCJvffM7tSaMycq6W7YFOSgEVoXOdgKva40TvQry+/VaZ2xTyTmX1DjqzX56uPKyYftmxTeOKXLpyinPtfBksJEerBNIM5lUcg6DWwbwlYGQwCJcilNNJhFSykv0t+NPhvqZoG7DrDs8/8NSZR9USuyo=",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "invalid key validation block signature"
+}

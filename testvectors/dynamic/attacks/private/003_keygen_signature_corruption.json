@@ -1,0 +1,19 @@
+{
+   "name": "dynamic/attacks/private/003_keygen_signature_corruption",
+   "description": "Invalid encryption key - keygen signature corruption",
+   "details": [
+      "Data link encryption key is deterministically calculated from link's configuration.",
+      "It must be calculate based on unchanging link dataset and private key.",
+      "",
+      "This test ensures that any corruption in the base signature will result in rejection",
+      "of the encryption key."
+   ],
+   "added_at": "2023-01-21",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKU1fFpdqEifzlQTbSgTPFm4f8S4sEl6ABS19kX7jqmZOIUoCI4aUNFnbIc8QV9396SYR6t57ZwDvzYRNFF6BlkNPX4EfCNH2O0Y80MdaI7ZHJizPRP8USTt5+pvn+iu4Zivo2ojEcTka5uEJrwdSXqBfylPcvhkMlXZ8SYbnxQpvCv0c2a44uW3MGeXdWUt828KYsA+6YJfYMbYZnXAAinAXqX7evGRy6dogJn+DAfJU5oSEa0EfJtjjswnW3a2Z1SKOog=",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "invalid key validation block signature"
+}

@@ -1,0 +1,18 @@
+{
+   "name": "dynamic/attacks/public/002_reserved_byte",
+   "description": "Invalid reserved byte",
+   "details": [
+      "The first byte in the dataset is reserved for future protocol",
+      "modifications without breaking backwards compatibility.",
+      "Currently the reserved byte must be zero, any byte other than",
+      "that must be rejected."
+   ],
+   "added_at": "2023-01-20",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "/xHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKXKxH+xboBkXf4ELe2rV7ZjlzR+AjFf/l9bp8mbSX2oz+9vRzne5worTdtyJv+Y6oMnrPkq51rWQCw/GiqRE1MLPX4EfCNH2O0YAJvtsO4X+FnTqzNaB1HYgsceJmi4jsv+2+HpXXUnqNoYKB2/kLJVo5EdNy45FhRe+/kXsXgHAQeI66PRpoUNvsUM3AC9T57WKnMi+1FzkNaik2RuHNfZno54A1zG83XsVMn4LUJArc+1PfcJ90XQIT23tHlLyHI2ejY=",
+   "decrypted_dataset": null,
+   "valid_publicly": false,
+   "valid_privately": false,
+   "go_error_contains": "invalid value of the reserved byte"
+}

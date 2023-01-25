@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes"
@@ -55,7 +56,12 @@ func WebOptionCustomizeRequest(f func(*http.Request) error) webConnectorOption {
 }
 
 // FromWeb returns Datastore implementation that connects to external url
-func FromWeb(baseURL string, options ...webConnectorOption) DS {
+func FromWeb(baseURL string, options ...webConnectorOption) (DS, error) {
+	_, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, err
+	}
+
 	ret := &webConnector{
 		baseURL:          baseURL,
 		client:           http.DefaultClient,
@@ -66,7 +72,7 @@ func FromWeb(baseURL string, options ...webConnectorOption) DS {
 		o(ret)
 	}
 
-	return ret
+	return ret, nil
 }
 
 func (w *webConnector) Kind() string {
@@ -106,7 +112,13 @@ func (w *webConnector) openStatic(ctx context.Context, name common.BlobName) (io
 		return nil, err
 	}
 
-	return validatingreader.NewHashValidation(res.Body, sha256.New(), name.Hash(), blobtypes.ErrValidationFailed), nil
+	return struct {
+		io.Reader
+		io.Closer
+	}{
+		Reader: validatingreader.NewHashValidation(res.Body, sha256.New(), name.Hash(), blobtypes.ErrValidationFailed),
+		Closer: res.Body,
+	}, nil
 }
 
 func (w *webConnector) openDynamicLink(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
@@ -132,7 +144,7 @@ func (w *webConnector) openDynamicLink(ctx context.Context, name common.BlobName
 	}
 
 	buff := bytes.NewBuffer(nil)
-	_, err = dynamiclink.FromReader(name, io.TeeReader(res.Body, buff))
+	_, err = dynamiclink.FromPublicData(name, io.TeeReader(res.Body, buff))
 	if err != nil {
 		return nil, err
 	}

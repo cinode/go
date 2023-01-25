@@ -26,9 +26,18 @@ message Entrypoint {
   bytes blobName = 1;
   KeyInfo keyInfo = 2;
   string mimeType = 3;
+  int64 notValidBeforeUnixMicro = 4;
+  int64 notValidAfterUnixMicro = 5;
 }
 
 // Directory represents a content of a static directory
 message Directory {
   map<string, Entrypoint> entries = 1;
+}
+
+// WriterInfo contains information that allows updating given blob
+message WriterInfo {
+  bytes blobName = 1;
+  bytes key = 2;
+  bytes authInfo = 3;
 }

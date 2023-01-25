@@ -17,7 +17,7 @@ limitations under the License.
 package datastore
 
 import (
-	"crypto/ed25519"
+	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"io"
@@ -27,97 +27,99 @@ import (
 	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
 	"github.com/jbenet/go-base58"
-	"golang.org/x/crypto/chacha20"
 )
 
 var testBlobs = []struct {
 	name     common.BlobName
 	data     []byte
-	expected string
+	expected []byte
 }{
 	// Static blobs
 	{
 		common.BlobName(base58.Decode("KDc2ijtWc9mGxb5hP29YSBgkMLH8wCWnVimpvP3M6jdAk")),
 		base58.Decode("3A836b"),
-		"Test",
+		base58.Decode("3A836b"),
 	},
 	{
 		common.BlobName(base58.Decode("BG8WaXMAckEfbCuoiHpx2oMAS4zAaPqAqrgf5Q3YNzmHx")),
 		base58.Decode("AXG4Ffv"),
-		"Test1",
+		base58.Decode("AXG4Ffv"),
 	},
 	{
 		common.BlobName(base58.Decode("2GLoj4Bk7SvjQngCT85gxWRu2DXCCjs9XWKsSpM85Wq3Ve")),
 		base58.Decode(""),
-		"",
+		base58.Decode(""),
 	},
 	{
-		common.BlobName(base58.Decode("tK1XTjci1qkd2M5EP1AU1eRyuDJP648QMdguJzYYSk8TU")),
-		base58.Decode("13GSfZovmNNfrcECwJHoYVudhrSSDm7PYnxinMKJMoBhhDPzWnpYQsRqzwFoNe4uxp4m4HJeLXJMXgG2TLSHZ2vpoHaJUzGnpzi2Mj3BEVq6LFNaugt3kvWrvFMCD7nPciQyTvJzFbdzrfKMiBGAjCpntqET51qDfJxQKkapJrwiqdHJW1sjBR"),
-		"Test",
+		common.BlobName(base58.Decode("251SEdnHjwyvUqX1EZnuKruta4yHMkTDed7LGoi3nUJwhx")),
+		base58.Decode("1DhLfjA9ij9QFBh7J8ysnN3uvGcsNQa7vaxKEwbYEMSEXuZbgyCtUAn5M4QxmgLVnCJ6cARY5Ry2EJVXxn48D837xGxRp1M2rRnz9BHVGw2sc9Ee1DkLmsurGoKX1Evt2iuMhNQyNGh2CrsHWxdGTvZVhpHShmKRziHZEDybK4ZaJh9RvTEngYQkeHAtC3J3TW6dbpaNWBNLD6YdU5xPcaE3AUPMnk4CM1dD8XMBRQekZguNJHNZwNQCXRQodVyGLVRzi1dkTG2odnrcbZ4i3oNxyJyz"),
+		base58.Decode("4wNoVjVdtJ5FKtD3ZmHW4bvTiWgZFmwmps9JEJxDdinXscjMWjjeTQo2Hzwkg6GnFp1kmNoSZR9d5hXnG4qHi6mx2KqM7SVJ"),
 	},
 	{
-		common.BlobName(base58.Decode("85aZqZCA6FYBL572qEYw4q78Gi51XZaYntcSmPy3mnSeu")),
-		base58.Decode("17eQVPLzFwyQZmwbhL5ZRNw77gU3MbZcmYWYNbLN4YXE4LLjsEb5i7eo2JuTmmz9w5Jk1mcpT7SMpAbEFGx5D4fJMB9pRDV5CFKkyJdmcaBGBvArpFJvGQsUh4S3h9g9wCk4pdvRCewdAL35xkLCi3kTuKTcPzU42CPuRkmK45S9WNZZ3N6cNDW"),
-		"Test1",
+		common.BlobName(base58.Decode("27vP1JG4VJNZvQJ4Zfhy3H5xKugurbh89B7rKTcStM9guB")),
+		base58.Decode("1eE2wp1836WtQmEbjdavggJvFPU7dZbQQH5EBS2LwBL2rYjArM9mjvWCrAbpZDkLFx7dQ5FyejnHD1EbwofDDLa1zNmN94qws1UfhNM4KCBT4oijCfPbJHobp7h5tcZQwMZy1gA3jTQBRvem2ioNuSFwqKRwbVJs9S21QFB86XuuUggNmj6sfAsDKwvE4M5EQxSkDft3CFiUX6XUMgCJUAreBRoT32wz7ncNbFaETMscFTTjFUYYiUFuv6fQESbfDCV3rfcSmxSLbLqm2u2Pd83cnzqfH"),
+		base58.Decode("8Ya88xk8C7tnYXAKJL9t1bCoBUur9dLr44SwhchsBh7UQb7TmZihVpffndCxLmhH9YjMrQj442YhiW3Hr2bBUR4vCcn6VdJLK"),
 	},
 	{
-		common.BlobName(base58.Decode("nhNM314o3HKEs8u7m2cKtBLU5odPLwUAvsqzRkRs6NBHG")),
-		base58.Decode("1B5g5TUccHMxSFVswfycgEnKt4gc4uYk4LJZk5GMY8jciVEnySDCn1rjs7dqWQq5eDwbmnqrzczzKYq7vMJgue3v9wDNdCQHDNi3FHrzLyAXa76wutUAbizgaqp3oBPmKFM25NF4UiWR2veNnAfRHmwGryojCnH2TWT9Ye1Pp3VbTunw"),
-		"",
+		common.BlobName(base58.Decode("e3T1HcdDLc73NHed2SFu5XHUQx5KDwgdAYTMmmEk2Ekqm")),
+		base58.Decode("1yULPpEx3gjpKNBLCEzb2oj2xRcdGfr88CztgfYfEipBGiJCijqWBEEhXTaReU6CBcbt61h2DeGoZhgAfTiEwppGkJWCJrtmkSiLiib8UhupERptC3U2j6BKDg8PLwHq113WKJWM4tr2c3WxTXTSosjk7fBhuz3GJgqdYLecBfnKMGUqw8XkBf2Lth2REAw4ccZmmYn21x1W1tFdVCe4cAzAEqc5adJC3j3prPsYvL8QSqBZE5nQcnvfGekTUqn7HDZbZvqFN3TKc8HSVK9YUQ"),
+		base58.Decode("MpaLZEfQpasGN1khuvpTC6CFnJucjVmzRfZwaxJkti1uQAetXnvDL8PmrFHZkr7XX1GtKaQqB2P6M2KZjCYCTfxMZi"),
 	},
 }
 
 var dynamicLinkPropagationData = []struct {
 	name     common.BlobName
 	data     []byte
-	expected string
+	expected []byte
 }{
 	{
-		common.BlobName(base58.Decode("RgZmbDndPVk8eZ1bZt2Q2aTc6LnDC3ReQ1Gan1Yx3vxas")),
-		base58.Decode("128HhbN4MsH7eUgmrbMnY1haWz22gW59kFG2QQ8cDA4Z4orM6hfBRzUNxpayaYNUrQ4TVtwZitnwLP84eSVF9yC2LFzvtK75AECP65eibD6mknyKcgMKL4Auj4WnMckKWK1za9mWpbZundyhKZdCd1r66892pULHRMFGtAAXmRnHzWTF7F2b8oi"),
-		"Test1",
+		common.BlobName(base58.Decode("GUnL66Lyv2Qs4baxPhy59kF4dsB9HWakvTjMBjNGFLT6g")),
+		base58.Decode("17Jk3QJMCABypJWuAivYwMi43gN1KxPVy3qg1e4HYQFe8BCQPVm6GX8auaFjXhwZZQhxaHjDirXH6Ze59irpWSkBicnqigPcd6j5H9AjnPHTHRKhyLSSX5kqkVRiwSRvTojGvx6oeMqj2hyhK9LxStjtYVW7WKxoCwATgQbkUWRszH2Eff3bHND8RbknhfZDSvSmXxSR8h6tMTErcV8dGyPYUysdV6Gd9bEK8bjRs6NxhCLpQ55dvZcwEi6i7rqo2WQWhY7HMMhmKhggvLXcReaUMTByq"),
+		base58.Decode("PnB1W5tcQdkzYrnvE8Z1BAsBgv9kVgdeZMp78WYxnJJKi2RDPHgx9VvzYZ1hzGhVxBetGfuxwdstH8E9oNiUQ6JDNPWYZAXE7"),
 	},
 	{
-		common.BlobName(base58.Decode("RgZmbDndPVk8eZ1bZt2Q2aTc6LnDC3ReQ1Gan1Yx3vxas")),
-		base58.Decode("128HhbN4MsH7eUgmrbMnY1haWz22gW59kFG2QQ8cDA4Z4orM6hfBS3XCEcpv1KK58hSSTkHq7xTtPGL9bZZYQs5nYPjF6guVWPPwUVSbUNqGmmPAwViG7UtTBK8EAnCGCuqAjt9J9WcZngA4JA1f84BpJzG1vm4a5AnZsHhiRsNZP6bmZA6QaEM"),
-		"Test2",
+		common.BlobName(base58.Decode("GUnL66Lyv2Qs4baxPhy59kF4dsB9HWakvTjMBjNGFLT6g")),
+		base58.Decode("17Jk3QJMCABypJWuAivYwMi43gN1KxPVy3qg1e4HYQFe8BCQPVm6GX8cxHJfhdYkZjq51cCNcGKTXirXxYcaGA5XdykeezU9P6jE72kmmpLNthhndMuE9oz7p725mWqPYMbMiw4Qp54oiRWdxEvh3yKRvjRA7MFK9ZJKGY1evFGbqsaMAE715aRYvP3yNjE7FaNwkKbAn1xJm4ojF4qjtaNN5zxHRgQfdZYLgybbsYJ3TJUNMxxNPkqu2CsiieeKJpJce8U5g3HAP6jAKSiXMBcmBfGm8"),
+		base58.Decode("mgbcvX3FFDqwigwuybL2misVJSLjXzZs9bumic8rFSHCD9nMqbmsTxNWnRpoVn3E2GKQaFcUdUzhMax1oiq5X9abrKYqXYMtN"),
 	},
 	{
-		common.BlobName(base58.Decode("RgZmbDndPVk8eZ1bZt2Q2aTc6LnDC3ReQ1Gan1Yx3vxas")),
-		base58.Decode("128HhbN4MsH7eUgmrbMnY1haWz22gW59kFG2QQ8cDA4Z4orM6hfBS3XCCLHibZzaWQ7dvttE9CrgYQzYppsasjpT25zpdxx9X4y9pbGK945r6kdsEioKN2Hw4XTFrwzFKhFXjpNJmCFRtLtAGiCd6GezawgpKyBAZNogkSRugg2L2VFRRRiWHg6"),
-		"Test3",
+		common.BlobName(base58.Decode("GUnL66Lyv2Qs4baxPhy59kF4dsB9HWakvTjMBjNGFLT6g")),
+		base58.Decode("17Jk3QJMCABypJWuAivYwMi43gN1KxPVy3qg1e4HYQFe8BCQPVm6GX8bbhTds8inbAV58TPXDmM19FuZEFGP1B3w9gBPoTfVQUfrhmB2A4uBrcKSxFBMNT8djhviFuunpME39ZSEZp3KS4w1jms7gKnoG237vs4vnNn4uRVF6pj5oorff4VxECGVektdbkiU2BcAUQUHbkqkcw3f3sX5Rtw5Ckv5mBzaa4zqUtLiK7eYp8Wqc5Au7mzTuXvPDpWbX85hz7EnDsuHQEoZAeFCFeWdzZSgS"),
+		base58.Decode("WZpzxEiTLyv42JwAfYCTo7TckS1bLY6XmuoJWoqz8BVzYNqUSvDf58KJR6tjuEegLRYCkiprPskdP7PMFP6wazLxed8JEPAsC"),
 	},
 }
 
 func TestDatasetGeneration(t *testing.T) {
 	t.SkipNow()
 
-	dumpBlob := func(name, content []byte, expected string) {
+	dumpBlob := func(name, content []byte, expected []byte) {
 		fmt.Printf(""+
 			"	{\n"+
 			"		common.BlobName(base58.Decode(\"%s\")),\n"+
 			"		base58.Decode(\"%s\"),\n"+
-			"		\"%s\",\n"+
+			"		base58.Decode(\"%s\"),\n"+
 			"	},\n",
 			base58.Encode(name),
 			base58.Encode(content),
-			expected,
+			base58.Encode(expected),
 		)
+	}
+
+	errPanic := func(err error) {
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	static := func(data string) {
 		content := []byte(data)
 		hash := sha256.Sum256(content)
 		n, err := common.BlobNameFromHashAndType(hash[:], blobtypes.Static)
-		if err != nil {
-			panic(err)
-		}
-		dumpBlob(n, content, data)
+		errPanic(err)
+		dumpBlob(n, content, []byte(data))
 	}
 
 	dynamicLink := func(data string, version uint64, seed int) {
-		content := []byte(data)
 
 		baseSeed := []byte{
 			byte(seed >> 8), byte(seed),
@@ -125,31 +127,35 @@ func TestDatasetGeneration(t *testing.T) {
 			0x7b, 0x7c, 0x99, 0x35, 0x7f, 0xed, 0x93, 0xd3,
 		}
 
-		edSeed := sha256.Sum256(append([]byte{0x00}, baseSeed...))
-		iv := sha256.Sum256(append([]byte{0x01}, baseSeed...))
-		priv := ed25519.NewKeyFromSeed(edSeed[:ed25519.SeedSize])
-		pub := priv.Public().(ed25519.PublicKey)
-		dl := dynamiclink.DynamicLinkData{
-			PublicKey:      pub,
-			ContentVersion: version,
-			IV:             iv[:chacha20.NonceSizeX],
-			EncryptedLink:  content,
-		}
-		dl.Signature = dl.CalculateSignature(priv)
-
-		buf, err := io.ReadAll(dl.CreateReader())
-		if err != nil {
-			panic(err)
+		pseudoRandBuffer := []byte{}
+		for i := byte(0); i < 5; i++ {
+			h := sha256.Sum256(append([]byte{i}, baseSeed...))
+			pseudoRandBuffer = append(pseudoRandBuffer, h[:]...)
 		}
 
-		dumpBlob(dl.BlobName(), buf, data)
+		dl, err := dynamiclink.Create(bytes.NewReader(pseudoRandBuffer))
+		errPanic(err)
+
+		pr, _, err := dl.UpdateLinkData(bytes.NewBufferString(data), version)
+		errPanic(err)
+
+		buf, err := io.ReadAll(pr.GetPublicDataReader())
+		errPanic(err)
+
+		pr, err = dynamiclink.FromPublicData(dl.BlobName(), bytes.NewReader(buf))
+		errPanic(err)
+
+		elink, err := io.ReadAll(pr.GetEncryptedLinkReader())
+		errPanic(err)
+
+		dumpBlob(dl.BlobName(), buf, elink)
 	}
 
 	fmt.Printf("" +
 		"var testBlobs = []struct {\n" +
 		"	name common.BlobName\n" +
 		"	data []byte\n" +
-		"	expected string\n" +
+		"	expected []byte\n" +
 		"}{\n" +
 		"	// Static blobs\n",
 	)
@@ -175,7 +181,7 @@ func TestDatasetGeneration(t *testing.T) {
 		"var dynamicLinkPropagationData = []struct{\n" +
 		"	name common.BlobName\n" +
 		"	data []byte\n" +
-		"	expected string\n" +
+		"	expected []byte\n" +
 		"}{\n",
 	)
 

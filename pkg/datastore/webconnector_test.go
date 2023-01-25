@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -32,9 +33,13 @@ import (
 )
 
 func TestWebConnectorInvalidUrl(t *testing.T) {
-	c := FromWeb("://bad.url")
+	_, err := FromWeb("://bad.url")
+	require.IsType(t, &url.Error{}, err)
 
-	_, err := c.Open(context.Background(), emptyBlobNameStatic)
+	c, err := FromWeb("httpz://bad.url")
+	require.NoError(t, err)
+
+	_, err = c.Open(context.Background(), emptyBlobNameStatic)
 	require.IsType(t, &url.Error{}, err)
 
 	_, err = c.Exists(context.Background(), emptyBlobNameStatic)
@@ -47,25 +52,54 @@ func TestWebConnectorInvalidUrl(t *testing.T) {
 	require.IsType(t, &url.Error{}, err)
 }
 
+func TestWebConnectorInvalidContext(t *testing.T) {
+
+	var nilCtx context.Context
+
+	c, err := FromWeb("http://datastore.local")
+	require.NoError(t, err)
+
+	for _, name := range emptyBlobNamesOfAllTypes {
+		t.Run(fmt.Sprint(name.Type()), func(t *testing.T) {
+			_, err = c.Open(nilCtx, name)
+			require.ErrorContains(t, err, "nil Context")
+
+			err = c.Update(nilCtx, name, bytes.NewReader(nil))
+			require.ErrorContains(t, err, "nil Context")
+
+			_, err = c.Exists(nilCtx, name)
+			require.ErrorContains(t, err, "nil Context")
+
+			err = c.Delete(nilCtx, name)
+			require.ErrorContains(t, err, "nil Context")
+		})
+	}
+}
+
 func TestWebConnectorServerSideError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error", http.StatusInternalServerError)
 	}))
 	defer server.Close()
 
-	c := FromWeb(server.URL + "/")
+	c, err := FromWeb(server.URL + "/")
+	require.NoError(t, err)
 
-	_, err := c.Open(context.Background(), emptyBlobNameStatic)
-	require.ErrorIs(t, err, ErrWebConnectionError)
+	for _, name := range emptyBlobNamesOfAllTypes {
+		t.Run(fmt.Sprint(name.Type()), func(t *testing.T) {
+			_, err = c.Open(context.Background(), name)
+			require.ErrorIs(t, err, ErrWebConnectionError)
 
-	_, err = c.Exists(context.Background(), emptyBlobNameStatic)
-	require.ErrorIs(t, err, ErrWebConnectionError)
+			_, err = c.Exists(context.Background(), name)
+			require.ErrorIs(t, err, ErrWebConnectionError)
 
-	err = c.Delete(context.Background(), emptyBlobNameStatic)
-	require.ErrorIs(t, err, ErrWebConnectionError)
+			err = c.Delete(context.Background(), name)
+			require.ErrorIs(t, err, ErrWebConnectionError)
 
-	err = c.Update(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
-	require.ErrorIs(t, err, ErrWebConnectionError)
+			err = c.Update(context.Background(), name, bytes.NewBuffer(nil))
+			require.ErrorIs(t, err, ErrWebConnectionError)
+		})
+	}
 }
 
 func TestWebConnectorDetectInvalidBlobRead(t *testing.T) {
@@ -76,17 +110,25 @@ func TestWebConnectorDetectInvalidBlobRead(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ds2 := FromWeb(server.URL + "/")
-
-	rc, err := ds2.Open(context.Background(), emptyBlobNameStatic)
+	ds2, err := FromWeb(server.URL + "/")
 	require.NoError(t, err)
 
-	_, err = io.ReadAll(rc)
-	require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
+	for _, name := range emptyBlobNamesOfAllTypes {
+		t.Run(fmt.Sprint(name.Type()), func(t *testing.T) {
+			rc, err := ds2.Open(context.Background(), name)
+			if err != nil {
+				// Either Open or Read could return an error
+				require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
+				return
+			}
 
-	err = rc.Close()
-	require.NoError(t, err)
+			_, err = io.ReadAll(rc)
+			require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
 
+			err = rc.Close()
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestWebConnectorInvalidErrorCode(t *testing.T) {
@@ -100,23 +142,30 @@ func TestWebConnectorInvalidErrorCode(t *testing.T) {
 	}))
 	defer server.Close()
 
-	ds2 := FromWeb(server.URL + "/")
+	ds2, err := FromWeb(server.URL + "/")
+	require.NoError(t, err)
 
-	_, err := ds2.Open(context.Background(), emptyBlobNameStatic)
-	require.ErrorIs(t, err, ErrWebConnectionError)
+	for _, name := range emptyBlobNamesOfAllTypes {
+		t.Run(fmt.Sprint(name.Type()), func(t *testing.T) {
+			_, err = ds2.Open(context.Background(), emptyBlobNameStatic)
+			require.ErrorIs(t, err, ErrWebConnectionError)
+		})
+	}
 }
 
 func TestWebConnectorOptions(t *testing.T) {
 	t.Run("http client", func(t *testing.T) {
 		cl := &http.Client{}
-		ds := FromWeb("http://test.local/", WebOptionHttpClient(cl))
+		ds, err := FromWeb("http://test.local/", WebOptionHttpClient(cl))
+		require.NoError(t, err)
 		require.Equal(t, cl, ds.(*webConnector).client)
 	})
 
 	t.Run("customize request", func(t *testing.T) {
 		testErr := errors.New("test error")
 		f := func(r *http.Request) error { return testErr }
-		ds := FromWeb("http://test.local/", WebOptionCustomizeRequest(f))
+		ds, err := FromWeb("http://test.local/", WebOptionCustomizeRequest(f))
+		require.NoError(t, err)
 		require.Equal(t, testErr, ds.(*webConnector).customizeRequest(nil))
 	})
 

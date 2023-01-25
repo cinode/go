@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package blenc
+package cipherfactory
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,7 +29,7 @@ func TestCipherForKeyIV(t *testing.T) {
 
 	for _, d := range []struct {
 		desc string
-		key  EncryptionKey
+		key  []byte
 		iv   []byte
 		err  error
 	}{
@@ -37,35 +37,35 @@ func TestCipherForKeyIV(t *testing.T) {
 			"Empty key",
 			nil,
 			nil,
-			ErrInvalidKey,
+			ErrInvalidEncryptionConfigKeyType,
 		},
 		{
 			"Invalid Chacha20 key size",
-			make([]byte, chacha20.KeySize-1),
+			make([]byte, chacha20.KeySize),
 			make([]byte, chacha20.NonceSizeX),
-			ErrInvalidKey,
+			ErrInvalidEncryptionConfigKeySize,
 		},
 		{
 			"Invalid Chacha20 nonce size",
-			make([]byte, chacha20.KeySize),
+			make([]byte, chacha20.KeySize+1),
 			make([]byte, chacha20.NonceSizeX-1),
-			ErrInvalidKey,
+			ErrInvalidEncryptionConfigIVSize,
 		},
 		{
 			"Valid chacha20 key",
-			make([]byte, chacha20.KeySize),
+			make([]byte, chacha20.KeySize+1),
 			make([]byte, chacha20.NonceSizeX),
 			nil,
 		},
 	} {
 		t.Run(d.desc, func(t *testing.T) {
-			sr, err := streamCipherReader(d.key, d.iv, bytes.NewReader([]byte{}))
+			sr, err := StreamCipherReader(d.key, d.iv, bytes.NewReader([]byte{}))
 			require.ErrorIs(t, err, d.err)
 			if err == nil {
 				require.NotNil(t, sr)
 			}
 
-			sw, err := streamCipherWriter(d.key, d.iv, bytes.NewBuffer(nil))
+			sw, err := StreamCipherWriter(d.key, d.iv, bytes.NewBuffer(nil))
 			require.ErrorIs(t, err, d.err)
 			if err == nil {
 				require.NotNil(t, sw)
@@ -75,23 +75,23 @@ func TestCipherForKeyIV(t *testing.T) {
 }
 
 func TestStreamCipherRoundtrip(t *testing.T) {
-	key := make([]byte, chacha20.KeySize)
+	key := make([]byte, chacha20.KeySize+1)
 	iv := make([]byte, chacha20.NonceSizeX)
 
 	data := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06}
 	buf := bytes.NewBuffer(nil)
 
-	writer, err := streamCipherWriter(key, iv, buf)
+	writer, err := StreamCipherWriter(key, iv, buf)
 	require.NoError(t, err)
 
 	_, err = writer.Write(data)
 	require.NoError(t, err)
 	require.NotEqual(t, buf.Bytes(), data)
 
-	reader, err := streamCipherReader(key, iv, bytes.NewReader(buf.Bytes()))
+	reader, err := StreamCipherReader(key, iv, bytes.NewReader(buf.Bytes()))
 	require.NoError(t, err)
 
-	readBack, err := ioutil.ReadAll(reader)
+	readBack, err := io.ReadAll(reader)
 	require.NoError(t, err)
 	require.Equal(t, data, readBack)
 }

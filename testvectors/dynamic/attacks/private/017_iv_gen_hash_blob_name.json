@@ -1,0 +1,19 @@
+{
+   "name": "dynamic/attacks/private/017_iv_gen_hash_blob_name",
+   "description": "Invalid encryption iv - iv gen hash blob name",
+   "details": [
+      "Data link encryption iv is calculated by using a hash function.",
+      "The iv value is calculated from both changing and unchanging data.",
+      "",
+      "This test ensures that invalid blob name used in the hashed data results",
+      "with an invalid iv that is rejected while trying to read the plaintext link data."
+   ],
+   "added_at": "2023-01-21",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKXo0HQQ9gsfOi3V+7PLcN+tGrvZ4cD+tfJXSLkckLTvag80kig0O/J+NNVuqYGOmogP72GRQ+G3zrqS0DEskJwAPX4EfCNH2O0YXrBKV5i+mGJ1f7vuKXQs75qYkef/RSFv5J9HX7lOw+SFnwQB9vOAXJHr1GN2wsC4Ogdu8i/ug5T2+Sx/YEKvpB7hjkcASW53/3iRrQb7e4xpbYBdD7kOUSUjWtn0DFR5deENC8yV2Xf1xkIPaR/vxEv282ts6kjNHdQ=",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "iv mismatch"
+}

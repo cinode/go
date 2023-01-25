@@ -1,0 +1,21 @@
+{
+   "name": "dynamic/attacks/private/013_iv_has_gen_h_prefix",
+   "description": "Invalid encryption iv - iv gen hash prefix",
+   "details": [
+      "Data link encryption iv is calculated by using a hash function.",
+      "To avoid potential security issue where the same hash function with",
+      "the same input data is reused in different context revealing such hash publicly,",
+      "each kind of data uses different prefix for the data being hashed mitigating the risk.",
+      "",
+      "This test ensures that invalid hashed data prefix results with an invalid iv that is",
+      "rejected while trying to read the plaintext link data."
+   ],
+   "added_at": "2023-01-21",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKWob8B7UYfyYp8feqKylmGvEH9FKMUUGdTAfe0M2Ezr3nZV0eDIx0jE0vUDKlVRhOndxnweTJuq3kdHtvgPMJ0FPX4EfCNH2O0YgKzidKLRbuytz1sRNOOOdfN6kvlleWCniv4FBLLmoPd007xT2Bc1VlS9Nr9HaSvsgm031VGsp5j2JdviW7R4nxaEPjsZvcQx0KflXKTK5FIR3UjIScaAgE9DRQhSA5ymVenEQWZWCj2EHQqyD0Uq4XbdKkO5RttvcA8=",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "iv mismatch"
+}

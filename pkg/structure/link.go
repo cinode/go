@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"time"
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/common"
@@ -29,8 +30,10 @@ import (
 )
 
 var (
-	ErrMaxRedirectsReached = errors.New("maximum limit of dynamic link redirects reached")
-	ErrCorruptedLinkData   = errors.New("corrupted link data")
+	ErrMaxRedirectsReached   = errors.New("maximum limit of dynamic link redirects reached")
+	ErrCorruptedLinkData     = errors.New("corrupted link data")
+	ErrInvalidEntrypoint     = protobuf.ErrInvalidEntrypoint
+	ErrInvalidEntrypointTime = protobuf.ErrInvalidEntrypointTime
 )
 
 func CreateLink(ctx context.Context, be blenc.BE, ep *protobuf.Entrypoint) (*protobuf.Entrypoint, *protobuf.WriterInfo, error) {
@@ -75,7 +78,21 @@ func UpdateLink(ctx context.Context, be blenc.BE, wi *protobuf.WriterInfo, ep *p
 	}, nil
 }
 
-func DereferenceLink(ctx context.Context, be blenc.BE, link *protobuf.Entrypoint, maxRedirects int) (*protobuf.Entrypoint, error) {
+func DereferenceLink(
+	ctx context.Context,
+	be blenc.BE,
+	link *protobuf.Entrypoint,
+	maxRedirects int,
+	currentTime time.Time,
+) (
+	*protobuf.Entrypoint,
+	error,
+) {
+	err := link.Validate(currentTime)
+	if err != nil {
+		return nil, err
+	}
+
 	for common.BlobName(link.BlobName).Type() == blobtypes.DynamicLink {
 		if maxRedirects == 0 {
 			return nil, ErrMaxRedirectsReached
@@ -99,6 +116,11 @@ func DereferenceLink(ctx context.Context, be blenc.BE, link *protobuf.Entrypoint
 		}
 
 		link, err = protobuf.EntryPointFromBytes(data)
+		if err != nil {
+			return nil, err
+		}
+
+		err = link.Validate(time.Now())
 		if err != nil {
 			return nil, err
 		}

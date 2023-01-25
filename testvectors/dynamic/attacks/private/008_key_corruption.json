@@ -1,0 +1,16 @@
+{
+   "name": "dynamic/attacks/private/008_key_corruption",
+   "description": "Invalid encryption key - keygen corruption",
+   "details": [
+      "Encryption key contains encryption algorithm type information encoded before",
+      "key bytes. This test ensures that invalid encryption algorithm is rejected."
+   ],
+   "added_at": "2023-01-21",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKXVC0Qg6r7ExVpKEPZnyaQvIGpyCFXeulBRpzAIdWFPiar+flyeScrQxpizDRLCUzDGQf8NdyuBugzQoVoUpLEOPX4EfCNH2O0Y6b69T2nhGzJfvAl0Es0uiM9HUbCInDJ8/6ymctYQmphKYZziCM0WEY7AeFX1cOxXVKAgIaX6bb5dh92GT5QA5yVg08FvvYC+isDKbzM1tkqWWoIUOeezdLvnzHHrqDVJQlOlC+HCWFd8w4t8xhEueGXjIwLv5GyMUfo=",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "invalid value of the internal reserved byte"
+}

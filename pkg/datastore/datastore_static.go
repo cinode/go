@@ -33,7 +33,18 @@ func (ds *datastore) openStatic(ctx context.Context, name common.BlobName) (io.R
 		return nil, err
 	}
 
-	return validatingreader.NewHashValidation(rc, sha256.New(), name.Hash(), blobtypes.ErrValidationFailed), nil
+	return struct {
+		io.Reader
+		io.Closer
+	}{
+		Reader: validatingreader.NewHashValidation(
+			rc,
+			sha256.New(),
+			name.Hash(),
+			blobtypes.ErrValidationFailed,
+		),
+		Closer: rc,
+	}, nil
 }
 
 func (ds *datastore) updateStatic(ctx context.Context, name common.BlobName, updateStream io.Reader) error {

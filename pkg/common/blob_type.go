@@ -23,3 +23,7 @@ type BlobType struct {
 func NewBlobType(t byte) BlobType {
 	return BlobType{t: t}
 }
+
+func (b BlobType) IDByte() byte {
+	return b.t
+}

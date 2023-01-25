@@ -22,14 +22,14 @@ import (
 	"io"
 )
 
-type hashValidatingReadCloser struct {
-	r            io.ReadCloser
+type hashValidatingReader struct {
+	r            io.Reader
 	hasher       hash.Hash
 	expectedHash []byte
 	err          error
 }
 
-func (h hashValidatingReadCloser) Read(b []byte) (int, error) {
+func (h hashValidatingReader) Read(b []byte) (int, error) {
 	n, err := h.r.Read(b)
 	h.hasher.Write(b[:n])
 
@@ -40,17 +40,13 @@ func (h hashValidatingReadCloser) Read(b []byte) (int, error) {
 	return n, err
 }
 
-func (h hashValidatingReadCloser) Close() error {
-	return h.r.Close()
-}
-
 func NewHashValidation(
-	r io.ReadCloser,
+	r io.Reader,
 	hasher hash.Hash,
 	expectedHash []byte,
 	err error,
-) io.ReadCloser {
-	return &hashValidatingReadCloser{
+) io.Reader {
+	return &hashValidatingReader{
 		r:            r,
 		hasher:       hasher,
 		expectedHash: expectedHash,

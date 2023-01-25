@@ -93,12 +93,17 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 func compileFS(srcDir, dstDir string, static bool, writerInfo *protobuf.WriterInfo, useRawFS bool) (*protobuf.WriterInfo, error) {
 	var retWi *protobuf.WriterInfo
 
-	be := blenc.FromDatastore(func() datastore.DS {
+	ds, err := func() (datastore.DS, error) {
 		if useRawFS {
 			return datastore.InRawFileSystem(dstDir)
 		}
 		return datastore.InFileSystem(dstDir)
-	}())
+	}()
+	if err != nil {
+		return nil, fmt.Errorf("could not open datastore: %w", err)
+	}
+
+	be := blenc.FromDatastore(ds)
 
 	ep, err := structure.UploadStaticDirectory(context.Background(), os.DirFS(srcDir), be)
 	if err != nil {

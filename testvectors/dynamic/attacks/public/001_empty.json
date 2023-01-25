@@ -1,0 +1,15 @@
+{
+   "name": "dynamic/attacks/public/001_empty",
+   "description": "Empty dataset",
+   "details": [
+      "Empty dataset is an invalid blob."
+   ],
+   "added_at": "2023-01-20",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "",
+   "decrypted_dataset": null,
+   "valid_publicly": false,
+   "valid_privately": false,
+   "go_error_contains": "data truncated while reading reserved byte"
+}

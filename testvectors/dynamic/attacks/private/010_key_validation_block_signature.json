@@ -1,0 +1,20 @@
+{
+   "name": "dynamic/attacks/private/010_key_validation_block_signature",
+   "description": "Invalid key validation block - signature",
+   "details": [
+      "For client validation purposes, unencrypted data contains key validation block",
+      "next to the link information itself. That validation block contains the signature",
+      "used converted later to an encryption key with a hash function.",
+      "",
+      "This test checks if an invalid signature stored in key validation block",
+      "will end up with the link being rejected."
+   ],
+   "added_at": "2023-01-21",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKUC+7swaY8mFz23nC6erSpD4ldZmMJImoftTAo5o3hMROO5bkBGMxM9JlWe3qg6fbcaMxLSpfnjCYXBp36EA+AOPX4EfCNH2O0Yj2dN+xd/pihdzCdk++YWIhZeJhWEcPaYWXciAYs1zal9vq0Wkk4hPFyPP9K5zm+LPETuSajaHrUoNi6bIyS4e26TeMFF2ryzNmdcAJGMSAT99Qs9vx+sCSKMXkuSeiPEhkWrO0LxUDQNrEhEDJBENnQblFyDkVwbciE=",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "invalid key validation block signature"
+}
