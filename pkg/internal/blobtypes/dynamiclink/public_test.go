@@ -263,6 +263,25 @@ func TestGreaterThan(t *testing.T) {
 	}
 }
 
+func TestPublicReaderGetPublicDataReader(t *testing.T) {
+	link, err := Create(rand.Reader)
+	require.NoError(t, err)
+
+	pr, _, err := link.UpdateLinkData(bytes.NewReader([]byte("Hello world")), 0)
+	require.NoError(t, err)
+
+	data, err := io.ReadAll(pr.GetPublicDataReader())
+	require.NoError(t, err)
+
+	pr2, err := FromPublicData(pr.BlobName(), bytes.NewReader(data))
+	require.NoError(t, err)
+
+	data2, err := io.ReadAll(pr2.GetPublicDataReader())
+	require.NoError(t, err)
+
+	require.Equal(t, data2, data)
+}
+
 func TestPublicReaderGetLinkDataReader(t *testing.T) {
 	t.Run("Successful encryption and decryption", func(t *testing.T) {
 		link, err := Create(rand.Reader)

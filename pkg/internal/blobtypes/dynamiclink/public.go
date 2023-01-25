@@ -32,18 +32,18 @@ import (
 )
 
 var (
-	ErrInvalidDynamicLinkData             = fmt.Errorf("%w for dynamic link", blobtypes.ErrValidationFailed)
-	ErrInvalidDynamicLinkDataReservedByte = fmt.Errorf("%w: invalid value of the reserved byte", ErrInvalidDynamicLinkData)
-	ErrInvalidDynamicLinkDataBlobName     = fmt.Errorf("%w: blob name mismatch", ErrInvalidDynamicLinkData)
-	ErrInvalidDynamicLinkDataSignature    = fmt.Errorf("%w: signature mismatch", ErrInvalidDynamicLinkData)
-	ErrInvalidDynamicLinkDataTruncated    = fmt.Errorf("%w: data truncated", ErrInvalidDynamicLinkData)
-	ErrInvalidDynamicLinkDataBlockSize    = fmt.Errorf("%w: block size too large", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkData                 = fmt.Errorf("%w for dynamic link", blobtypes.ErrValidationFailed)
+	ErrInvalidDynamicLinkDataReservedByte     = fmt.Errorf("%w: invalid value of the reserved byte", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkDataBlobName         = fmt.Errorf("%w: blob name mismatch", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkDataSignature        = fmt.Errorf("%w: signature mismatch", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkDataTruncated        = fmt.Errorf("%w: data truncated", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkDataBlockSize        = fmt.Errorf("%w: block size too large", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkInternalReservedByte = fmt.Errorf("%w: invalid value of the internal reserved byte", ErrInvalidDynamicLinkData)
 
-	ErrInvalidDynamicLinkIVMismatch                     = fmt.Errorf("%w: iv mismatch", ErrInvalidDynamicLinkData)
-	ErrInvalidDynamicLinkKeyMismatch                    = fmt.Errorf("%w: key mismatch", ErrInvalidDynamicLinkData)
-	ErrInvalidDynamicLinkKeyValidationBlock             = fmt.Errorf("%w: invalid key validation block", ErrInvalidDynamicLinkData)
-	ErrInvalidDynamicLinkKeyValidationBlockReservedByte = fmt.Errorf("%w reserved byte", ErrInvalidDynamicLinkKeyValidationBlock)
-	ErrInvalidDynamicLinkKeyValidationBlockSignature    = fmt.Errorf("%w signature", ErrInvalidDynamicLinkKeyValidationBlock)
+	ErrInvalidDynamicLinkIVMismatch                  = fmt.Errorf("%w: iv mismatch", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkKeyMismatch                 = fmt.Errorf("%w: key mismatch", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkKeyValidationBlock          = fmt.Errorf("%w: invalid key validation block", ErrInvalidDynamicLinkData)
+	ErrInvalidDynamicLinkKeyValidationBlockSignature = fmt.Errorf("%w signature", ErrInvalidDynamicLinkKeyValidationBlock)
 )
 
 const (
@@ -125,12 +125,17 @@ func FromPublicData(name common.BlobName, r io.Reader) (*PublicReader, error) {
 
 	// 2. Structures related to dynamic link data
 
-	dl.contentVersion, err = readUint64(r, "content version")
+	err = readBuff(r, dl.signature, "signature")
 	if err != nil {
 		return nil, err
 	}
 
-	err = readBuff(r, dl.signature, "signature")
+	// after signature, all bytes from the data stream are used in
+	// signature validation
+	encryptedLinkDataHasher := dl.toSignDataHasherPrefilled()
+	r = io.TeeReader(r, encryptedLinkDataHasher)
+
+	dl.contentVersion, err = readUint64(r, "content version")
 	if err != nil {
 		return nil, err
 	}
@@ -152,8 +157,6 @@ func FromPublicData(name common.BlobName, r io.Reader) (*PublicReader, error) {
 			return nil, err
 		}
 
-		encryptedLinkDataHasher := dl.toSignDataHasherPrefilled()
-		encryptedLinkDataHasher.Write(elink)
 		encryptedLinkDataHash := encryptedLinkDataHasher.Sum(nil)
 
 		if !ed25519.Verify(
@@ -196,8 +199,8 @@ func (d *PublicReader) GetPublicDataReader() io.Reader {
 	storeUint64(w, d.nonce)
 
 	// Preamble - dynamic link data
-	storeUint64(w, d.contentVersion)
 	storeBuff(w, d.signature)
+	storeUint64(w, d.contentVersion)
 	storeDynamicSizeBuff(w, d.iv)
 
 	return io.MultiReader(
@@ -211,7 +214,6 @@ func (d *PublicReader) toSignDataHasherPrefilled() hash.Hash {
 
 	storeByte(h, signatureForLinkData)
 	storeDynamicSizeBuff(h, d.BlobName())
-	storeUint64(h, d.contentVersion)
 
 	return h
 }
@@ -247,14 +249,10 @@ func (d *PublicReader) validateKeyInLinkData(key cipherfactory.Key, r io.Reader)
 	// that block contains a proof that the encryption key was deterministically derived
 	// from the blob name (thus preventing weak key attack)
 
-	kvb, err := readDynamicSizeBuff(r, "key validation block")
+	signature, err := readDynamicSizeBuff(r, "key validation block")
 	if err != nil {
 		return err
 	}
-	if len(kvb) == 0 || kvb[0] != reservedByteValue {
-		return ErrInvalidDynamicLinkKeyValidationBlockReservedByte
-	}
-	signature := kvb[1:]
 
 	dataSeed := append(
 		[]byte{signatureForEncryptionKeyGeneration},
@@ -289,6 +287,15 @@ func (d *PublicReader) GetLinkDataReader(key cipherfactory.Key) (io.Reader, erro
 	// That hasher will then
 	ivHasher := d.ivGeneratorPrefilled()
 	r = io.TeeReader(r, ivHasher)
+
+	// Check the reserved byte, must be 0 now
+	b, err := readByte(r, "internal reserved byte")
+	if err != nil {
+		return nil, err
+	}
+	if b != reservedByteValue {
+		return nil, ErrInvalidDynamicLinkInternalReservedByte
+	}
 
 	err = d.validateKeyInLinkData(key, r)
 	if err != nil {

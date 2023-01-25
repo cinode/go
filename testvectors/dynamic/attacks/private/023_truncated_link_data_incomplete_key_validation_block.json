@@ -1,0 +1,20 @@
+{
+   "name": "dynamic/attacks/private/023_truncated_link_data_incomplete_key_validation_block",
+   "description": "Truncated link data - incomplete key validation block",
+   "details": [
+      "The link data can be properly encrypted and signed passing",
+      "public verification. However the internal dataset may be",
+      "corrupted. A truncated dataset should also be detected.",
+      "",
+      "This test checks if truncated key validation block (and following data)",
+      "will be detected as incorrect link data."
+   ],
+   "added_at": "2023-01-24",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKXgy+0jtAQT8DUe6hxgDX0RpRRagJ9fR+5mLqGnHkAcCf5L6QILVitgHWZte3KkYWWgVoTc7VCZwo4Qhyp3qaMOPX4EfCNH2O0Y6b69T2nhGzJfvAl0Es0uiM9HUbCInDJ8cy6CLw==",
+   "decrypted_dataset": null,
+   "valid_publicly": true,
+   "valid_privately": false,
+   "go_error_contains": "data truncated while reading key validation block"
+}

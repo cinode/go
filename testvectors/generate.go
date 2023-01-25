@@ -69,6 +69,8 @@ type gp struct {
 	signatureHashPrefix        *byte
 	signatureBlobName          func([]byte) []byte
 	signatureContentVersion    func(uint64) uint64
+	signatureIVLen             func(byte) byte
+	signatureIV                func([]byte) []byte
 	signatureEncryptedLinkData func([]byte) []byte
 	signaturePostProcess       func([]byte) []byte
 
@@ -82,9 +84,10 @@ type gp struct {
 	keyType  *byte
 	keyBytes func([]byte) []byte
 
+	linkDataPrefix *byte
+
 	keyValidationBlockSignatureDataPrefix *byte
 	keyValidationBlockSignatureBlobName   func([]byte) []byte
-	keyValidationBlockPrefix              *byte
 	keyValidationSignature                func([]byte) []byte
 	keyValidationBlockLength              func(byte) byte
 
@@ -96,6 +99,8 @@ type gp struct {
 	ivGenContentVersion func(ver uint64) uint64
 	ivGenLinkData       func([]byte) []byte
 	ivCorrupt           func([]byte) []byte
+
+	unencryptedDataBuffCorruption func([]byte) []byte
 
 	linkData *[]byte
 
@@ -139,6 +144,8 @@ func genAll(gp gp) ([]byte, []byte, []byte, []byte) {
 	def(&gp.signatureHashPrefix, 0)
 	defF(&gp.signatureBlobName)
 	defF(&gp.signatureContentVersion)
+	defF(&gp.signatureIVLen)
+	defF(&gp.signatureIV)
 	defF(&gp.signatureEncryptedLinkData)
 	defF(&gp.signaturePostProcess)
 	def(&gp.keyGenSignatureDataPrefix, 0x01)
@@ -149,9 +156,9 @@ func genAll(gp gp) ([]byte, []byte, []byte, []byte) {
 	def(&gp.keyGenHashBlobType, 0x02)      // Dynamic link blob type
 	def(&gp.keyType, 0x00)                 // chacha20 key type
 	defF(&gp.keyBytes)
+	def(&gp.linkDataPrefix, 0x00)
 	def(&gp.keyValidationBlockSignatureDataPrefix, 0x01)
 	defF(&gp.keyValidationBlockSignatureBlobName)
-	def(&gp.keyValidationBlockPrefix, 0x00)
 	defF(&gp.keyValidationSignature)
 	defF(&gp.keyValidationBlockLength)
 	def(&gp.ivGenHashPrefix, 0x02)    // Hasher for iv
@@ -162,7 +169,7 @@ func genAll(gp gp) ([]byte, []byte, []byte, []byte) {
 	defF(&gp.ivGenContentVersion)
 	defF(&gp.ivGenLinkData)
 	defF(&gp.ivCorrupt)
-
+	defF(&gp.unencryptedDataBuffCorruption)
 	def(&gp.linkData, seed4[:])
 
 	// Start link data creation - it begins with unchanging link data
@@ -204,16 +211,15 @@ func genAll(gp gp) ([]byte, []byte, []byte, []byte) {
 		gp.keyValidationBlockSignatureBlobName(blobName[:])...,
 	)
 
-	keyValidationBlock := append(
-		[]byte{*gp.keyValidationBlockPrefix},
-		gp.keyValidationSignature(ed25519.Sign(*gp.privKey, keyValidationBlockKeygenToSignBytes))...,
-	)
+	keyValidationBlock := gp.keyValidationSignature(ed25519.Sign(*gp.privKey, keyValidationBlockKeygenToSignBytes))
 
-	unencryptedDataBuff := append([]byte{
-		gp.keyValidationBlockLength(
-			byte(len(keyValidationBlock)),
-		),
-	},
+	unencryptedDataBuff := append(
+		[]byte{
+			*gp.linkDataPrefix,
+			gp.keyValidationBlockLength(
+				byte(len(keyValidationBlock)),
+			),
+		},
 		keyValidationBlock...,
 	)
 	unencryptedDataBuff = append(unencryptedDataBuff, *gp.linkData...)
@@ -242,7 +248,7 @@ func genAll(gp gp) ([]byte, []byte, []byte, []byte) {
 	cipher.StreamWriter{
 		S: ccc,
 		W: encryptedLinkDataBuff,
-	}.Write(unencryptedDataBuff)
+	}.Write(gp.unencryptedDataBuffCorruption(unencryptedDataBuff))
 
 	encryptedLinkData := encryptedLinkDataBuff.Bytes()
 
@@ -253,15 +259,17 @@ func genAll(gp gp) ([]byte, []byte, []byte, []byte) {
 	toSignHasher.Write(bn)
 	binary.BigEndian.PutUint64(verBuff[:], gp.signatureContentVersion(*gp.contentVersion))
 	toSignHasher.Write(verBuff[:])
+	toSignHasher.Write([]byte{gp.signatureIVLen(byte(len(iv)))})
+	toSignHasher.Write(gp.signatureIV(iv))
 	toSignHasher.Write(gp.signatureEncryptedLinkData(encryptedLinkData))
 
 	signature := ed25519.Sign(*gp.privKey, toSignHasher.Sum(nil))
 	signature = gp.signaturePostProcess(signature)
 
 	// Add changing data to the link buffer
+	buff = append(buff, signature...)
 	buff = append(buff, 0, 0, 0, 0, 0, 0, 0, 0)
 	binary.BigEndian.PutUint64(buff[len(buff)-8:], *gp.contentVersion)
-	buff = append(buff, signature...)
 	buff = append(buff, byte(len(iv)))
 	buff = append(buff, iv...)
 	buff = append(buff, encryptedLinkData...)
@@ -470,27 +478,27 @@ func generateTestVectorsForDynamicLinks() {
 	})
 
 	writeLinkData(TestCase{
-		Description: "Truncated content version",
-		Name:        "dynamic/attacks/public/008_truncated_content_version",
-		WhenAdded:   "2023-01-20",
-		UpdateDataset: genLink(gp{
-			truncateAt: 1 + ed25519.PublicKeySize + 8 + 4,
-		}),
-		BlobName:        blobName(gp{}),
-		EncryptionKey:   key(gp{}),
-		GoErrorContains: "data truncated while reading content version",
-	})
-
-	writeLinkData(TestCase{
 		Description: "Truncated signature",
-		Name:        "dynamic/attacks/public/009_truncated_signature",
+		Name:        "dynamic/attacks/public/008_truncated_signature",
 		WhenAdded:   "2023-01-20",
 		UpdateDataset: genLink(gp{
-			truncateAt: 1 + ed25519.PublicKeySize + 8 + 8 + ed25519.SignatureSize/2,
+			truncateAt: 1 + ed25519.PublicKeySize + 8 + ed25519.SignatureSize/2,
 		}),
 		BlobName:        blobName(gp{}),
 		EncryptionKey:   key(gp{}),
 		GoErrorContains: "data truncated while reading signature",
+	})
+
+	writeLinkData(TestCase{
+		Description: "Truncated content version",
+		Name:        "dynamic/attacks/public/009_truncated_content_version",
+		WhenAdded:   "2023-01-20",
+		UpdateDataset: genLink(gp{
+			truncateAt: 1 + ed25519.PublicKeySize + 8 + ed25519.SignatureSize + 4,
+		}),
+		BlobName:        blobName(gp{}),
+		EncryptionKey:   key(gp{}),
+		GoErrorContains: "data truncated while reading content version",
 	})
 
 	writeLinkData(TestCase{
@@ -575,13 +583,65 @@ func generateTestVectorsForDynamicLinks() {
 	writeLinkData(TestCase{
 		Details: `
 			Dynamic link signature is protecting both unchanging and changing blob
+			data. Changing data contains the initialization vector (IV) for the
+			cipher used to encrypt the data. That IV is calculated deterministically
+			from unencrypted dataset but can not be calculated on the public network
+			layer. The signature thus has to include the IV so that the attacker can
+			not destroy the link by scrambling the IV. Doing so would make it impossible
+			to decrypt the data. The IV may be of any length thus the encoding of the IV
+			used for signature calculation contains the length of the IV.
+
+			This test checks if invalid IV length used while calculating link's signature
+			will result in failed link verification.
+		`,
+		Description: "Signature mismatch - iv",
+		Name:        "dynamic/attacks/public/014_signature_mismatch_initialization_vector",
+		WhenAdded:   "2023-01-23",
+		UpdateDataset: genLink(gp{
+			signatureIV: func(b []byte) []byte {
+				b[len(b)/2] ^= 0xE0
+				return b
+			},
+		}),
+		BlobName:        blobName(gp{}),
+		EncryptionKey:   key(gp{}),
+		GoErrorContains: "signature mismatch",
+	})
+
+	writeLinkData(TestCase{
+		Details: `
+			Dynamic link signature is protecting both unchanging and changing blob
+			data. Changing data contains the initialization vector (IV) for the
+			cipher used to encrypt the data. That IV is calculated deterministically
+			from unencrypted dataset but can not be calculated on the public network
+			layer. The signature thus has to include the IV so that the attacker can
+			not destroy the link by scrambling the IV. Doing so would make it impossible
+			to decrypt the data.
+
+			This test checks if invalid IV bytes used while calculating link's signature
+			will result in failed link verification.
+		`,
+		Description: "Signature mismatch - iv",
+		Name:        "dynamic/attacks/public/015_signature_mismatch_initialization_vector_length",
+		WhenAdded:   "2023-01-23",
+		UpdateDataset: genLink(gp{
+			signatureIVLen: func(b byte) byte { return b + 1 },
+		}),
+		BlobName:        blobName(gp{}),
+		EncryptionKey:   key(gp{}),
+		GoErrorContains: "signature mismatch",
+	})
+
+	writeLinkData(TestCase{
+		Details: `
+			Dynamic link signature is protecting both unchanging and changing blob
 			data. The signature must protect the main encrypted link data.
 			The signature has to be calculated over the encrypted data so that the
 			network can detect invalid signatures without revealing the unencrypted
 			information.
 		`,
 		Description: "Signature mismatch - encrypted link data",
-		Name:        "dynamic/attacks/public/014_signature_mismatch_encrypted_link_data",
+		Name:        "dynamic/attacks/public/016_signature_mismatch_encrypted_link_data",
 		WhenAdded:   "2023-01-20",
 		UpdateDataset: genLink(gp{
 			signatureEncryptedLinkData: func(b []byte) []byte {
@@ -597,7 +657,7 @@ func generateTestVectorsForDynamicLinks() {
 
 	writeLinkData(TestCase{
 		Description: "Signature mismatch - corrupted signature bytes",
-		Name:        "dynamic/attacks/public/015_signature_mismatch_signature_bytes",
+		Name:        "dynamic/attacks/public/017_signature_mismatch_signature_bytes",
 		WhenAdded:   "2023-01-20",
 		UpdateDataset: genLink(gp{
 			signaturePostProcess: func(b []byte) []byte {
@@ -801,8 +861,8 @@ func generateTestVectorsForDynamicLinks() {
 		EncryptionKey: key(gp{}),
 		ValidPublicly: true,
 		// Encryption key is invalid, we most likely get garbage there,
-		// since key validation block size is at the beginning, it will contain the wrong value
-		GoErrorContains: "block size",
+		// since the reserved byte is at the beginning, it will contain the wrong value
+		GoErrorContains: "invalid value of the internal reserved byte",
 	})
 
 	writeLinkData(TestCase{
@@ -813,16 +873,16 @@ func generateTestVectorsForDynamicLinks() {
 
 			This test checks if invalid prefix value makes the blob invalid.
 		`,
-		Description: "Invalid key validation block - prefix",
-		Name:        "dynamic/attacks/private/009_key_validation_block_prefix",
+		Description: "Invalid link data - prefix",
+		Name:        "dynamic/attacks/private/009_link_data_prefix",
 		WhenAdded:   "2023-01-21",
 		UpdateDataset: genLink(gp{
-			keyValidationBlockPrefix: bytep(0xFA),
+			linkDataPrefix: bytep(0xFA),
 		}),
 		BlobName:        blobName(gp{}),
 		EncryptionKey:   key(gp{}),
 		ValidPublicly:   true,
-		GoErrorContains: "invalid key validation block reserved byte",
+		GoErrorContains: "invalid value of the internal reserved byte",
 	})
 
 	writeLinkData(TestCase{
@@ -1067,5 +1127,69 @@ func generateTestVectorsForDynamicLinks() {
 		EncryptionKey:   key(gp{}),
 		ValidPublicly:   true,
 		GoErrorContains: "iv mismatch",
+	})
+
+	writeLinkData(TestCase{
+		Details: `
+			The link data can be properly encrypted and signed passing
+			public verification. However the internal dataset may be
+			corrupted. A truncated dataset should also be detected.
+
+			The dataset can not be empty since there would be no
+			reserved internal byte value in such case. This test
+			checks whether such truncated link data would be detected.
+		`,
+		Description: "Truncated link data - missing reserved byte",
+		Name:        "dynamic/attacks/private/021_truncated_link_data_reserved_byte",
+		WhenAdded:   "2023-01-24",
+		UpdateDataset: genLink(gp{
+			unencryptedDataBuffCorruption: func(b []byte) []byte { return []byte{} },
+		}),
+		BlobName:        blobName(gp{}),
+		EncryptionKey:   key(gp{}),
+		ValidPublicly:   true,
+		GoErrorContains: "data truncated while reading internal reserved byte",
+	})
+
+	writeLinkData(TestCase{
+		Details: `
+			The link data can be properly encrypted and signed passing
+			public verification. However the internal dataset may be
+			corrupted. A truncated dataset should also be detected.
+
+			This test checks if missing key validation length (and following data)
+			will be detected as incorrect link data.
+		`,
+		Description: "Truncated link data - missing key validation block length",
+		Name:        "dynamic/attacks/private/022_truncated_link_data_key_validation_block_length",
+		WhenAdded:   "2023-01-24",
+		UpdateDataset: genLink(gp{
+			unencryptedDataBuffCorruption: func(b []byte) []byte { return b[:1] },
+		}),
+		BlobName:        blobName(gp{}),
+		EncryptionKey:   key(gp{}),
+		ValidPublicly:   true,
+		GoErrorContains: "data truncated while reading key validation block",
+	})
+
+	writeLinkData(TestCase{
+		Details: `
+			The link data can be properly encrypted and signed passing
+			public verification. However the internal dataset may be
+			corrupted. A truncated dataset should also be detected.
+
+			This test checks if truncated key validation block (and following data)
+			will be detected as incorrect link data.
+		`,
+		Description: "Truncated link data - incomplete key validation block",
+		Name:        "dynamic/attacks/private/023_truncated_link_data_incomplete_key_validation_block",
+		WhenAdded:   "2023-01-24",
+		UpdateDataset: genLink(gp{
+			unencryptedDataBuffCorruption: func(b []byte) []byte { return b[:4] },
+		}),
+		BlobName:        blobName(gp{}),
+		EncryptionKey:   key(gp{}),
+		ValidPublicly:   true,
+		GoErrorContains: "data truncated while reading key validation block",
 	})
 }

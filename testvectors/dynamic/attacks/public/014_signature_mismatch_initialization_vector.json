@@ -1,0 +1,25 @@
+{
+   "name": "dynamic/attacks/public/014_signature_mismatch_initialization_vector",
+   "description": "Signature mismatch - iv",
+   "details": [
+      "Dynamic link signature is protecting both unchanging and changing blob",
+      "data. Changing data contains the initialization vector (IV) for the",
+      "cipher used to encrypt the data. That IV is calculated deterministically",
+      "from unencrypted dataset but can not be calculated on the public network",
+      "layer. The signature thus has to include the IV so that the attacker can",
+      "not destroy the link by scrambling the IV. Doing so would make it impossible",
+      "to decrypt the data. The IV may be of any length thus the encoding of the IV",
+      "used for signature calculation contains the length of the IV.",
+      "",
+      "This test checks if invalid IV length used while calculating link's signature",
+      "will result in failed link verification."
+   ],
+   "added_at": "2023-01-23",
+   "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
+   "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKXHuJhjnqQyJ0gZqXCDxeLrBlRjmNvu2kCo8GnuhPmQfGTg3zJjxVlcDbW3irAK/1l1krGC4/GD3rnN8X3sbs4BPX4EfCNH2O0Y6b69T2nhGzJfvAl0Es0uiM9HUbCInDJ8cy6CL9r8EGm93UuHXPx9d6EscqgdiDobSvX1uUdeiQAjuPrG/eNwLUolfTtXweIDHz1sHnn7FjaIZ3km9eTyEnWNvD4L/nbOSAKRzEc+Gu3YakKH8o/fEz3XkHmrQPI6zr4=",
+   "decrypted_dataset": null,
+   "valid_publicly": false,
+   "valid_privately": false,
+   "go_error_contains": "signature mismatch"
+}

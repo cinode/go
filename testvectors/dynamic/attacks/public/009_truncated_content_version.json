@@ -1,10 +1,10 @@
 {
-   "name": "dynamic/attacks/public/008_truncated_content_version",
+   "name": "dynamic/attacks/public/009_truncated_content_version",
    "description": "Truncated content version",
    "added_at": "2023-01-20",
    "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
    "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
-   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKU9fgR8",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKVjxQzro6lsghw1DNC5LjCXncInsaCn9jVGrPXjT45FsIUNecdrks7I1J9A131k9rFoqdIWNA9vNT73PzchD+AJPX4EfA==",
    "decrypted_dataset": null,
    "valid_publicly": false,
    "valid_privately": false,

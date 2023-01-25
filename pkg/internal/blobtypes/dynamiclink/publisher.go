@@ -118,10 +118,8 @@ func (dl *Publisher) calculateEncryptionKey() ([]byte, []byte) {
 	keyGenerator.Write(signature)
 	key := keyGenerator.Generate()
 
-	kvb := append([]byte{reservedByteValue}, signature...)
-
 	// Key validation block - it is used to ensure the key was generated in a correct way
-	return key, kvb
+	return key, signature
 }
 
 func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader, []byte, error) {
@@ -129,8 +127,8 @@ func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader,
 
 	// key validation block precedes the link data
 	unencryptedLinkBuff := bytes.NewBuffer(nil)
-	unencryptedLinkBuff.Write([]byte{byte(len(kvb))})
-	unencryptedLinkBuff.Write(kvb)
+	storeByte(unencryptedLinkBuff, reservedByteValue)
+	storeDynamicSizeBuff(unencryptedLinkBuff, kvb)
 
 	_, err := io.Copy(unencryptedLinkBuff, r)
 	if err != nil {
@@ -161,6 +159,8 @@ func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader,
 	}
 
 	signatureHasher := pr.toSignDataHasherPrefilled()
+	storeUint64(signatureHasher, pr.contentVersion)
+	storeDynamicSizeBuff(signatureHasher, pr.iv)
 	signatureHasher.Write(encryptedLinkBuff.Bytes())
 
 	pr.signature = ed25519.Sign(dl.privKey, signatureHasher.Sum(nil))

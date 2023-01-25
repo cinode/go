@@ -1,5 +1,5 @@
 {
-   "name": "dynamic/attacks/public/014_signature_mismatch_encrypted_link_data",
+   "name": "dynamic/attacks/public/016_signature_mismatch_encrypted_link_data",
    "description": "Signature mismatch - encrypted link data",
    "details": [
       "Dynamic link signature is protecting both unchanging and changing blob",
@@ -11,7 +11,7 @@
    "added_at": "2023-01-20",
    "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
    "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
-   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKU9fgR8I0fY7QGb/0oxpi8wgoi+3zJjvzV4kQm3BTEPPRT4VwfKUdNCNpboQTggatG3n4DX9irZ20nnS5PTsL5LAIeaRO40Zg8Ygm05+huh8d3zeW9XerZOUfldOReVCs5vEHMup4ZuuB1tjnuCVe6CyjUitoF4dX7LnAzC6/0oZLQWJ981eHqMv6KOKu6NLZ+tFKuOeE1lVdNCY8KgippFYCz2jk88cdqkz1UONhTgJZdgVmCHw5iFW2GAbzYEIqi6Bc0=",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKWYLWO7qjYvnhu2+rgAl2YUxNqD+XzSWAG+sa7h1C2TsFAJR4F/jb9Nvj2XSpm+7TC2CKQZZbQJdWw8Fug8NokMPX4EfCNH2O0Y6b69T2nhGzJfvAl0Es0uiM9HUbCInDJ8cy6CL9r8EGm93UuHXPx9d6EscqgdiDobSvX1uUdeiQAjuPrG/eNwLUolfTtXweIDHz1sHnn7FjaIZ3km9eTyEnWNvD4L/nbOSAKRzEc+Gu3YakKH8o/fEz3XkHmrQPI6zr4=",
    "decrypted_dataset": null,
    "valid_publicly": false,
    "valid_privately": false,

@@ -1,6 +1,6 @@
 {
-   "name": "dynamic/attacks/private/009_key_validation_block_prefix",
-   "description": "Invalid key validation block - prefix",
+   "name": "dynamic/attacks/private/009_link_data_prefix",
+   "description": "Invalid link data - prefix",
    "details": [
       "For client validation purposes, unencrypted data contains key validation block",
       "next to the link information itself. That data contains prefix so that it can be",
@@ -11,9 +11,9 @@
    "added_at": "2023-01-21",
    "blob_name": "T9p+5vJxte//0gUnC7oRExP1yQadbDZfgNNQ48WbDo3m",
    "encryption_key": "AHnSaMjr1qG9XehjHPdzc3cmmU7HNdmBtSCo19kL1QVJ",
-   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKU9fgR8I0fY7YARMOkafdmPNAJdwWH8hDjWON/I5Za68YbbjLRTXEPBRD2f5Z5O4d0L1OEZVghpfu5oeOjXXVHZA6KanrHwcwMYJdyuUTBJDAgvXx5VG7r3gQhnHk9LW++BSh1UoHkJErB3uPdIk+m1Xo8nI/ncj6+uyZfcHJdnI9t2Vb79iHnY7qTyILf8YRL+iyYf4Mh+sVoyuJi6ba2Ge770c/Nf/zvyN08KzuJvVvDT9HXKwt8Eyz0QsKwK5s0H5Bc=",
+   "update_dataset": "ABHa3Q+UvsoSvrt0JVI0ZRv6Wz9XBPGNswi5RdGQJo1fNLk1Ln+XbKV5QfahnFZvrGyiym1MN41V/z35hHqNoRRf6+NZeAVNyHx7n+UEHN5199I9lWF19gb/uHfwn94NnQMTHTD07gMCPX4EfCNH2O0YsylB+erSnppPCvYPKE9Wgh1F3ItklGwFgDDDupjfJ9u1x/j9hoEPwdxJzL40S+XhhhV3r/iSXrwOb4cJVl4NjRCKovkK4cKT0l1MQUvoANm3aFgTq8shbVBxKgPipOz9b1KYpvJOxrBzPliX+jw2blZ/yDLMlYPGXc0=",
    "decrypted_dataset": null,
    "valid_publicly": true,
    "valid_privately": false,
-   "go_error_contains": "invalid key validation block reserved byte"
+   "go_error_contains": "invalid value of the internal reserved byte"
 }
