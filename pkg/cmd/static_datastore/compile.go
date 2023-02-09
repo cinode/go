@@ -37,6 +37,7 @@ func compileCmd() *cobra.Command {
 	var useStaticBlobs bool
 	var useRawFilesystem bool
 	var rootWriterInfoStr string
+	var rootWriterInfoFile string
 
 	cmd := &cobra.Command{
 		Use:   "compile --source <src_dir> --destination <dst_dir>",
@@ -57,6 +58,16 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 			}
 
 			var wi *protobuf.WriterInfo
+			if len(rootWriterInfoFile) > 0 {
+				data, err := os.ReadFile(rootWriterInfoFile)
+				if err != nil {
+					log.Fatalf("Couldn't read data from the writer info file at '%s': %v", rootWriterInfoFile, err)
+				}
+				if len(data) == 0 {
+					log.Fatalf("Writer info file at '%s' is empty", rootWriterInfoFile)
+				}
+				rootWriterInfoStr = string(data)
+			}
 			if len(rootWriterInfoStr) > 0 {
 				_wi, err := protobuf.WriterInfoFromBytes(base58.Decode(rootWriterInfoStr))
 				if err != nil {
@@ -85,7 +96,8 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 	cmd.Flags().StringVarP(&dstDir, "destination", "d", "", "Destination directory for blobs")
 	cmd.Flags().BoolVarP(&useStaticBlobs, "static", "t", false, "If set to true, compile static dataset and entrypoint.txt file with static dataset")
 	cmd.Flags().BoolVarP(&useRawFilesystem, "raw-filesystem", "r", false, "If set to true, use raw filesystem instead of the optimized one, can be used to create dataset for a standard http server")
-	cmd.Flags().StringVarP(&rootWriterInfoStr, "writer-info", "w", "", "Writer info for the root dynamic link, if not specified, a random writer info will be generated and printed out")
+	cmd.Flags().StringVarP(&rootWriterInfoStr, "writer-info", "w", "", "Writer info for the root dynamic link, if neither writer info nor writer info file is specified, a random writer info will be generated and printed out")
+	cmd.Flags().StringVarP(&rootWriterInfoFile, "writer-info-file", "f", "", "Name of the file containing writer info for the root dynamic link, if neither writer info nor writer info file is specified, a random writer info will be generated and printed out")
 
 	return cmd
 }
