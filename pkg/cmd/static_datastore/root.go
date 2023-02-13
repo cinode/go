@@ -44,7 +44,6 @@ node is stored in a plaintext in a file called 'entrypoint.txt'.
 	}
 
 	cmd.AddCommand(compileCmd())
-	cmd.AddCommand(serverCmd())
 
 	return cmd
 }

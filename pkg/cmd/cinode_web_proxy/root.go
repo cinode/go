@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -132,43 +131,7 @@ func setupCinodeProxy(
 		IndexFile:        "index.html",
 	}
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		path := strings.TrimPrefix(r.URL.Path, "/")
-
-		fileEP, err := fs.FindEntrypoint(r.Context(), path)
-		switch {
-		case errors.Is(err, structure.ErrNotFound):
-			http.NotFound(w, r)
-			return
-		case err != nil:
-			log.Println("Error serving request:", err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
-		if fileEP.MimeType == structure.CinodeDirMimeType {
-			http.Redirect(w, r, r.URL.Path+"/", http.StatusPermanentRedirect)
-			return
-		}
-
-		w.Header().Set("Content-Type", fileEP.GetMimeType())
-		rc, err := fs.OpenContent(r.Context(), fileEP)
-		if err != nil {
-			log.Printf("Error sending file: %v", err)
-		}
-		defer rc.Close()
-
-		_, err = io.Copy(w, rc)
-		if err != nil {
-			log.Printf("Error sending file: %v", err)
-		}
-
-	})
-
-	return handler
+	return &structure.HTTPHandler{
+		FS: &fs,
+	}
 }

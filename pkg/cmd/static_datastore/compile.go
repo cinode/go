@@ -18,10 +18,10 @@ package static_datastore
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
-	"path"
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/datastore"
@@ -46,10 +46,6 @@ func compileCmd() *cobra.Command {
 The compile command can be used to create an encrypted datastore from
 a content with static files that can then be used to serve through a
 simple http server.
-
-Files stored on disk are encrypted through the blenc layer. However
-this tool should not be considered secure since the encryption key
-for the root node is stored in plaintext in an 'entrypoint.txt' file.
 `,
 		Run: func(cmd *cobra.Command, args []string) {
 			if srcDir == "" || dstDir == "" {
@@ -57,44 +53,71 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 				return
 			}
 
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+
+			fatalResult := func(format string, args ...interface{}) {
+				msg := fmt.Sprintf(format, args...)
+
+				enc.Encode(map[string]string{
+					"result": "ERROR",
+					"msg":    msg,
+				})
+
+				log.Fatalf(msg)
+			}
+
 			var wi *protobuf.WriterInfo
 			if len(rootWriterInfoFile) > 0 {
 				data, err := os.ReadFile(rootWriterInfoFile)
 				if err != nil {
-					log.Fatalf("Couldn't read data from the writer info file at '%s': %v", rootWriterInfoFile, err)
+					fatalResult("Couldn't read data from the writer info file at '%s': %v", rootWriterInfoFile, err)
 				}
 				if len(data) == 0 {
-					log.Fatalf("Writer info file at '%s' is empty", rootWriterInfoFile)
+					fatalResult("Writer info file at '%s' is empty", rootWriterInfoFile)
 				}
 				rootWriterInfoStr = string(data)
 			}
 			if len(rootWriterInfoStr) > 0 {
 				_wi, err := protobuf.WriterInfoFromBytes(base58.Decode(rootWriterInfoStr))
 				if err != nil {
-					log.Fatalf("Couldn't parse writer info: %v", err)
+					fatalResult("Couldn't parse writer info: %v", err)
 				}
 				wi = _wi
 			}
 
-			wi, err := compileFS(srcDir, dstDir, useStaticBlobs, wi, useRawFilesystem)
+			ep, wi, err := compileFS(srcDir, dstDir, useStaticBlobs, wi, useRawFilesystem)
 			if err != nil {
-				log.Fatal(err)
+				fatalResult("%s", err)
+			}
+
+			epBytes, err := ep.ToBytes()
+			if err != nil {
+				fatalResult("Couldn't serialize entrypoint: %v", err)
+			}
+
+			result := map[string]string{
+				"result":     "OK",
+				"entrypoint": base58.Encode(epBytes),
 			}
 			if wi != nil {
 				wiBytes, err := wi.ToBytes()
 				if err != nil {
-					log.Fatalf("Couldn't serialize writer info: %v", err)
+					fatalResult("Couldn't serialize writer info: %v", err)
 				}
-				log.Printf("Generated new root dynamic link, writer info: %s", base58.Encode(wiBytes))
+
+				result["writer-info"] = base58.Encode(wiBytes)
 			}
-			log.Println()
+			enc.Encode(result)
+
 			log.Println("DONE")
+
 		},
 	}
 
 	cmd.Flags().StringVarP(&srcDir, "source", "s", "", "Source directory with content to compile")
 	cmd.Flags().StringVarP(&dstDir, "destination", "d", "", "Destination directory for blobs")
-	cmd.Flags().BoolVarP(&useStaticBlobs, "static", "t", false, "If set to true, compile static dataset and entrypoint.txt file with static dataset")
+	cmd.Flags().BoolVarP(&useStaticBlobs, "static", "t", false, "If set to true, compile only the static dataset, do not create or update dynamic link")
 	cmd.Flags().BoolVarP(&useRawFilesystem, "raw-filesystem", "r", false, "If set to true, use raw filesystem instead of the optimized one, can be used to create dataset for a standard http server")
 	cmd.Flags().StringVarP(&rootWriterInfoStr, "writer-info", "w", "", "Writer info for the root dynamic link, if neither writer info nor writer info file is specified, a random writer info will be generated and printed out")
 	cmd.Flags().StringVarP(&rootWriterInfoFile, "writer-info-file", "f", "", "Name of the file containing writer info for the root dynamic link, if neither writer info nor writer info file is specified, a random writer info will be generated and printed out")
@@ -102,7 +125,16 @@ for the root node is stored in plaintext in an 'entrypoint.txt' file.
 	return cmd
 }
 
-func compileFS(srcDir, dstDir string, static bool, writerInfo *protobuf.WriterInfo, useRawFS bool) (*protobuf.WriterInfo, error) {
+func compileFS(
+	srcDir, dstDir string,
+	static bool,
+	writerInfo *protobuf.WriterInfo,
+	useRawFS bool,
+) (
+	*protobuf.Entrypoint,
+	*protobuf.WriterInfo,
+	error,
+) {
 	var retWi *protobuf.WriterInfo
 
 	ds, err := func() (datastore.DS, error) {
@@ -112,43 +144,29 @@ func compileFS(srcDir, dstDir string, static bool, writerInfo *protobuf.WriterIn
 		return datastore.InFileSystem(dstDir)
 	}()
 	if err != nil {
-		return nil, fmt.Errorf("could not open datastore: %w", err)
+		return nil, nil, fmt.Errorf("could not open datastore: %w", err)
 	}
 
 	be := blenc.FromDatastore(ds)
 
 	ep, err := structure.UploadStaticDirectory(context.Background(), os.DirFS(srcDir), be)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't upload directory content: %w", err)
+		return nil, nil, fmt.Errorf("couldn't upload directory content: %w", err)
 	}
 
 	if !static {
 		if writerInfo == nil {
 			ep, retWi, err = structure.CreateLink(context.Background(), be, ep)
 			if err != nil {
-				return nil, fmt.Errorf("failed to update root link: %w", err)
+				return nil, nil, fmt.Errorf("failed to update root link: %w", err)
 			}
 		} else {
 			ep, err = structure.UpdateLink(context.Background(), be, writerInfo, ep)
 			if err != nil {
-				return nil, fmt.Errorf("failed to update root link: %w", err)
+				return nil, nil, fmt.Errorf("failed to update root link: %w", err)
 			}
 		}
 	}
 
-	epBytes, err := ep.ToBytes()
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize entrypoint data: %w", err)
-	}
-
-	err = os.WriteFile(
-		path.Join(dstDir, "entrypoint.txt"),
-		[]byte(base58.Encode(epBytes)),
-		0666,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to write entrypoint data: %w", err)
-	}
-
-	return retWi, nil
+	return ep, retWi, nil
 }

@@ -25,7 +25,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cinode/go/pkg/blenc"
+	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/protobuf"
+	"github.com/cinode/go/pkg/structure"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -98,8 +101,9 @@ func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 	dataset []datasetFile,
 	datastoreDir string,
 	wi *protobuf.WriterInfo,
-) *protobuf.WriterInfo {
+) (*protobuf.WriterInfo, *protobuf.Entrypoint) {
 
+	var ep *protobuf.Entrypoint
 	s.T().Run("prepare dataset", func(t *testing.T) {
 
 		dir := t.TempDir()
@@ -112,45 +116,57 @@ func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 			s.Require().NoError(err)
 		}
 
-		retWi, err := compileFS(dir, datastoreDir, false, wi, false)
+		retEp, retWi, err := compileFS(dir, datastoreDir, false, wi, false)
 		require.NoError(t, err)
 		wi = retWi
+		ep = retEp
 	})
 
-	return wi
+	return wi, ep
 }
 
 func (s *CompileAndReadTestSuite) validateDataset(
 	dataset []datasetFile,
+	ep *protobuf.Entrypoint,
 	datastoreDir string,
 ) {
-	hnd, err := serverHandler(datastoreDir, false)
+	ds, err := datastore.InFileSystem(datastoreDir)
 	s.Require().NoError(err)
-	testServer := httptest.NewServer(hnd)
+
+	fs := structure.CinodeFS{
+		BE:               blenc.FromDatastore(ds),
+		RootEntrypoint:   ep,
+		MaxLinkRedirects: 10,
+		IndexFile:        "index.html",
+	}
+
+	testServer := httptest.NewServer(&structure.HTTPHandler{
+		FS: &fs,
+	})
 	defer testServer.Close()
 
 	for _, td := range dataset {
-		// s.Run(td.fName, func() {
-		res, err := http.Get(testServer.URL + td.fName)
-		s.Require().NoError(err)
-		defer res.Body.Close()
+		s.Run(td.fName, func() {
+			res, err := http.Get(testServer.URL + td.fName)
+			s.Require().NoError(err)
+			defer res.Body.Close()
 
-		data, err := io.ReadAll(res.Body)
-		s.Require().NoError(err)
-		s.Require().Equal([]byte(td.contents), data)
+			data, err := io.ReadAll(res.Body)
+			s.Require().NoError(err)
+			s.Require().Equal([]byte(td.contents), data)
 
-		res, err = http.Post(testServer.URL+td.fName, "plain/text", bytes.NewReader([]byte("test")))
-		s.Require().NoError(err)
-		defer res.Body.Close()
+			res, err = http.Post(testServer.URL+td.fName, "plain/text", bytes.NewReader([]byte("test")))
+			s.Require().NoError(err)
+			defer res.Body.Close()
 
-		s.Require().Equal(http.StatusMethodNotAllowed, res.StatusCode)
+			s.Require().Equal(http.StatusMethodNotAllowed, res.StatusCode)
 
-		res, err = http.Get(testServer.URL + td.fName + ".notfound")
-		s.Require().NoError(err)
-		defer res.Body.Close()
+			res, err = http.Get(testServer.URL + td.fName + ".notfound")
+			s.Require().NoError(err)
+			defer res.Body.Close()
 
-		s.Require().Equal(http.StatusNotFound, res.StatusCode)
-		// })
+			s.Require().Equal(http.StatusNotFound, res.StatusCode)
+		})
 	}
 
 	s.Run("Default to index.html", func() {
@@ -169,35 +185,25 @@ func (s *CompileAndReadTestSuite) TestCompileAndRead() {
 	datastore := s.T().TempDir()
 
 	// Create and test initial dataset
-	wi := s.uploadDatasetToDatastore(s.initialTestDataset, datastore, nil)
-	s.validateDataset(s.initialTestDataset, datastore)
+	wi, ep := s.uploadDatasetToDatastore(s.initialTestDataset, datastore, nil)
+	s.validateDataset(s.initialTestDataset, ep, datastore)
 
 	// Re-upload same dataset
 	s.uploadDatasetToDatastore(s.initialTestDataset, datastore, wi)
-	s.validateDataset(s.initialTestDataset, datastore)
+	s.validateDataset(s.initialTestDataset, ep, datastore)
 
 	// Upload modified dataset but for different root link
-	origEntrypoint, err := os.ReadFile(filepath.Join(datastore, "entrypoint.txt"))
-	s.Require().NoError(err)
-
-	s.uploadDatasetToDatastore(s.updatedTestDataset, datastore, nil)
-	s.validateDataset(s.updatedTestDataset, datastore)
-
-	updatedEntrypoint, err := os.ReadFile(filepath.Join(datastore, "entrypoint.txt"))
-	s.Require().NoError(err)
-	s.Require().NotEqualValues(origEntrypoint, updatedEntrypoint)
+	_, updatedEP := s.uploadDatasetToDatastore(s.updatedTestDataset, datastore, nil)
+	s.validateDataset(s.updatedTestDataset, updatedEP, datastore)
+	s.Require().NotEqual(ep, updatedEP)
 
 	// After restoring the original entrypoint dataset should be back to the initial one
-	err = os.WriteFile(filepath.Join(datastore, "entrypoint.txt"), origEntrypoint, 0644)
-	s.Require().NoError(err)
-	s.validateDataset(s.initialTestDataset, datastore)
+	s.validateDataset(s.initialTestDataset, ep, datastore)
 
 	// Update the original entrypoint with the new dataset
-	s.uploadDatasetToDatastore(s.updatedTestDataset, datastore, wi)
-	s.validateDataset(s.updatedTestDataset, datastore)
+	_, epOrigWriterInfo := s.uploadDatasetToDatastore(s.updatedTestDataset, datastore, wi)
+	s.validateDataset(s.updatedTestDataset, epOrigWriterInfo, datastore)
 
 	// Entrypoint must stay the same
-	checkOrigEntrypoint, err := os.ReadFile(filepath.Join(datastore, "entrypoint.txt"))
-	s.Require().NoError(err)
-	s.Require().EqualValues(origEntrypoint, checkOrigEntrypoint)
+	s.Require().EqualValues(ep, epOrigWriterInfo)
 }
