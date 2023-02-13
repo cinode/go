@@ -52,4 +52,4 @@ FROM scratch
 ARG APP_NAME TARGET_UID TARGET_GID
 COPY --from=filesystem /filesystem/${APP_NAME} /
 USER ${TARGET_UID}:${TARGET_GID}
-CMD [ "/${APP_NAME}" ]
+ENTRYPOINT [ "/app" ]
