@@ -25,8 +25,8 @@ import (
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 )
 
+// AuthInfo is an opaque data that is necessary to perform update of a blob with the same name
 type AuthInfo = []byte
-type EncryptionKey = cipherfactory.Key
 
 var (
 	ErrNotFound = datastore.ErrNotFound
@@ -40,17 +40,17 @@ type BE interface {
 	//
 	// If returned error is not nil, the reader must be nil. Otherwise it is required to
 	// close the reader once done working with it.
-	Open(ctx context.Context, name common.BlobName, key EncryptionKey) (io.ReadCloser, error)
+	Open(ctx context.Context, name common.BlobName, key cipherfactory.Key) (io.ReadCloser, error)
 
 	// Create completely new blob with given dataset, as a result, the blob name and optional
 	// AuthInfo that allows blob's update is returned
-	Create(ctx context.Context, blobType common.BlobType, r io.Reader) (common.BlobName, EncryptionKey, AuthInfo, error)
+	Create(ctx context.Context, blobType common.BlobType, r io.Reader) (common.BlobName, cipherfactory.Key, AuthInfo, error)
 
 	// Update updates given blob type with new data,
 	// The update must happen within a single blob name (i.e. it can not end up with blob with different name)
 	// and may not be available for certain blob types such as static blobs.
-	// A valid writer info is necessary to ensure a correct new content can be created
-	Update(ctx context.Context, name common.BlobName, ai AuthInfo, key EncryptionKey, r io.Reader) error
+	// A valid auth info is necessary to ensure a correct new content can be created
+	Update(ctx context.Context, name common.BlobName, ai AuthInfo, key cipherfactory.Key, r io.Reader) error
 
 	// Exists does check whether blob of given name exists. It forwards the call
 	// to underlying datastore.
