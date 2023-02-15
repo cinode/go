@@ -20,249 +20,254 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"io"
 	"testing"
+	"testing/iotest"
 
+	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/internal/blobtypes"
-	"github.com/stretchr/testify/require"
+	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
+	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
+	"github.com/stretchr/testify/suite"
 )
 
-func TestBlencCommonScenario(t *testing.T) {
-	be := FromDatastore(datastore.InMemory())
-
-	data := []byte("Hello world!!!")
-
-	bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data))
-	require.NoError(t, err)
-	require.Equal(t, blobtypes.Static, bn.Type())
-	require.Len(t, bn.Hash(), sha256.Size)
-	require.Nil(t, ai) // Static blobs don't generate writer info
-
-	exists, err := be.Exists(context.Background(), bn)
-	require.NoError(t, err)
-	require.True(t, exists)
-
-	rc, err := be.Open(context.Background(), bn, key)
-	require.NoError(t, err)
-
-	readData, err := io.ReadAll(rc)
-	require.NoError(t, err)
-	require.Equal(t, data, readData)
-
-	err = be.Delete(context.Background(), bn)
-	require.NoError(t, err)
-
-	exists, err = be.Exists(context.Background(), bn)
-	require.NoError(t, err)
-	require.False(t, exists)
-
-	data2 := []byte("Hello Cinode!")
-
-	bn2, key2, wi2, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data2))
-	require.NoError(t, err)
-	require.NotEqual(t, bn, bn2)
-	require.Nil(t, wi2)
-
-	require.NoError(t, err)
-	require.NotEqual(t, key, key2)
-	require.Equal(t, len(key), len(key2))
+type BlencTestSuite struct {
+	suite.Suite
+	be BE
 }
 
-// func TestNewBE(t *testing.T) {
-// 	testData1 := []byte("data1")
-// 	testData2 := []byte("data2" + strings.Repeat("longdata", 1024))
+func TestBlencTestSuite(t *testing.T) {
+	suite.Run(t, &BlencTestSuite{
+		be: FromDatastore(datastore.InMemory()),
+	})
+}
 
-// 	allBEKG(func(be BE, kg KeyDataGenerator) {
-// 		d1n, d1k, err := be.Save(bReader(testData1, nil, nil, nil), kg)
-// 		errPanic(err)
+func (s *BlencTestSuite) TestStaticBlobs() {
+	data := []byte("Hello world!!!")
 
-// 		d1n2, d1k2, err := be.Save(bReader(testData1, nil, nil, nil), kg)
-// 		errPanic(err)
+	bn, key, ai, err := s.be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data))
+	s.Require().NoError(err)
+	s.Require().Equal(blobtypes.Static, bn.Type())
+	s.Require().Len(bn.Hash(), sha256.Size)
+	s.Require().Nil(ai) // Static blobs don't generate auth info
 
-// 		if kg.IsDeterministic() {
-// 			if d1n != d1n2 {
-// 				t.Fatal("Saving identical blobs with deterministic KG produced different blob names")
-// 			}
-// 			if d1k != d1k2 {
-// 				t.Fatal("Saving identical blobs with deterministic KG produced different keys")
-// 			}
-// 		} else {
-// 			if d1n == d1n2 {
-// 				t.Fatal("Saving identical blobs with non-deterministic KG produced identical blob names")
-// 			}
-// 			if d1k == d1k2 {
-// 				t.Fatal("Saving identical blobs with non-deterministic KG produced identical keys")
-// 			}
-// 		}
+	s.Run("check successful operations on a static blob", func() {
+		s.Run("blob must be reported as existing", func() {
+			exists, err := s.be.Exists(context.Background(), bn)
+			s.Require().NoError(err)
+			s.Require().True(exists)
+		})
 
-// 		d2n, d2k, err := be.Save(bReader(testData2, nil, nil, nil), kg)
-// 		errPanic(err)
-// 		if d2n == d1n || d2n == d1n2 {
-// 			t.Fatal("Same data blob name for different contents")
-// 		}
+		s.Run("must correctly read blob's content", func() {
+			rc, err := s.be.Open(context.Background(), bn, key)
+			s.Require().NoError(err)
 
-// 		for _, d := range []struct {
-// 			name string
-// 			key  string
-// 			data []byte
-// 		}{
-// 			{d1n, d1k, testData1},
-// 			{d1n2, d1k2, testData1},
-// 			{d2n, d2k, testData2},
-// 		} {
-// 			// Test if we can read back the data
-// 			stream, err := be.Open(d.name, d.key)
-// 			if err != nil {
-// 				t.Fatalf("Couldn't open data for reading: %v", err)
-// 			}
-// 			data, err := io.ReadAll(stream)
-// 			if err != nil {
-// 				t.Fatalf("Couldn't read data: %v", err)
-// 			}
-// 			err = stream.Close()
-// 			if err != nil {
-// 				t.Fatalf("Couldn't close data stream: %v", err)
-// 			}
-// 			if !bytes.Equal(data, d.data) {
-// 				t.Fatal("Read incorrect data back")
-// 			}
-// 		}
-// 	})
-// }
+			readData, err := io.ReadAll(rc)
+			s.Require().NoError(err)
+			s.Require().Equal(data, readData)
 
-// type testBogusKeyGenerator struct{}
+			err = rc.Close()
+			s.Require().NoError(err)
+		})
 
-// var errBogusKeyGeneratorError = errors.New("bogusKeyGeneratorError")
+		s.Run("must correctly delete blob", func() {
+			err := s.be.Delete(context.Background(), bn)
+			s.Require().NoError(err)
 
-// func (t testBogusKeyGenerator) IsDeterministic() bool {
-// 	return true
-// }
+			exists, err := s.be.Exists(context.Background(), bn)
+			s.Require().NoError(err)
+			s.Require().False(exists)
+		})
+	})
 
-// func (t testBogusKeyGenerator) GenerateKeyData(stream io.ReadCloser, keyData []byte) (
-// 	sameStream io.ReadCloser, err error) {
-// 	err = errBogusKeyGeneratorError
-// 	return
-// }
+	s.Run("work with second static blob", func() {
+		data2 := []byte("Hello Cinode!")
 
-// func TestSaveWithBogusKeyGenerator(t *testing.T) {
-// 	bogusKG := &testBogusKeyGenerator{}
-// 	allBE(func(be BE) {
-// 		closeCalled := false
-// 		name, key, err := be.Save(bReader([]byte{}, nil, nil, func() error {
-// 			if closeCalled {
-// 				t.Fatalf("Multiple close called")
-// 			}
-// 			closeCalled = true
-// 			return nil
-// 		}), bogusKG)
-// 		if err != errBogusKeyGeneratorError {
-// 			t.Fatalf("Invalid error received for bogus key generator: %v", err)
-// 		}
-// 		if name != "" {
-// 			t.Fatalf("Non-empty name received for bogus key generator: %v", name)
-// 		}
-// 		if key != "" {
-// 			t.Fatalf("Non-empty key received for bogus key generator: %v", key)
-// 		}
-// 		if !closeCalled {
-// 			t.Fatal("Input stream was not closed for bogus key generator")
-// 		}
-// 	})
-// }
+		bn2, key2, ai2, err := s.be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data2))
+		s.Require().NoError(err)
+		s.Require().NotEqual(bn, bn2)
+		s.Require().Nil(ai2)
 
-// func TestSaveWithBogusKeyGenerator2(t *testing.T) {
-// 	// Low amount of data in the key generator - must fail
-// 	bogusKG := constantKey([]byte{0x01, 0x02})
-// 	allBE(func(be BE) {
-// 		closeCalled := false
-// 		name, key, err := be.Save(bReader([]byte{}, nil, nil, func() error {
-// 			if closeCalled {
-// 				t.Fatalf("Multiple close called")
-// 			}
-// 			closeCalled = true
-// 			return nil
-// 		}), bogusKG)
-// 		if err != errInsufficientKeyData {
-// 			t.Fatalf("Invalid error received for bogus key generator: %v", err)
-// 		}
-// 		if name != "" {
-// 			t.Fatalf("Non-empty name received for bogus key generator: %v", name)
-// 		}
-// 		if key != "" {
-// 			t.Fatalf("Non-empty key received for bogus key generator: %v", key)
-// 		}
-// 		if !closeCalled {
-// 			t.Fatal("Input stream was not closed for bogus key generator")
-// 		}
-// 	})
-// }
+		s.Run("new static blob must be different from the first one", func() {
+			s.Require().NoError(err)
+			s.Require().NotEqual(key, key2)
+			s.Require().Len(key2, len(key))
+		})
 
-// func TestSaveErrorWhileReading(t *testing.T) {
-// 	kg := constantKey([]byte(strings.Repeat("*", 32)))
-// 	allBE(func(be BE) {
-// 		closeCalled := false
-// 		errToReturn := errors.New("You shall not pass`")
-// 		name, key, err := be.Save(bReader([]byte{}, func() error {
-// 			return errToReturn
-// 		}, nil, func() error {
-// 			if closeCalled {
-// 				t.Fatalf("Multiple close called")
-// 			}
-// 			closeCalled = true
-// 			return nil
-// 		}), kg)
-// 		if err != errToReturn {
-// 			t.Fatalf("Invalid error received on read error: %v", err)
-// 		}
-// 		if name != "" {
-// 			t.Fatalf("Non-empty name received on read error: %v", name)
-// 		}
-// 		if key != "" {
-// 			t.Fatalf("Non-empty key received on read error: %v", key)
-// 		}
-// 		if !closeCalled {
-// 			t.Fatal("Input stream was not closed on read error")
-// 		}
-// 	})
-// }
+		s.Run("must fail to update static blob", func() {
+			data3 := []byte("Hello Universe!")
 
-// func TestExistsDelete(t *testing.T) {
+			err := s.be.Update(context.Background(), bn2, ai2, key2, bytes.NewReader(data3))
+			s.Require().ErrorIs(err, ErrCanNotUpdateStaticBlob)
+		})
 
-// 	allBE(func(be BE) {
+		s.Run("must fail to open static blob with wrong key", func() {
+			err := func() error {
+				rc, err := s.be.Open(context.Background(), bn2, key)
+				if err != nil {
+					return err
+				}
 
-// 		name, _ := beSave(be, "Test1")
-// 		if !beExists(be, name) {
-// 			t.Fatalf("Blob should exist")
-// 		}
+				_, err = io.ReadAll(rc)
+				if err != nil {
+					return err
+				}
 
-// 		err := be.Delete(name)
-// 		if err != nil {
-// 			t.Fatalf("Could not delete blog: %v", err)
-// 		}
-// 		err = be.Delete(name)
-// 		if err != datastore.ErrNotFound {
-// 			t.Fatalf("Double delete returned invalid error: %v", err)
-// 		}
+				return rc.Close()
+			}()
+			s.Require().ErrorIs(err, blobtypes.ErrValidationFailed)
+		})
 
-// 	})
-// }
+		s.Run("must fail to open static blob with invalid key", func() {
+			rc, err := s.be.Open(context.Background(), bn2, key2[1:])
+			s.Require().ErrorIs(err, cipherfactory.ErrInvalidEncryptionConfig)
+			s.Require().Nil(rc)
+		})
+	})
 
-// func TestOpenNonExisting(t *testing.T) {
-// 	allBE(func(be BE) {
-// 		_, err := be.Open("nonexistingblob", "nomatterwhat")
-// 		if err == nil {
-// 			t.Fatal("Did not get error while trying to open non-existing blob")
-// 		}
-// 	})
-// }
+}
 
-// func TestOpenWrongKey(t *testing.T) {
-// 	allBE(func(be BE) {
-// 		name, _ := beSave(be, "Testdata")
-// 		_, err := be.Open(name, "invalidkey")
-// 		if err == nil {
-// 			t.Fatal("Did not get error while trying to use incorrect key")
-// 		}
-// 	})
-// }
+func (s *BlencTestSuite) TestDynamicLinkSuccessPath() {
+	data := []byte("Hello world!!!")
+
+	bn, key, ai, err := s.be.Create(context.Background(), blobtypes.DynamicLink, bytes.NewReader(data))
+	s.Require().NoError(err)
+	s.Require().Equal(blobtypes.DynamicLink, bn.Type())
+	s.Require().Len(bn.Hash(), sha256.Size)
+	s.Require().NotNil(ai)
+
+	s.Run("check successful operations on a dynamic link", func() {
+		s.Run("blob must be reported as existing", func() {
+			exists, err := s.be.Exists(context.Background(), bn)
+			s.Require().NoError(err)
+			s.Require().True(exists)
+		})
+
+		s.Run("must correctly read blob's content", func() {
+			rc, err := s.be.Open(context.Background(), bn, key)
+			s.Require().NoError(err)
+
+			readData, err := io.ReadAll(rc)
+			s.Require().NoError(err)
+			s.Require().Equal(data, readData)
+
+			err = rc.Close()
+			s.Require().NoError(err)
+		})
+
+		s.Run("must correctly delete blob", func() {
+			err := s.be.Delete(context.Background(), bn)
+			s.Require().NoError(err)
+
+			exists, err := s.be.Exists(context.Background(), bn)
+			s.Require().NoError(err)
+			s.Require().False(exists)
+		})
+	})
+
+	s.Run("work with second dynamic link", func() {
+
+		data2 := []byte("Hello Cinode!")
+
+		bn2, key2, ai2, err := s.be.Create(context.Background(), blobtypes.DynamicLink, bytes.NewReader(data2))
+		s.Require().NoError(err)
+		s.Require().NotEqual(bn, bn2)
+		s.Require().NotNil(ai2)
+
+		s.Run("new dynamic link must be different from the first one", func() {
+			s.Require().NoError(err)
+			s.Require().NotEqual(key, key2)
+			s.Require().Len(key2, len(key))
+		})
+
+		s.Run("must correctly read blob's content", func() {
+			rc, err := s.be.Open(context.Background(), bn2, key2)
+			s.Require().NoError(err)
+
+			readData, err := io.ReadAll(rc)
+			s.Require().NoError(err)
+			s.Require().Equal(data2, readData)
+
+			err = rc.Close()
+			s.Require().NoError(err)
+		})
+
+		s.Run("must correctly update dynamic link", func() {
+			data3 := []byte("Hello Universe!")
+
+			err = s.be.Update(context.Background(), bn2, ai2, key2, bytes.NewReader(data3))
+			s.Require().NoError(err)
+
+			rc, err := s.be.Open(context.Background(), bn2, key2)
+			s.Require().NoError(err)
+
+			readData, err := io.ReadAll(rc)
+			s.Require().NoError(err)
+			s.Require().Equal(data3, readData)
+
+			err = rc.Close()
+			s.Require().NoError(err)
+		})
+
+		s.Run("must fail to update if encryption key is invalid", func() {
+			err := s.be.Update(context.Background(), bn2, ai2, key, bytes.NewReader(nil))
+			s.Require().ErrorIs(err, ErrDynamicLinkUpdateFailed)
+			s.Require().ErrorIs(err, ErrDynamicLinkUpdateFailedWrongKey)
+		})
+
+		s.Run("must fail to update if blob name is invalid", func() {
+			err := s.be.Update(context.Background(), bn, ai2, key2, bytes.NewReader(nil))
+			s.Require().ErrorIs(err, ErrDynamicLinkUpdateFailed)
+			s.Require().ErrorIs(err, ErrDynamicLinkUpdateFailedWrongName)
+		})
+
+		s.Run("must fail to update if auth info is invalid", func() {
+			err := s.be.Update(context.Background(), bn, ai2[1:], key2, bytes.NewReader(nil))
+			s.Require().ErrorIs(err, dynamiclink.ErrInvalidDynamicLinkAuthInfo)
+		})
+
+		s.Run("must fail to update link on read errors", func() {
+			injectedErr := errors.New("test")
+
+			err := s.be.Update(context.Background(), bn, ai2, key2, iotest.ErrReader(injectedErr))
+			s.Require().ErrorIs(err, injectedErr)
+		})
+
+	})
+
+	s.Run("must fail to create link on read errors", func() {
+		injectedErr := errors.New("test")
+
+		bn, key, ai, err := s.be.Create(context.Background(), blobtypes.DynamicLink, iotest.ErrReader(injectedErr))
+		s.Require().ErrorIs(err, injectedErr)
+		s.Require().Nil(bn)
+		s.Require().Nil(key)
+		s.Require().Nil(ai)
+	})
+}
+
+func (s *BlencTestSuite) TestInvalidBlobTypes() {
+	invalidBlobName, err := common.BlobNameFromHashAndType(sha256.New().Sum(nil), blobtypes.Invalid)
+	s.Require().NoError(err)
+
+	s.Run("must fail to create blob of invalid type", func() {
+		bn, key, ai, err := s.be.Create(context.Background(), blobtypes.Invalid, bytes.NewReader(nil))
+		s.Require().ErrorIs(err, blobtypes.ErrUnknownBlobType)
+		s.Require().Nil(bn)
+		s.Require().Nil(key)
+		s.Require().Nil(ai)
+	})
+
+	s.Run("must fail to open blob of invalid type", func() {
+		rc, err := s.be.Open(context.Background(), invalidBlobName, cipherfactory.Key{})
+		s.Require().ErrorIs(err, blobtypes.ErrUnknownBlobType)
+		s.Require().Nil(rc)
+	})
+
+	s.Run("must fail to update blob of invalid type", func() {
+		err = s.be.Update(context.Background(), invalidBlobName, AuthInfo{}, cipherfactory.Key{}, bytes.NewReader(nil))
+		s.Require().ErrorIs(err, blobtypes.ErrUnknownBlobType)
+	})
+}

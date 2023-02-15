@@ -91,10 +91,10 @@ func TestSecureFifoFileAccess(t *testing.T) {
 
 	// The file must not physically exist - it is unlinked so only the open handles
 	// keep it on disk
-	fl := w.(*secureFifoWriter).sf.fl
+	fl := w.(*writer).sf.fl
 	require.NoFileExists(t, fl.Name())
 
-	_, err = fl.Seek(0, os.SEEK_SET)
+	_, err = fl.Seek(0, io.SeekStart)
 	require.NoError(t, err)
 
 	dataRead, err := io.ReadAll(fl)

@@ -19,32 +19,32 @@ package blenc
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
-	"time"
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
+	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 )
 
 var (
-	ErrInvalidDynamicLinkWriterInfo = errors.New("incorrect dynamic link writer info")
+	ErrDynamicLinkUpdateFailed           = errors.New("could not prepare dynamic link update")
+	ErrDynamicLinkUpdateFailedWriterInfo = fmt.Errorf("%w: invalid writer info", ErrDynamicLinkUpdateFailed)
+	ErrDynamicLinkUpdateFailedWrongKey   = fmt.Errorf("%w: encryption key mismatch", ErrDynamicLinkUpdateFailed)
+	ErrDynamicLinkUpdateFailedWrongName  = fmt.Errorf("%w: blob name mismatch", ErrDynamicLinkUpdateFailed)
 )
 
 func (be *beDatastore) openDynamicLink(
 	ctx context.Context,
 	name common.BlobName,
-	key EncryptionKey,
+	key cipherfactory.Key,
 ) (
 	io.ReadCloser,
 	error,
 ) {
 
 	// TODO: Protect against long links - there should be max size limit and maybe some streaming involved?
-	// TODO: Validate the encryption key to avoid forcing weak keys
-	// TODO: Key info should not be a byte array, there should be some more abstract structure to allow more complex key lookup
-	// TODO: Prefer a stream-like approach when dealing with link data
 
 	rc, err := be.ds.Open(ctx, name)
 	if err != nil {
@@ -78,17 +78,13 @@ func (be *beDatastore) createDynamicLink(
 	r io.Reader,
 ) (
 	common.BlobName,
-	EncryptionKey,
+	cipherfactory.Key,
 	AuthInfo,
 	error,
 ) {
-	// TODO: Customizable random source
-	// TODO: Customizable version source
+	version := be.generateVersion()
 
-	version := uint64(time.Now().UnixMicro())
-	randSource := rand.Reader
-
-	dl, err := dynamiclink.Create(randSource)
+	dl, err := dynamiclink.Create(be.rand)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -99,8 +95,6 @@ func (be *beDatastore) createDynamicLink(
 	}
 
 	// Send update packet
-	// TODO: A bit awkward to use the pipe here, but that's since the datastore.Update takes reader as a parameter
-	// maybe we should consider different interfaces in datastore?
 	bn := dl.BlobName()
 	err = be.ds.Update(ctx, bn, pr.GetPublicDataReader())
 	if err != nil {
@@ -117,11 +111,10 @@ func (be *beDatastore) updateDynamicLink(
 	ctx context.Context,
 	name common.BlobName,
 	authInfo AuthInfo,
-	key EncryptionKey,
+	key cipherfactory.Key,
 	r io.Reader,
 ) error {
-	// TODO: Customizable version source
-	newVersion := uint64(time.Now().UnixMicro())
+	newVersion := be.generateVersion()
 
 	dl, err := dynamiclink.FromAuthInfo(authInfo)
 	if err != nil {
@@ -134,13 +127,11 @@ func (be *beDatastore) updateDynamicLink(
 	}
 
 	// Sanity checks
-	// TODO: Have some test cases trying to attack lack of those checks - e.g. invalid key generated for the blog
-
 	if !bytes.Equal(encryptionKey, key) {
-		return errors.New("could not prepare dynamic link update - encryption key mismatch")
+		return ErrDynamicLinkUpdateFailedWrongKey
 	}
 	if !bytes.Equal(name, dl.BlobName()) {
-		return errors.New("could not prepare dynamic link update - blob name mismatch")
+		return ErrDynamicLinkUpdateFailedWrongName
 	}
 
 	// Send update packet

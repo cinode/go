@@ -26,11 +26,14 @@ import (
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
-	"github.com/cinode/go/pkg/internal/utilities/securefifo"
 	"github.com/cinode/go/pkg/internal/utilities/validatingreader"
 )
 
-func (be *beDatastore) openStatic(ctx context.Context, name common.BlobName, key EncryptionKey) (io.ReadCloser, error) {
+var (
+	ErrCanNotUpdateStaticBlob = errors.New("blob update is not supported for static blobs")
+)
+
+func (be *beDatastore) openStatic(ctx context.Context, name common.BlobName, key cipherfactory.Key) (io.ReadCloser, error) {
 
 	rc, err := be.ds.Open(ctx, name)
 	if err != nil {
@@ -66,17 +69,17 @@ func (be *beDatastore) createStatic(
 	r io.Reader,
 ) (
 	common.BlobName,
-	EncryptionKey,
+	cipherfactory.Key,
 	AuthInfo,
 	error,
 ) {
-	tempWriteBufferPlain, err := securefifo.New()
+	tempWriteBufferPlain, err := be.newSecureFifo()
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	defer tempWriteBufferPlain.Close()
 
-	tempWriteBufferEncrypted, err := securefifo.New()
+	tempWriteBufferEncrypted, err := be.newSecureFifo()
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -140,8 +143,8 @@ func (be *beDatastore) updateStatic(
 	ctx context.Context,
 	name common.BlobName,
 	authInfo AuthInfo,
-	key EncryptionKey,
+	key cipherfactory.Key,
 	r io.Reader,
 ) error {
-	return errors.New("Blob update is not supported for static blobs")
+	return ErrCanNotUpdateStaticBlob
 }

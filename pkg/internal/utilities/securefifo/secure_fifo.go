@@ -25,29 +25,18 @@ import (
 	"golang.org/x/crypto/chacha20"
 )
 
-type closingStreamReader struct {
-	cipher.StreamReader
-}
-
-func (r *closingStreamReader) Close() error {
-	if c, ok := r.R.(io.Closer); ok {
-		return c.Close()
-	}
-	return nil
-}
-
-type SecureFifoReader interface {
+type Reader interface {
 	io.ReadCloser
 
 	// Reset closes current reader and opens a new one that starts at the beginning of the data
-	Reset() (SecureFifoReader, error)
+	Reset() (Reader, error)
 }
 
-type SecureFifoWriter interface {
+type Writer interface {
 	io.WriteCloser
 
 	// Done closes current writer and opens SecureFifoReader stream for reading
-	Done() (SecureFifoReader, error)
+	Done() (Reader, error)
 }
 
 type secureFifo struct {
@@ -66,28 +55,28 @@ func (f *secureFifo) getStream() cipher.Stream {
 	return stream
 }
 
-func (f *secureFifo) openReader() (*secureFifoReader, error) {
-	_, err := f.fl.Seek(0, os.SEEK_SET)
+func (f *secureFifo) openReader() (*reader, error) {
+	_, err := f.fl.Seek(0, io.SeekStart)
 	if err != nil {
 		return nil, err
 	}
 
-	return &secureFifoReader{
+	return &reader{
 		sf: f,
 		r:  cipher.StreamReader{S: f.getStream(), R: f.fl},
 	}, nil
 }
 
-type secureFifoWriter struct {
+type writer struct {
 	sf *secureFifo
 	w  io.Writer
 }
 
-func (w *secureFifoWriter) Write(b []byte) (int, error) {
+func (w *writer) Write(b []byte) (int, error) {
 	return w.w.Write(b)
 }
 
-func (w *secureFifoWriter) Close() error {
+func (w *writer) Close() error {
 	if w.sf == nil {
 		return nil
 	}
@@ -95,7 +84,7 @@ func (w *secureFifoWriter) Close() error {
 	return w.sf.Close()
 }
 
-func (w *secureFifoWriter) Done() (SecureFifoReader, error) {
+func (w *writer) Done() (Reader, error) {
 	ret, err := w.sf.openReader()
 	if err != nil {
 		return nil, err
@@ -107,16 +96,16 @@ func (w *secureFifoWriter) Done() (SecureFifoReader, error) {
 	return ret, nil
 }
 
-type secureFifoReader struct {
+type reader struct {
 	sf *secureFifo
 	r  io.Reader
 }
 
-func (r *secureFifoReader) Read(b []byte) (int, error) {
+func (r *reader) Read(b []byte) (int, error) {
 	return r.r.Read(b)
 }
 
-func (r *secureFifoReader) Close() error {
+func (r *reader) Close() error {
 	if r.sf == nil {
 		return nil
 	}
@@ -124,7 +113,7 @@ func (r *secureFifoReader) Close() error {
 	return r.sf.Close()
 }
 
-func (r *secureFifoReader) Reset() (SecureFifoReader, error) {
+func (r *reader) Reset() (Reader, error) {
 	ret, err := r.sf.openReader()
 	if err != nil {
 		return nil, err
@@ -138,7 +127,7 @@ func (r *secureFifoReader) Reset() (SecureFifoReader, error) {
 
 // New creates new secure fifo pipe. That pipe may handle large amounts of data by using a temporary storage
 // but ensures that even if the data can be accessed from disk, it can not be decrypted.
-func New() (wr SecureFifoWriter, err error) {
+func New() (wr Writer, err error) {
 
 	var randData [chacha20.KeySize + chacha20.NonceSize]byte
 	_, err = rand.Read(randData[:])
@@ -170,7 +159,7 @@ func New() (wr SecureFifoWriter, err error) {
 		fl:    tempFile,
 	}
 
-	return &secureFifoWriter{
+	return &writer{
 		sf: sf,
 		w:  cipher.StreamWriter{S: sf.getStream(), W: tempFile},
 	}, nil
