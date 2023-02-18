@@ -27,9 +27,7 @@ jobs:
       matrix:
         app:
           - name: web_proxy
-            image: web_proxy
           - name: static_datastore_builder
-            image: static_datastore_builder
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -53,7 +51,7 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: |
-            "${{ env.REGISTRY }}/${{ env.IMAGE_BASE_NAME }}/${{ matrix.app.image }}"
+            "${{ env.REGISTRY }}/${{ env.IMAGE_BASE_NAME }}/${{ matrix.app.name }}"
           tags: |
             type=ref,event=branch,prefix=branch-
             type=semver,pattern={{version}}
@@ -63,9 +61,8 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: build/docker/Dockerfile
+          file: build/docker/Dockerfile.${{ matrix.app.name }}
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: APP_NAME=${{ matrix.app.name }}
