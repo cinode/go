@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:1
+ARG GO_VERSION=1.20
+
+# Base image with go compiler and tested source code
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:${GO_VERSION} as build
+
+# Compile and test with non-root user
+RUN useradd -ms /bin/bash go
+USER go
+RUN git config --global --add safe.directory /home/go/app
+
+# Fetch and verify dependencies
+WORKDIR /home/go/app
+COPY go.mod go.sum ./
+RUN go mod download
+RUN go mod verify
+
+# Bring in and test the source code
+COPY . .
+RUN go vet -v ./...
+RUN go test -v ./...
+
+# Build binary
+ENV CGO_ENABLED=0
+ARG TARGETOS TARGETARCH
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build \
+        -v \
+        -ldflags="-w -s" \
+        -o "/home/go/static_datastore_builder" \
+        "./cmd/static_datastore_builder"
+
+FROM alpine
+RUN adduser --disabled-password --gecos "" --home="/cinode" cinode
+USER cinode:cinode
+COPY --from=build /home/go/static_datastore_builder /usr/sbin/static_datastore_builder
+ENTRYPOINT [ "/usr/sbin/static_datastore_builder" ]
