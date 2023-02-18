@@ -32,6 +32,7 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 
 FROM alpine
 RUN adduser --disabled-password --gecos "" --home="/cinode" cinode
+WORKDIR /cinode
 USER cinode:cinode
 COPY --from=build /home/go/static_datastore_builder /usr/sbin/static_datastore_builder
 ENTRYPOINT [ "/usr/sbin/static_datastore_builder" ]
