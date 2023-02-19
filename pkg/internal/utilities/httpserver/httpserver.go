@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,17 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package httpserver
 
 import (
 	"context"
-	"log"
-
-	"github.com/cinode/go/pkg/cmd/cinode_web_proxy"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
-func main() {
-	if err := cinode_web_proxy.Execute(context.Background()); err != nil {
-		log.Fatal(err)
+func RunGracefully(ctx context.Context, handler http.Handler, listenAddr string) error {
+	server := &http.Server{
+		Addr:    listenAddr,
+		Handler: handler,
 	}
+
+	go server.ListenAndServe()
+
+	ctx, _ = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+
+	<-ctx.Done()
+
+	// TODO: More graceful way?
+	return server.Close()
 }

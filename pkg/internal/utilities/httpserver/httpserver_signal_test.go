@@ -1,5 +1,7 @@
+//go:build !windows
+
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,17 +16,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package httpserver
 
 import (
-	"context"
-	"log"
-
-	"github.com/cinode/go/pkg/cmd/cinode_web_proxy"
+	"syscall"
+	"testing"
 )
 
-func main() {
-	if err := cinode_web_proxy.Execute(context.Background()); err != nil {
-		log.Fatal(err)
+func getSignalFunc(t *testing.T) func() {
+	return func() {
+		syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 	}
 }
