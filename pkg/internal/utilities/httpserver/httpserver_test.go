@@ -19,7 +19,6 @@ package httpserver
 import (
 	"context"
 	"net/http"
-	"syscall"
 	"testing"
 	"time"
 
@@ -40,9 +39,10 @@ func TestRunGracefully(t *testing.T) {
 	})
 
 	t.Run("cancel with signal", func(t *testing.T) {
+		signalFunc := getSignalFunc(t) // Some quirks needed since signals are not possible on Windows :facepalm:
 		go func() {
 			time.Sleep(10 * time.Millisecond)
-			syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+			signalFunc()
 		}()
 		start := time.Now()
 		err := RunGracefully(context.Background(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), ":0")
