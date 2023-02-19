@@ -35,6 +35,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -342,10 +343,73 @@ func writeLinkData(tc TestCase) error {
 	return nil
 }
 
+func writeTestBlobCode(
+	name string,
+	updateDataset []byte,
+	blobName []byte,
+	encryptionKey []byte,
+	decryptedDataset []byte,
+) error {
+	toBytes := func(buf []byte) string {
+		ret := "[]byte{"
+		for i, b := range buf {
+			if i%8 == 0 {
+				ret += "\n"
+			}
+			ret += fmt.Sprintf("0x%02X", b)
+			ret += ","
+		}
+		ret += "\n}"
+		return ret
+	}
+	code := fmt.Sprintf(`
+		package testblobs
+
+		var %s = TestBlob {
+			%s,
+			%s,
+			%s,
+			%s,
+		}
+		`,
+		name,
+		toBytes(updateDataset),
+		toBytes(blobName),
+		toBytes(encryptionKey),
+		toBytes(decryptedDataset),
+	)
+
+	fileName := filepath.Join("testblobs", strings.ToLower(name)+".go")
+	err := os.WriteFile(fileName, []byte(code), 0666)
+	if err != nil {
+		return err
+	}
+
+	err = exec.Command("gofmt", "-w", fileName).Run()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func generateTestVectorsForDynamicLinks() {
+	// A simple dynamic link in form of a go code
+	{
+		linkData := []byte("dynamic link")
+		gp := gp{
+			linkData: &linkData,
+		}
+		writeTestBlobCode(
+			"DynamicLink",
+			genLink(gp),
+			blobName(gp),
+			key(gp),
+			linkData,
+		)
+	}
 
 	// Completely valid links
-
 	for i := 0; i < 10; i++ {
 		linkData := []byte(fmt.Sprintf("Link data %02d", i))
 		gp := gp{
