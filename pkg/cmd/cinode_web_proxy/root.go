@@ -18,6 +18,7 @@ package cinode_web_proxy
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -29,92 +30,48 @@ import (
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/datastore"
+	"github.com/cinode/go/pkg/internal/utilities/httpserver"
 	"github.com/cinode/go/pkg/protobuf"
 	"github.com/cinode/go/pkg/structure"
 	"github.com/jbenet/go-base58"
 )
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() {
-	entrypoint, err := getEntrypoint()
+func Execute(ctx context.Context) error {
+	cfg, err := getConfig()
 	if err != nil {
-		log.Fatalf("Failed to initialize entrypoint: %v", err)
+		return err
 	}
-
-	mainDS, err := getMainDS()
-	if err != nil {
-		log.Fatalf("Could not create main datastore: %v", err)
-	}
-
-	additionalDSs, err := getAdditionalDSs()
-	if err != nil {
-		log.Fatalf("Could not create additional datastores: %v", err)
-	}
-
-	handler := setupCinodeProxy(mainDS, additionalDSs, entrypoint)
-
-	log.Println("Listening on http://localhost:8080")
-	err = http.ListenAndServe(":8080", handler)
-	if err != nil {
-		log.Fatal(err)
-	}
+	return executeWithConfig(ctx, cfg)
 }
 
-func getEntrypoint() (*protobuf.Entrypoint, error) {
-	entrypointB58, found := os.LookupEnv("CINODE_ENTRYPOINT")
-	if !found {
-		entrypointFile, found := os.LookupEnv("CINODE_ENTRYPOINT_FILE")
-		if !found {
-			return nil, errors.New("missing CINODE_ENTRYPOINT or CINODE_ENTRYPOINT_FILE env var")
-		}
-		entrypointFileData, err := os.ReadFile(entrypointFile)
-		if err != nil {
-			return nil, fmt.Errorf("could not read entrypoint file at '%s': %w", entrypointFile, err)
-		}
-		entrypointB58 = string(bytes.TrimSpace(entrypointFileData))
-	}
-	entrypointRaw := base58.Decode(entrypointB58)
-	if len(entrypointRaw) == 0 {
-		return nil, errors.New("could not decode base58 entrypoint data")
-	}
-	entrypoint, err := protobuf.EntryPointFromBytes(entrypointRaw)
+func executeWithConfig(ctx context.Context, cfg *config) error {
+	mainDS, err := datastore.FromLocation(cfg.mainDSLocation)
 	if err != nil {
-		return nil, fmt.Errorf("could not unmarshal entrypoint data: %w", err)
+		return fmt.Errorf("could not create main datastore: %w", err)
 	}
 
-	return entrypoint, nil
-}
-
-func getMainDS() (datastore.DS, error) {
-	location := os.Getenv("CINODE_MAIN_DATASTORE")
-	if location == "" {
-		return datastore.InMemory(), nil
-	}
-	return datastore.FromLocation(location)
-}
-
-func getAdditionalDSs() ([]datastore.DS, error) {
 	additionalDSs := []datastore.DS{}
-	additionalDSEnvNames := []string{}
-	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "CINODE_ADDITIONAL_DATASTORE_") {
-			split := strings.SplitN(e, "=", 2)
-			additionalDSEnvNames = append(additionalDSEnvNames, split[0])
-		}
-	}
-	sort.Strings(additionalDSEnvNames)
-
-	for _, envName := range additionalDSEnvNames {
-		location := os.Getenv(envName)
-		ds, err := datastore.FromLocation(location)
+	for _, loc := range cfg.additionalDSLocations {
+		ds, err := datastore.FromLocation(loc)
 		if err != nil {
-			return nil, fmt.Errorf("invalid datastore location '%s' from env var '%s': %w", location, envName, err)
+			return fmt.Errorf("could not create additional datastores: %w", err)
 		}
 		additionalDSs = append(additionalDSs, ds)
 	}
 
-	return additionalDSs, nil
+	entrypointRaw := base58.Decode(cfg.entrypoint)
+	if len(entrypointRaw) == 0 {
+		return errors.New("could not decode base58 entrypoint data")
+	}
+	entrypoint, err := protobuf.EntryPointFromBytes(entrypointRaw)
+	if err != nil {
+		return fmt.Errorf("could not unmarshal entrypoint data: %w", err)
+	}
+
+	log.Printf("Listening on http://localhost:%d", cfg.port)
+
+	handler := setupCinodeProxy(mainDS, additionalDSs, entrypoint)
+	return httpserver.RunGracefully(ctx, handler, fmt.Sprintf(":%d", cfg.port))
 }
 
 func setupCinodeProxy(
@@ -134,4 +91,52 @@ func setupCinodeProxy(
 	return &structure.HTTPHandler{
 		FS: &fs,
 	}
+}
+
+type config struct {
+	entrypoint            string
+	mainDSLocation        string
+	additionalDSLocations []string
+	port                  int
+}
+
+func getConfig() (*config, error) {
+	cfg := config{}
+
+	entrypoint, found := os.LookupEnv("CINODE_ENTRYPOINT")
+	if !found {
+		entrypointFile, found := os.LookupEnv("CINODE_ENTRYPOINT_FILE")
+		if !found {
+			return nil, errors.New("missing CINODE_ENTRYPOINT or CINODE_ENTRYPOINT_FILE env var")
+		}
+		entrypointFileData, err := os.ReadFile(entrypointFile)
+		if err != nil {
+			return nil, fmt.Errorf("could not read entrypoint file at '%s': %w", entrypointFile, err)
+		}
+		entrypoint = string(bytes.TrimSpace(entrypointFileData))
+	}
+	cfg.entrypoint = entrypoint
+
+	cfg.mainDSLocation = os.Getenv("CINODE_MAIN_DATASTORE")
+	if cfg.mainDSLocation == "" {
+		cfg.mainDSLocation = "memory://"
+	}
+
+	additionalDSEnvNames := []string{}
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "CINODE_ADDITIONAL_DATASTORE") {
+			split := strings.SplitN(e, "=", 2)
+			additionalDSEnvNames = append(additionalDSEnvNames, split[0])
+		}
+	}
+	sort.Strings(additionalDSEnvNames)
+
+	for _, envName := range additionalDSEnvNames {
+		location := os.Getenv(envName)
+		cfg.additionalDSLocations = append(cfg.additionalDSLocations, location)
+	}
+
+	cfg.port = 8080
+
+	return &cfg, nil
 }

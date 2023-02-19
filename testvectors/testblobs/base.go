@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/cinode/go/pkg/protobuf"
 	"github.com/jbenet/go-base58"
 )
 
@@ -87,4 +88,13 @@ func (s *TestBlob) Get(baseUrl string) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+func (s *TestBlob) Entrypoint() *protobuf.Entrypoint {
+	return &protobuf.Entrypoint{
+		BlobName: s.BlobName,
+		KeyInfo: &protobuf.KeyInfo{
+			Key: s.EncryptionKey,
+		},
+	}
 }

@@ -16,8 +16,15 @@ limitations under the License.
 
 package main
 
-import "github.com/cinode/go/pkg/cmd/cinode_web_proxy"
+import (
+	"context"
+	"log"
+
+	"github.com/cinode/go/pkg/cmd/cinode_web_proxy"
+)
 
 func main() {
-	cinode_web_proxy.Execute()
+	if err := cinode_web_proxy.Execute(context.Background()); err != nil {
+		log.Fatal(err)
+	}
 }
