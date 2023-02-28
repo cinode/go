@@ -27,8 +27,8 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build \
         -v \
         -ldflags="-w -s" \
-        -o "/home/go/web_proxy" \
-        "./cmd/web_proxy"
+        -o "/home/go/public_node" \
+        "./cmd/public_node"
 
 # Force distroless base to use current platform (most likely linux/amd64)
 # which is needed since distroless/static is not available for linux/arm/v6
@@ -36,7 +36,7 @@ FROM --platform=$BUILDPLATFORM gcr.io/distroless/static as distroless
 
 FROM scratch
 COPY --from=distroless / /
-COPY --from=build /home/go/web_proxy /usr/sbin/web_proxy
+COPY --from=build /home/go/public_node /usr/sbin/public_node
 USER nonroot:nonroot
 EXPOSE 8080
-ENTRYPOINT [ "/usr/sbin/web_proxy" ]
+ENTRYPOINT [ "/usr/sbin/public_node" ]

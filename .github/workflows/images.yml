@@ -28,6 +28,7 @@ jobs:
         app:
           - name: web_proxy
           - name: static_datastore_builder
+          - name: public_node
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
