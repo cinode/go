@@ -41,7 +41,10 @@ func executeWithConfig(ctx context.Context, cfg config) error {
 	}
 
 	log.Printf("Listening on http://localhost:%d", cfg.port)
-	return httpserver.RunGracefully(ctx, handler, fmt.Sprintf(":%d", cfg.port))
+	return httpserver.RunGracefully(ctx,
+		handler,
+		httpserver.ListenPort(cfg.port),
+	)
 }
 
 func buildHttpHandler(cfg config) (http.Handler, error) {

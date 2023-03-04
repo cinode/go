@@ -17,36 +17,105 @@ limitations under the License.
 package httpserver
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
 )
 
-func TestRunGracefully(t *testing.T) {
-	t.Run("cancel with context", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			time.Sleep(10 * time.Millisecond)
-			cancel()
-		}()
-		start := time.Now()
-		err := RunGracefully(ctx, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), ":0")
-		require.NoError(t, err)
-		require.Less(t, time.Since(start), time.Second)
-	})
+func TestCancelWithContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+	}()
+	start := time.Now()
+	err := RunGracefully(
+		ctx,
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
+		ListenAddr(":0"),
+	)
+	require.NoError(t, err)
+	require.Less(t, time.Since(start), time.Second)
+}
 
-	t.Run("cancel with signal", func(t *testing.T) {
-		signalFunc := getSignalFunc(t) // Some quirks needed since signals are not possible on Windows :facepalm:
-		go func() {
-			time.Sleep(10 * time.Millisecond)
-			signalFunc()
-		}()
-		start := time.Now()
-		err := RunGracefully(context.Background(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), ":0")
-		require.NoError(t, err)
-		require.Less(t, time.Since(start), time.Second)
+func TestCancelWithSignal(t *testing.T) {
+	signalFunc := getSignalFunc(t) // Some quirks needed since signals are not possible on Windows :facepalm:
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		signalFunc()
+	}()
+	start := time.Now()
+	err := RunGracefully(
+		context.Background(),
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
+		ListenAddr(":0"),
+	)
+	require.NoError(t, err)
+	require.Less(t, time.Since(start), time.Second)
+}
+
+func TestEnsureHandlerIsCalled(t *testing.T) {
+	handlerCalled := false
+
+	server, listener, err := startGracefully(
+		context.Background(),
+		cfg{
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				handlerCalled = true
+			}),
+			listenAddr: ":0",
+			log:        slog.Default(),
+		},
+	)
+	require.NoError(t, err)
+
+	resp, err := http.Get(
+		fmt.Sprintf("http://localhost:%d/", listener.Addr().(*net.TCPAddr).Port),
+	)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	_, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	err = server.Close()
+	require.NoError(t, err)
+
+	require.True(t, handlerCalled)
+}
+
+func TestFailOnInvalidListenAddr(t *testing.T) {
+	err := RunGracefully(
+		context.Background(),
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
+		ListenAddr("not-a-listen-address"),
+	)
+	require.IsType(t, &net.OpError{}, err)
+}
+
+func TestOptions(t *testing.T) {
+	t.Run("ListenPort", func(t *testing.T) {
+		cfg := cfg{}
+		ListenPort(54321)(&cfg)
+		require.Equal(t, ":54321", cfg.listenAddr)
+	})
+	t.Run("ListenAddr", func(t *testing.T) {
+		cfg := cfg{}
+		ListenAddr(":12345")(&cfg)
+		require.Equal(t, ":12345", cfg.listenAddr)
+	})
+	t.Run("Logger", func(t *testing.T) {
+		log := slog.New(slog.NewJSONHandler(bytes.NewBuffer(nil)))
+		cfg := cfg{}
+		Logger(log)(&cfg)
+		require.Equal(t, log, cfg.log)
 	})
 }
