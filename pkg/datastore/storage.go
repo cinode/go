@@ -30,6 +30,7 @@ type WriteCloseCanceller interface {
 
 type storage interface {
 	kind() string
+	address() string
 	openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error)
 	openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error)
 	exists(ctx context.Context, name common.BlobName) (bool, error)

@@ -65,6 +65,10 @@ func (m *multiSourceDatastore) Kind() string {
 	return "MultiSource"
 }
 
+func (m *multiSourceDatastore) Address() string {
+	return "multi-source://"
+}
+
 func (m *multiSourceDatastore) Open(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	m.fetch(ctx, name)
 	return m.main.Open(ctx, name)

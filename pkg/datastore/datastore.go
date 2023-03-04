@@ -34,6 +34,10 @@ func (ds *datastore) Kind() string {
 	return ds.s.kind()
 }
 
+func (ds *datastore) Address() string {
+	return ds.s.address()
+}
+
 func (ds *datastore) Open(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	switch name.Type() {
 	case blobtypes.Static:

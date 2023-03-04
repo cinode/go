@@ -50,6 +50,10 @@ func (m *memory) kind() string {
 	return "Memory"
 }
 
+func (m *memory) address() string {
+	return memoryPrefix
+}
+
 func (m *memory) openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	m.rw.RLock()
 	defer m.rw.RUnlock()

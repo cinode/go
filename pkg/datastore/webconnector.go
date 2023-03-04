@@ -79,6 +79,10 @@ func (w *webConnector) Kind() string {
 	return "Web"
 }
 
+func (w *webConnector) Address() string {
+	return w.baseURL
+}
+
 func (w *webConnector) Open(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	switch name.Type() {
 	case blobtypes.Static:

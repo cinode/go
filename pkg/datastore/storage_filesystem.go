@@ -34,6 +34,8 @@ type fileSystem struct {
 	path string
 }
 
+var _ storage = (*fileSystem)(nil)
+
 func newStorageFilesystem(path string) (*fileSystem, error) {
 	err := os.MkdirAll(path, 0755)
 	if err != nil {
@@ -45,6 +47,11 @@ func newStorageFilesystem(path string) (*fileSystem, error) {
 func (fs *fileSystem) kind() string {
 	return "FileSystem"
 }
+
+func (fs *fileSystem) address() string {
+	return filePrefix + fs.path
+}
+
 func (fs *fileSystem) openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	rc, err := os.Open(fs.getFileName(name, fsSuffixCurrent))
 	if os.IsNotExist(err) {

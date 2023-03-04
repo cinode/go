@@ -46,6 +46,10 @@ func (fs *rawFileSystem) kind() string {
 	return "RawFileSystem"
 }
 
+func (fs *rawFileSystem) address() string {
+	return rawFilePrefix + fs.path
+}
+
 func (fs *rawFileSystem) openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	rc, err := os.Open(filepath.Join(fs.path, name.String()))
 	if os.IsNotExist(err) {
