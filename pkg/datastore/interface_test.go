@@ -249,6 +249,11 @@ func (s *DatastoreTestSuite) TestGetKind() {
 	s.Require().NotEmpty(k)
 }
 
+func (s *DatastoreTestSuite) TestAddress() {
+	address := s.ds.Address()
+	s.Require().Regexp(`^[a-zA-Z0-9_-]+://`, address)
+}
+
 func (s *DatastoreTestSuite) TestSimultaneousReads() {
 	const threadCnt = 10
 	const readCnt = 200

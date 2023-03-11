@@ -22,6 +22,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/exp/slog"
+
 	"github.com/cinode/go/pkg/common"
 )
 
@@ -48,6 +50,9 @@ type multiSourceDatastore struct {
 
 	// Guard additional sources and update time map
 	m sync.Mutex
+
+	// Logger output
+	log *slog.Logger
 }
 
 func NewMultiSource(main DS, refreshTime time.Duration, additional ...DS) DS {
@@ -56,6 +61,7 @@ func NewMultiSource(main DS, refreshTime time.Duration, additional ...DS) DS {
 		additional:             additional,
 		dynamicDataRefreshTime: refreshTime,
 		blobStates:             map[string]multiSourceDatastoreBlobState{},
+		log:                    slog.Default(),
 	}
 }
 
@@ -63,6 +69,10 @@ var _ DS = (*multiSourceDatastore)(nil)
 
 func (m *multiSourceDatastore) Kind() string {
 	return "MultiSource"
+}
+
+func (m *multiSourceDatastore) Address() string {
+	return "multi-source://"
 }
 
 func (m *multiSourceDatastore) Open(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
@@ -128,11 +138,29 @@ func (m *multiSourceDatastore) fetch(ctx context.Context, name common.BlobName) 
 		}()
 
 		if startDownload {
-			for _, ds := range m.additional {
+			m.log.Info("Starting download", "blob", name)
+			for i, ds := range m.additional {
 				r, err := ds.Open(ctx, name)
-				if err == nil {
-					m.main.Update(ctx, name, r)
-					r.Close()
+				if err != nil {
+					m.log.Debug("Failed to fetch blob from additional datastore",
+						"blob", name.String(),
+						"datastore", ds.Address(),
+						"err", err,
+					)
+					continue
+				}
+
+				m.log.Info("Blob found in additional datastore",
+					"blob", name.String(),
+					"datastore-num", i+1,
+				)
+				err = m.main.Update(ctx, name, r)
+				r.Close()
+				if err != nil {
+					m.log.Info("Failed to store blob in local datastore",
+						"blob", name.String(),
+						"err", err,
+					)
 				}
 			}
 			defer close(waitChan)

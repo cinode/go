@@ -18,23 +18,78 @@ package httpserver
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
+
+	"golang.org/x/exp/slog"
 )
 
-func RunGracefully(ctx context.Context, handler http.Handler, listenAddr string) error {
-	server := &http.Server{
-		Addr:    listenAddr,
-		Handler: handler,
+type cfg struct {
+	handler    http.Handler
+	listenAddr string
+	log        *slog.Logger
+}
+
+type Option func(c *cfg)
+
+func ListenPort(port int) Option          { return func(c *cfg) { c.listenAddr = ":" + strconv.Itoa(port) } }
+func ListenAddr(listenAddr string) Option { return func(c *cfg) { c.listenAddr = listenAddr } }
+func Logger(log *slog.Logger) Option      { return func(c *cfg) { c.log = log } }
+
+func RunGracefully(ctx context.Context, handler http.Handler, opt ...Option) error {
+	cfg := cfg{
+		handler:    handler,
+		listenAddr: ":http",
+		log:        slog.Default(),
 	}
 
-	go server.ListenAndServe()
+	for _, o := range opt {
+		o(&cfg)
+	}
 
+	server, _, err := startGracefully(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
+	return endGracefully(ctx, server, cfg)
+}
+
+func startGracefully(ctx context.Context, cfg cfg) (*http.Server, net.Listener, error) {
+	listener, err := net.Listen("tcp", cfg.listenAddr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	server := &http.Server{
+		Addr: cfg.listenAddr,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			cfg.log.Info(
+				"http request",
+				slog.Group("req",
+					slog.String("remoteAddr", r.RemoteAddr),
+					slog.String("method", r.Method),
+					slog.String("url", r.URL.String()),
+				),
+			)
+			cfg.handler.ServeHTTP(w, r)
+		}),
+	}
+
+	go server.Serve(listener)
+
+	return server, listener, nil
+}
+
+func endGracefully(ctx context.Context, server *http.Server, cfg cfg) error {
 	ctx, _ = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 
 	<-ctx.Done()
+	cfg.log.Info("Shutting down")
 
 	// TODO: More graceful way?
 	return server.Close()

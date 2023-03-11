@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,25 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package datastore
+package main
 
 import (
 	"context"
-	"io"
+	"log"
 
-	"github.com/cinode/go/pkg/common"
+	"github.com/cinode/go/pkg/cmd/public_node"
 )
 
-type WriteCloseCanceller interface {
-	io.WriteCloser
-	Cancel()
-}
-
-type storage interface {
-	kind() string
-	address() string
-	openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error)
-	openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error)
-	exists(ctx context.Context, name common.BlobName) (bool, error)
-	delete(ctx context.Context, name common.BlobName) error
+func main() {
+	if err := public_node.Execute(context.Background()); err != nil {
+		log.Fatal(err)
+	}
 }

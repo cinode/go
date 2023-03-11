@@ -52,6 +52,9 @@ type DS interface {
 	// Kind returns string representation of datastore kind (i.e. "Memory")
 	Kind() string
 
+	// Address returns string representing datastore address
+	Address() string
+
 	// Open returns a read stream for given blob name or an error. In case blob
 	// is not found in datastore, returned error must be of ErrNotFound type.
 	//

@@ -31,6 +31,7 @@ import (
 
 type mockStore struct {
 	fKind            func() string
+	fAddress         func() string
 	fOpenReadStream  func(ctx context.Context, name common.BlobName) (io.ReadCloser, error)
 	fOpenWriteStream func(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error)
 	fExists          func(ctx context.Context, name common.BlobName) (bool, error)
@@ -39,6 +40,9 @@ type mockStore struct {
 
 func (s *mockStore) kind() string {
 	return s.fKind()
+}
+func (s *mockStore) address() string {
+	return s.fAddress()
 }
 func (s *mockStore) openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
 	return s.fOpenReadStream(ctx, name)
