@@ -67,3 +67,51 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  test-docker-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    strategy:
+      matrix:
+        arch:
+          - linux/amd64
+          - linux/arm/v6
+          - linux/arm/v7
+          - linux/arm64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            "${{ env.REGISTRY }}/${{ env.IMAGE_BASE_NAME }}/web_proxy"
+          tags: |
+            type=ref,event=branch,prefix=branch-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Compile test dataset
+        run: |
+          docker run \
+            --platform ${{ matrix.arch }} \
+            --rm \
+            -i \
+            ghcr.io/cinode/static_datastore_builder:${{ steps.meta.outputs.tags[0] }} \
+            compile \
+            --help
