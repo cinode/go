@@ -122,6 +122,9 @@ jobs:
 
     env:
       IMG_STATIC_DATASTORE_BUILDER: ${{ fromJSON(needs.images.outputs.images).static_datastore_builder }}
+      IMG_PUBLIC_NODE: ${{ fromJSON(needs.images.outputs.images).public_node }}
+      IMG_WEB_PROXY: ${{ fromJSON(needs.images.outputs.images).web_proxy }}
+      NETWORK_NAME: "cinode/${{ matrix.arch }}"
 
     steps:
       - name: Dump docker images info
@@ -155,4 +158,35 @@ jobs:
             compile \
             --source /data/testvectors \
             --destination /data/encrypted \
-            --raw-filesystem
+          > compile_result.json
+
+      - name: Create docker network
+        run: |
+          docker network create "$NETWORK_NAME"
+
+      - name: Run public datastore node
+        run: |
+          docker run \
+            --platform "${{ matrix.arch }}" \
+            --detach \
+            --network "$NETWORK_NAME" \
+            --volume "$(pwd):/data" \
+            --env CINODE_MAIN_DATASTORE=/data/encrypted \
+            --name datastore \
+            "$IMG_PUBLIC_NODE"
+      
+      - name: Run web proxy
+        run: |
+          docker run \
+            --platform "${{ matrix.arch }}" \
+            --detach \
+            --publish 8080:8080 \
+            --network "$NETWORK_NAME" \
+            --env CINODE_ENTRYPOINT="$( cat compile_result.json | jq -r .entrypoint )" \
+            --env CINODE_ADDITIONAL_DATASTORE_1="http://datastore/" \
+            --name web_proxy \
+            "$IMG_WEB_PROXY"
+
+      - name: Inspect docker environment
+        run: |
+          docker ps
