@@ -120,7 +120,16 @@ jobs:
           - linux/arm/v7
           - linux/arm64
 
+    env:
+      IMG_STATIC_DATASTORE_BUILDER: ${{ fromJSON(needs.images.outputs.images).static_datastore_builder }}
+
     steps:
+      - name: Dump docker images info
+        run: |
+          jq . <<EOF
+            ${{ needs.images.outputs.images }}
+          EOF
+
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -134,12 +143,16 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
-      - name: Debug dump
+      - name: Compile simple dataset
         run: |
-          jq . <<EOF
-            ${{ needs.images.outputs.images }}
-          EOF
-
-      - name: Debug dump 2
-        run:
-          echo "${{ toJSON(needs.images.outputs.images)}}"
+          docker run \
+            --platform "${{ matrix.arch }}" \
+            --rm \
+            --interactive \
+            --volume "$(pwd):/data" \
+            --user $(id -u ${USER}):$(id -g ${USER}) \
+            "$IMG_STATIC_DATASTORE_BUILDER" \
+            compile \
+            --source /data/testvectors \
+            --destination /data/encrypted \
+            --raw-filesystem
