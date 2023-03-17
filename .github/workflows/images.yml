@@ -22,13 +22,15 @@ jobs:
     permissions:
       contents: read
       packages: write
-
     strategy:
       matrix:
         app:
           - name: web_proxy
           - name: static_datastore_builder
           - name: public_node
+    env:
+      OUTPUTS_DIR: /tmp/outputs
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -59,6 +61,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push
+        id: build_and_push
         uses: docker/build-push-action@v4
         with:
           context: .
@@ -67,3 +70,162 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p  "$OUTPUTS_DIR"
+          jq -c '{
+            "${{ matrix.app.name }}": (
+                .["image.name"] + "@" + .["containerimage.digest"]
+            )
+          }' <<EOF >> "$OUTPUTS_DIR/image"
+            ${{ steps.build_and_push.outputs.metadata }}
+          EOF
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: image_${{ matrix.app.name }}
+          path: ${{ env.OUTPUTS_DIR }}/image
+  
+  images:
+    runs-on: ubuntu-latest
+    needs: build-and-push-image
+    env:
+      OUTPUTS_DIR: /tmp/outputs
+    outputs:
+      images: ${{ steps.images.outputs.images }}
+
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          path: /tmp/outputs
+      - run: ls /tmp/outputs || true
+      - run: cat /tmp/outputs/*/image || true
+      - id: images
+        run: echo "images=$( cat /tmp/outputs/*/image | jq -sc add )" >> "$GITHUB_OUTPUT"
+
+  test-docker-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    needs: images
+
+    strategy:
+      matrix:
+        arch:
+          - linux/amd64
+          - linux/arm/v6
+          - linux/arm/v7
+          - linux/arm64
+
+    env:
+      IMG_STATIC_DATASTORE_BUILDER: ${{ fromJSON(needs.images.outputs.images).static_datastore_builder }}
+      IMG_PUBLIC_NODE: ${{ fromJSON(needs.images.outputs.images).public_node }}
+      IMG_WEB_PROXY: ${{ fromJSON(needs.images.outputs.images).web_proxy }}
+      NETWORK_NAME: "cinode/${{ matrix.arch }}"
+
+    steps:
+      - name: Dump docker images info
+        run: |
+          jq . <<EOF
+            ${{ needs.images.outputs.images }}
+          EOF
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Compile simple dataset
+        run: |
+          mkdir /tmp/cinode
+
+          docker run \
+            --platform "${{ matrix.arch }}" \
+            --rm \
+            --interactive \
+            --read-only \
+            --volume "/tmp/cinode:/tmp" \
+            --volume "$(pwd)/testvectors:/data:ro" \
+            --user $(id -u ${USER}):$(id -g ${USER}) \
+            "$IMG_STATIC_DATASTORE_BUILDER" \
+            compile \
+            --source /data \
+            --destination /tmp/encrypted \
+          > /tmp/cinode/compile_result.json
+
+      - name: Create docker network
+        run: |
+          docker network create "$NETWORK_NAME"
+
+      - name: Run public datastore node
+        run: |
+          docker run \
+            --platform "${{ matrix.arch }}" \
+            --detach \
+            --read-only \
+            --network "$NETWORK_NAME" \
+            --volume "/tmp/cinode/encrypted:/data:ro" \
+            --env CINODE_MAIN_DATASTORE=/data \
+            --name datastore \
+            "$IMG_PUBLIC_NODE"
+      
+      - name: Run web proxy
+        run: |
+          docker run \
+            --platform "${{ matrix.arch }}" \
+            --detach \
+            --read-only \
+            --network "$NETWORK_NAME" \
+            --env CINODE_ENTRYPOINT="$( cat /tmp/cinode/compile_result.json | jq -r .entrypoint )" \
+            --env CINODE_ADDITIONAL_DATASTORE_1="http://datastore:8080/" \
+            --name web_proxy \
+            "$IMG_WEB_PROXY"
+
+      - name: Inspect docker environment
+        run: docker ps
+
+      - name: Check if can fetch files from cinode proxy
+        run: |
+          docker run \
+            --rm \
+            --interactive \
+            --network "$NETWORK_NAME" \
+            --read-only \
+            --mount type=tmpfs,destination=/tmp \
+            --volume "$(pwd)/testvectors:/data:ro" \
+            --user $(id -u ${USER}):$(id -g ${USER}) \
+            curlimages/curl \
+            sh \
+            -c '
+              set -euo pipefail
+              cd /data
+              while read f; do
+                FILE_HASH="$( cat "$f" | sha256sum )"
+                WEB_HASH="$( curl -s "http://web_proxy:8080/${f}" | sha256sum )"
+                echo "${FILE_HASH} ${f}"
+                diff <( echo "$FILE_HASH" ) <( echo "$WEB_HASH" )
+              done < <( find . -type f -print )
+            '
+
+      - name: Dump datastore logs
+        if: always()
+        run: docker logs datastore
+
+      - name: Dump web_proxy logs
+        if: always()
+        run: docker logs web_proxy
+
+      - name: Inspect docker environment
+        if: always()
+        run: docker ps
