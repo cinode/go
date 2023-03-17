@@ -138,7 +138,10 @@ func (m *multiSourceDatastore) fetch(ctx context.Context, name common.BlobName) 
 		}()
 
 		if startDownload {
-			m.log.Info("Starting download", "blob", name)
+			m.log.Info("Starting download",
+				"blob", name.String(),
+			)
+			wasUpdated := false
 			for i, ds := range m.additional {
 				r, err := ds.Open(ctx, name)
 				if err != nil {
@@ -157,11 +160,16 @@ func (m *multiSourceDatastore) fetch(ctx context.Context, name common.BlobName) 
 				err = m.main.Update(ctx, name, r)
 				r.Close()
 				if err != nil {
-					m.log.Info("Failed to store blob in local datastore",
+					m.log.Error("Failed to store blob in local datastore", err,
 						"blob", name.String(),
-						"err", err,
 					)
 				}
+				wasUpdated = true
+			}
+			if !wasUpdated {
+				m.log.Warn("Did not find blob in any datastore",
+					"blob", name.String(),
+				)
 			}
 			defer close(waitChan)
 

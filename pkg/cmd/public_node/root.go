@@ -19,15 +19,16 @@ package public_node
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/internal/utilities/httpserver"
+	"golang.org/x/exp/slog"
 )
 
 func Execute(ctx context.Context) error {
@@ -40,7 +41,19 @@ func executeWithConfig(ctx context.Context, cfg config) error {
 		return err
 	}
 
-	log.Printf("Listening on http://localhost:%d", cfg.port)
+	log := slog.Default()
+
+	log.Info("Server listening for connections",
+		"address", fmt.Sprintf("http://localhost:%d", cfg.port),
+	)
+
+	log.Info("System info",
+		"goos", runtime.GOOS,
+		"goarch", runtime.GOARCH,
+		"compiler", runtime.Compiler,
+		"cpus", runtime.NumCPU(),
+	)
+
 	return httpserver.RunGracefully(ctx,
 		handler,
 		httpserver.ListenPort(cfg.port),

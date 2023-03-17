@@ -21,9 +21,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -34,6 +34,7 @@ import (
 	"github.com/cinode/go/pkg/protobuf"
 	"github.com/cinode/go/pkg/structure"
 	"github.com/jbenet/go-base58"
+	"golang.org/x/exp/slog"
 )
 
 func Execute(ctx context.Context) error {
@@ -68,7 +69,18 @@ func executeWithConfig(ctx context.Context, cfg *config) error {
 		return fmt.Errorf("could not unmarshal entrypoint data: %w", err)
 	}
 
-	log.Printf("Listening on http://localhost:%d", cfg.port)
+	log := slog.Default()
+
+	log.Info("Server listening for connections",
+		"address", fmt.Sprintf("http://localhost:%d", cfg.port),
+	)
+
+	log.Info("System info",
+		"goos", runtime.GOOS,
+		"goarch", runtime.GOARCH,
+		"compiler", runtime.Compiler,
+		"cpus", runtime.NumCPU(),
+	)
 
 	handler := setupCinodeProxy(mainDS, additionalDSs, entrypoint)
 	return httpserver.RunGracefully(ctx,
