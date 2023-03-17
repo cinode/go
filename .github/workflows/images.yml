@@ -148,17 +148,21 @@ jobs:
 
       - name: Compile simple dataset
         run: |
+          mkdir /tmp/cinode
+
           docker run \
             --platform "${{ matrix.arch }}" \
             --rm \
             --interactive \
-            --volume "$(pwd):/data" \
+            --read-only \
+            --volume "/tmp/cinode:/tmp" \
+            --volume "$(pwd)/testvectors:/data:ro" \
             --user $(id -u ${USER}):$(id -g ${USER}) \
             "$IMG_STATIC_DATASTORE_BUILDER" \
             compile \
-            --source /data/testvectors \
-            --destination /data/encrypted \
-          > compile_result.json
+            --source /data \
+            --destination /tmp/encrypted \
+          > /tmp/cinode/compile_result.json
 
       - name: Create docker network
         run: |
@@ -169,9 +173,10 @@ jobs:
           docker run \
             --platform "${{ matrix.arch }}" \
             --detach \
+            --read-only \
             --network "$NETWORK_NAME" \
-            --volume "$(pwd):/data" \
-            --env CINODE_MAIN_DATASTORE=/data/encrypted \
+            --volume "/tmp/cinode/encrypted:/data:ro" \
+            --env CINODE_MAIN_DATASTORE=/data \
             --name datastore \
             "$IMG_PUBLIC_NODE"
       
@@ -180,13 +185,47 @@ jobs:
           docker run \
             --platform "${{ matrix.arch }}" \
             --detach \
-            --publish 8080:8080 \
+            --read-only \
             --network "$NETWORK_NAME" \
-            --env CINODE_ENTRYPOINT="$( cat compile_result.json | jq -r .entrypoint )" \
-            --env CINODE_ADDITIONAL_DATASTORE_1="http://datastore/" \
+            --env CINODE_ENTRYPOINT="$( cat /tmp/cinode/compile_result.json | jq -r .entrypoint )" \
+            --env CINODE_ADDITIONAL_DATASTORE_1="http://datastore:8080/" \
             --name web_proxy \
             "$IMG_WEB_PROXY"
 
       - name: Inspect docker environment
+        run: docker ps
+
+      - name: Check if can fetch files from cinode proxy
         run: |
-          docker ps
+          docker run \
+            --rm \
+            --interactive \
+            --network "$NETWORK_NAME" \
+            --read-only \
+            --mount type=tmpfs,destination=/tmp \
+            --volume "$(pwd)/testvectors:/data:ro" \
+            --user $(id -u ${USER}):$(id -g ${USER}) \
+            curlimages/curl \
+            sh \
+            -c '
+              set -euo pipefail
+              cd /data
+              while read f; do
+                FILE_HASH="$( cat "$f" | sha256sum )"
+                WEB_HASH="$( curl -s "http://web_proxy:8080/${f}" | sha256sum )"
+                echo "${FILE_HASH} ${f}"
+                diff <( echo "$FILE_HASH" ) <( echo "$WEB_HASH" )
+              done < <( find . -type f -print )
+            '
+
+      - name: Dump datastore logs
+        if: always()
+        run: docker logs datastore
+
+      - name: Dump web_proxy logs
+        if: always()
+        run: docker logs web_proxy
+
+      - name: Inspect docker environment
+        if: always()
+        run: docker ps
