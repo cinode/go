@@ -35,7 +35,11 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 FROM --platform=$BUILDPLATFORM gcr.io/distroless/static as distroless
 
 FROM scratch
-COPY --from=distroless / /
+COPY --from=distroless \
+    /etc/passwd \
+    /etc/group \
+    /etc/ssl \
+    /etc/
 COPY --from=build /home/go/web_proxy /usr/sbin/web_proxy
 USER nonroot:nonroot
 EXPOSE 8080
