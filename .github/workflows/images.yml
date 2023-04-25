@@ -76,7 +76,7 @@ jobs:
           mkdir -p  "$OUTPUTS_DIR"
           jq -c '{
             "${{ matrix.app.name }}": (
-                .["image.name"] + "@" + .["containerimage.digest"]
+                "${{ env.REGISTRY }}/${{ env.IMAGE_BASE_NAME }}/${{ matrix.app.name }}@" + .["containerimage.digest"]
             )
           }' <<EOF >> "$OUTPUTS_DIR/image"
             ${{ steps.build_and_push.outputs.metadata }}
