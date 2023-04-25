@@ -23,7 +23,7 @@ RUN go test -v ./...
 # Build binary
 ENV CGO_ENABLED=0
 ARG TARGETOS TARGETARCH
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT#v} \
     go build \
         -v \
         -ldflags="-w -s" \
