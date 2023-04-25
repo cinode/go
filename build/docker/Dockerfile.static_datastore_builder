@@ -23,14 +23,19 @@ RUN go test -v ./...
 # Build binary
 ENV CGO_ENABLED=0
 ARG TARGETOS TARGETARCH
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT#v} \
     go build \
         -v \
         -ldflags="-w -s" \
         -o "/home/go/static_datastore_builder" \
         "./cmd/static_datastore_builder"
 
-FROM alpine
+FROM alpine as base-amd64
+FROM alpine as base-arm
+FROM alpine AS base-arm64
+FROM riscv64/alpine:edge as base-riscv64
+
+FROM base-${TARGETARCH}
 RUN adduser --disabled-password --gecos "" --home="/cinode" cinode
 WORKDIR /cinode
 USER cinode:cinode
