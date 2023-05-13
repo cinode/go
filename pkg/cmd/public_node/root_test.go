@@ -81,6 +81,41 @@ func TestBuildHttpHandler(t *testing.T) {
 		})
 	})
 
+	t.Run("Upload token", func(t *testing.T) {
+
+		const VALID_TOKEN = "TEST_TOKEN!@#"
+		const INVALID_TOKEN = "INVALID_TOKEN"
+
+		h, err := buildHttpHandler(config{
+			mainDSLocation: t.TempDir(),
+			additionalDSLocations: []string{
+				t.TempDir(),
+				t.TempDir(),
+				t.TempDir(),
+			},
+			uploadToken: VALID_TOKEN,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, h)
+
+		t.Run("check the server", func(t *testing.T) {
+			server := httptest.NewServer(h)
+			defer server.Close()
+
+			err := testblobs.DynamicLink.Put(server.URL)
+			require.ErrorContains(t, err, "403")
+
+			err = testblobs.DynamicLink.PutWithAuthToken(server.URL, INVALID_TOKEN)
+			require.ErrorContains(t, err, "403")
+
+			err = testblobs.DynamicLink.PutWithAuthToken(server.URL, VALID_TOKEN)
+			require.NoError(t, err)
+
+			_, err = testblobs.DynamicLink.Get(server.URL)
+			require.NoError(t, err)
+		})
+	})
+
 	t.Run("invalid main datastore", func(t *testing.T) {
 		h, err := buildHttpHandler(config{
 			mainDSLocation: "",
