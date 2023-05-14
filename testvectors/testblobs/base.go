@@ -35,10 +35,10 @@ type TestBlob struct {
 }
 
 func (s *TestBlob) Put(baseUrl string) error {
-	return s.PutWithAuthToken(baseUrl, "")
+	return s.PutWithAuth(baseUrl, "", "")
 }
 
-func (s *TestBlob) PutWithAuthToken(baseUrl, authToken string) error {
+func (s *TestBlob) PutWithAuth(baseUrl, username, password string) error {
 	finalUrl, err := url.JoinPath(baseUrl, base58.Encode(s.BlobName))
 	if err != nil {
 		return err
@@ -52,8 +52,8 @@ func (s *TestBlob) PutWithAuthToken(baseUrl, authToken string) error {
 		return err
 	}
 
-	if authToken != "" {
-		req.Header.Set("Authorization", "Bearer "+authToken)
+	if username != "" || password != "" {
+		req.SetBasicAuth(username, password)
 	}
 
 	resp, err := http.DefaultClient.Do(req)

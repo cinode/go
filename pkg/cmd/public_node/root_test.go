@@ -81,10 +81,12 @@ func TestBuildHttpHandler(t *testing.T) {
 		})
 	})
 
-	t.Run("Upload token", func(t *testing.T) {
+	t.Run("Upload auth", func(t *testing.T) {
 
-		const VALID_TOKEN = "TEST_TOKEN!@#"
-		const INVALID_TOKEN = "INVALID_TOKEN"
+		const VALID_USERNAME = "Alice"
+		const INVALID_USERNAME = "Bob"
+		const VALID_PASSWORD = "secret"
+		const INVALID_PASSWORD = "plaintext"
 
 		h, err := buildHttpHandler(config{
 			mainDSLocation: t.TempDir(),
@@ -93,27 +95,32 @@ func TestBuildHttpHandler(t *testing.T) {
 				t.TempDir(),
 				t.TempDir(),
 			},
-			uploadToken: VALID_TOKEN,
+			uploadUsername: VALID_USERNAME,
+			uploadPassword: VALID_PASSWORD,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, h)
 
-		t.Run("check the server", func(t *testing.T) {
-			server := httptest.NewServer(h)
-			defer server.Close()
+		server := httptest.NewServer(h)
+		defer server.Close()
 
-			err := testblobs.DynamicLink.Put(server.URL)
-			require.ErrorContains(t, err, "403")
+		err = testblobs.DynamicLink.Put(server.URL)
+		require.ErrorContains(t, err, "403")
 
-			err = testblobs.DynamicLink.PutWithAuthToken(server.URL, INVALID_TOKEN)
-			require.ErrorContains(t, err, "403")
+		err = testblobs.DynamicLink.PutWithAuth(server.URL, VALID_USERNAME, VALID_PASSWORD)
+		require.NoError(t, err)
 
-			err = testblobs.DynamicLink.PutWithAuthToken(server.URL, VALID_TOKEN)
-			require.NoError(t, err)
+		err = testblobs.DynamicLink.PutWithAuth(server.URL, VALID_USERNAME, INVALID_PASSWORD)
+		require.ErrorContains(t, err, "403")
 
-			_, err = testblobs.DynamicLink.Get(server.URL)
-			require.NoError(t, err)
-		})
+		err = testblobs.DynamicLink.PutWithAuth(server.URL, INVALID_USERNAME, VALID_PASSWORD)
+		require.ErrorContains(t, err, "403")
+
+		err = testblobs.DynamicLink.PutWithAuth(server.URL, INVALID_USERNAME, INVALID_PASSWORD)
+		require.ErrorContains(t, err, "403")
+
+		_, err = testblobs.DynamicLink.Get(server.URL)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid main datastore", func(t *testing.T) {

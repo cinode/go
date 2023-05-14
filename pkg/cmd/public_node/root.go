@@ -80,9 +80,10 @@ func buildHttpHandler(cfg config) (http.Handler, error) {
 	ds := datastore.NewMultiSource(mainDS, time.Hour, additionalDSs...)
 	handler := datastore.WebInterface(ds)
 
-	if cfg.uploadToken != "" {
+	if cfg.uploadUsername != "" || cfg.uploadPassword != "" {
 		origHandler := handler
-		expectedTokenHash := sha256.Sum256([]byte(cfg.uploadToken))
+		expectedUsernameHash := sha256.Sum256([]byte(cfg.uploadUsername))
+		expectedPasswordHash := sha256.Sum256([]byte(cfg.uploadPassword))
 		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.Method {
 			case http.MethodGet, http.MethodHead:
@@ -92,22 +93,31 @@ func buildHttpHandler(cfg config) (http.Handler, error) {
 				// since not all methods will be uploads, but it comes from the
 				// secure-by-default approach.
 				//
-				// Also we're comparing hashes of headers instead of their values,
-				// this, due to properties of a hashing function, reduces attacks
+				// Also we're comparing hashes instead of their values.
+				// This, due to properties of a hashing function, reduces attacks
 				// based on side-channel information, including the length of the
 				// token. The subtle.ConstantTimeCompare is not really needed here
 				// but it does not do any harm.
-				const headerKey = "Authorization"
-				const valuePrefix = "BEARER "
-				authHeader := r.Header.Get(headerKey)
-				if !strings.HasPrefix(strings.ToUpper(authHeader), valuePrefix) {
-					w.WriteHeader(http.StatusForbidden)
-					return
-				}
-				token := strings.TrimSpace(authHeader[len(valuePrefix):])
-				tokenHash := sha256.Sum256([]byte(token))
+				username, password, ok := r.BasicAuth()
 
-				if subtle.ConstantTimeCompare(expectedTokenHash[:], tokenHash[:]) != 1 {
+				var validAuth int = 0
+				if ok {
+					validAuth = 1
+				}
+
+				usernameHash := sha256.Sum256([]byte(username))
+				validAuth &= subtle.ConstantTimeCompare(
+					expectedUsernameHash[:],
+					usernameHash[:],
+				)
+
+				passwordHash := sha256.Sum256([]byte(password))
+				validAuth &= subtle.ConstantTimeCompare(
+					expectedPasswordHash[:],
+					passwordHash[:],
+				)
+
+				if validAuth != 1 {
 					w.WriteHeader(http.StatusForbidden)
 					return
 				}
@@ -123,7 +133,9 @@ type config struct {
 	mainDSLocation        string
 	additionalDSLocations []string
 	port                  int
-	uploadToken           string
+
+	uploadUsername string
+	uploadPassword string
 }
 
 func getConfig() config {
@@ -149,7 +161,8 @@ func getConfig() config {
 	}
 
 	cfg.port = 8080
-	cfg.uploadToken = os.Getenv("CINODE_UPLOAD_TOKEN")
+	cfg.uploadUsername = os.Getenv("CINODE_UPLOAD_USERNAME")
+	cfg.uploadPassword = os.Getenv("CINODE_UPLOAD_PASSWORD")
 
 	return cfg
 }
