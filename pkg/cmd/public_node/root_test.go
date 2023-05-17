@@ -24,6 +24,7 @@ import (
 
 	"github.com/cinode/go/testvectors/testblobs"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
 )
 
 func TestGetConfig(t *testing.T) {
@@ -150,6 +151,7 @@ func TestExecuteWithConfig(t *testing.T) {
 		}()
 		err := executeWithConfig(ctx, config{
 			mainDSLocation: "memory://",
+			log:            slog.Default(),
 		})
 		require.NoError(t, err)
 	})
