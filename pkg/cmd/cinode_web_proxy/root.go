@@ -86,6 +86,7 @@ func executeWithConfig(ctx context.Context, cfg *config) error {
 	return httpserver.RunGracefully(ctx,
 		handler,
 		httpserver.ListenPort(cfg.port),
+		httpserver.Logger(log),
 	)
 }
 

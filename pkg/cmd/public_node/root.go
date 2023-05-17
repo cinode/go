@@ -43,13 +43,11 @@ func executeWithConfig(ctx context.Context, cfg config) error {
 		return err
 	}
 
-	log := slog.Default()
-
-	log.Info("Server listening for connections",
+	cfg.log.Info("Server listening for connections",
 		"address", fmt.Sprintf("http://localhost:%d", cfg.port),
 	)
 
-	log.Info("System info",
+	cfg.log.Info("System info",
 		"goos", runtime.GOOS,
 		"goarch", runtime.GOARCH,
 		"compiler", runtime.Compiler,
@@ -78,7 +76,10 @@ func buildHttpHandler(cfg config) (http.Handler, error) {
 	}
 
 	ds := datastore.NewMultiSource(mainDS, time.Hour, additionalDSs...)
-	handler := datastore.WebInterface(ds)
+	handler := datastore.WebInterface(
+		ds,
+		datastore.WebInterfaceOptionLogger(cfg.log),
+	)
 
 	if cfg.uploadUsername != "" || cfg.uploadPassword != "" {
 		origHandler := handler
@@ -133,13 +134,16 @@ type config struct {
 	mainDSLocation        string
 	additionalDSLocations []string
 	port                  int
+	log                   *slog.Logger
 
 	uploadUsername string
 	uploadPassword string
 }
 
 func getConfig() config {
-	cfg := config{}
+	cfg := config{
+		log: slog.Default(),
+	}
 
 	cfg.mainDSLocation = os.Getenv("CINODE_MAIN_DATASTORE")
 	if cfg.mainDSLocation == "" {
