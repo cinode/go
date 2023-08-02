@@ -113,7 +113,7 @@ func TestOptions(t *testing.T) {
 		require.Equal(t, ":12345", cfg.listenAddr)
 	})
 	t.Run("Logger", func(t *testing.T) {
-		log := slog.New(slog.NewJSONHandler(bytes.NewBuffer(nil)))
+		log := slog.New(slog.NewJSONHandler(bytes.NewBuffer(nil), nil))
 		cfg := cfg{}
 		Logger(log)(&cfg)
 		require.Equal(t, log, cfg.log)
