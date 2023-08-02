@@ -7,15 +7,18 @@
         "blobtypes",
         "bmap",
         "cinode",
+        "cipherfactory",
         "ciphertext",
         "containerimage",
         "coverprofile",
         "dynamiclink",
+        "elink",
         "goveralls",
         "Hasher",
         "protobuf",
         "securefifo",
         "shogo",
-        "stretchr"
+        "stretchr",
+        "validatingreader"
     ]
 }
