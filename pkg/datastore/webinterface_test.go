@@ -32,7 +32,7 @@ import (
 )
 
 func testServer(t *testing.T) string {
-	log := slog.New(slog.NewTextHandler(io.Discard))
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	// Test web interface and web connector
 	server := httptest.NewServer(WebInterface(
