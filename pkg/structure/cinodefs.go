@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ type CinodeFS struct {
 	BE               blenc.BE
 	RootEntrypoint   *protobuf.Entrypoint
 	MaxLinkRedirects int
-	IndexFile        string
 	CurrentTimeF     func() time.Time
 }
 
@@ -65,10 +64,6 @@ func (d *CinodeFS) findEntrypointInDir(
 
 	if ep.MimeType != CinodeDirMimeType {
 		return nil, ErrNotADirectory
-	}
-
-	if remainingPath == "" {
-		remainingPath = d.IndexFile
 	}
 
 	rc, err := d.OpenContent(ctx, ep)

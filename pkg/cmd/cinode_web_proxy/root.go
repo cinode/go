@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -101,11 +101,11 @@ func setupCinodeProxy(
 		),
 		RootEntrypoint:   entrypoint,
 		MaxLinkRedirects: 10,
-		IndexFile:        "index.html",
 	}
 
 	return &structure.HTTPHandler{
-		FS: &fs,
+		FS:        &fs,
+		IndexFile: "index.html",
 	}
 }
 
