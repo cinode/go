@@ -24,6 +24,7 @@ import (
 
 	"github.com/cinode/go/testvectors/testblobs"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
 )
 
 func TestGetConfig(t *testing.T) {
@@ -81,6 +82,48 @@ func TestBuildHttpHandler(t *testing.T) {
 		})
 	})
 
+	t.Run("Upload auth", func(t *testing.T) {
+
+		const VALID_USERNAME = "Alice"
+		const INVALID_USERNAME = "Bob"
+		const VALID_PASSWORD = "secret"
+		const INVALID_PASSWORD = "plaintext"
+
+		h, err := buildHttpHandler(config{
+			mainDSLocation: t.TempDir(),
+			additionalDSLocations: []string{
+				t.TempDir(),
+				t.TempDir(),
+				t.TempDir(),
+			},
+			uploadUsername: VALID_USERNAME,
+			uploadPassword: VALID_PASSWORD,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, h)
+
+		server := httptest.NewServer(h)
+		defer server.Close()
+
+		err = testblobs.DynamicLink.Put(server.URL)
+		require.ErrorContains(t, err, "403")
+
+		err = testblobs.DynamicLink.PutWithAuth(server.URL, VALID_USERNAME, VALID_PASSWORD)
+		require.NoError(t, err)
+
+		err = testblobs.DynamicLink.PutWithAuth(server.URL, VALID_USERNAME, INVALID_PASSWORD)
+		require.ErrorContains(t, err, "403")
+
+		err = testblobs.DynamicLink.PutWithAuth(server.URL, INVALID_USERNAME, VALID_PASSWORD)
+		require.ErrorContains(t, err, "403")
+
+		err = testblobs.DynamicLink.PutWithAuth(server.URL, INVALID_USERNAME, INVALID_PASSWORD)
+		require.ErrorContains(t, err, "403")
+
+		_, err = testblobs.DynamicLink.Get(server.URL)
+		require.NoError(t, err)
+	})
+
 	t.Run("invalid main datastore", func(t *testing.T) {
 		h, err := buildHttpHandler(config{
 			mainDSLocation: "",
@@ -108,6 +151,7 @@ func TestExecuteWithConfig(t *testing.T) {
 		}()
 		err := executeWithConfig(ctx, config{
 			mainDSLocation: "memory://",
+			log:            slog.Default(),
 		})
 		require.NoError(t, err)
 	})

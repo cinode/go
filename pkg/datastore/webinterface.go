@@ -24,6 +24,7 @@ import (
 	"net/http"
 
 	"github.com/cinode/go/pkg/common"
+	"golang.org/x/exp/slog"
 )
 
 var (
@@ -32,15 +33,32 @@ var (
 
 // WebInterface provides simple web interface for given Datastore
 type webInterface struct {
-	ds DS
+	ds  DS
+	log *slog.Logger
+}
+
+type webInterfaceOption func(i *webInterface)
+
+func WebInterfaceOptionLogger(log *slog.Logger) webInterfaceOption {
+	return func(i *webInterface) { i.log = log }
 }
 
 // WebInterface returns http handler representing web interface to given
 // Datastore instance
-func WebInterface(ds DS) http.Handler {
-	return &webInterface{
+func WebInterface(ds DS, opts ...webInterfaceOption) http.Handler {
+	ret := &webInterface{
 		ds: ds,
 	}
+
+	for _, o := range opts {
+		o(ret)
+	}
+
+	if ret.log == nil {
+		ret.log = slog.Default()
+	}
+
+	return ret
 }
 
 func (i *webInterface) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -103,6 +121,14 @@ func (i *webInterface) checkErr(err error, w http.ResponseWriter, r *http.Reques
 		return false
 	}
 
+	i.log.Error(
+		"Internal error happened while processing the request", err,
+		slog.Group("req",
+			slog.String("remoteAddr", r.RemoteAddr),
+			slog.String("method", r.Method),
+			slog.String("url", r.URL.String()),
+		),
+	)
 	http.Error(w, "Internal server error", http.StatusInternalServerError)
 	return false
 }

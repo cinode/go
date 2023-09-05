@@ -28,20 +28,17 @@ import (
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
 )
 
-// import (
-// 	"bytes"
-// 	"io"
-// 	"mime/multipart"
-// 	"net/http"
-// 	"net/http/httptest"
-// 	"testing"
-// )
-
 func testServer(t *testing.T) string {
+	log := slog.New(slog.NewTextHandler(io.Discard))
+
 	// Test web interface and web connector
-	server := httptest.NewServer(WebInterface(InMemory()))
+	server := httptest.NewServer(WebInterface(
+		InMemory(),
+		WebInterfaceOptionLogger(log),
+	))
 	t.Cleanup(func() { server.Close() })
 	return server.URL + "/"
 }

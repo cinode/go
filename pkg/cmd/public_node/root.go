@@ -18,6 +18,8 @@ package public_node
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"fmt"
 	"net/http"
 	"os"
@@ -41,13 +43,11 @@ func executeWithConfig(ctx context.Context, cfg config) error {
 		return err
 	}
 
-	log := slog.Default()
-
-	log.Info("Server listening for connections",
+	cfg.log.Info("Server listening for connections",
 		"address", fmt.Sprintf("http://localhost:%d", cfg.port),
 	)
 
-	log.Info("System info",
+	cfg.log.Info("System info",
 		"goos", runtime.GOOS,
 		"goarch", runtime.GOARCH,
 		"compiler", runtime.Compiler,
@@ -76,17 +76,74 @@ func buildHttpHandler(cfg config) (http.Handler, error) {
 	}
 
 	ds := datastore.NewMultiSource(mainDS, time.Hour, additionalDSs...)
-	return datastore.WebInterface(ds), nil
+	handler := datastore.WebInterface(
+		ds,
+		datastore.WebInterfaceOptionLogger(cfg.log),
+	)
+
+	if cfg.uploadUsername != "" || cfg.uploadPassword != "" {
+		origHandler := handler
+		expectedUsernameHash := sha256.Sum256([]byte(cfg.uploadUsername))
+		expectedPasswordHash := sha256.Sum256([]byte(cfg.uploadPassword))
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet, http.MethodHead:
+				// Auth not required, continue without auth check
+			default:
+				// Every other method requires token, this is preventive
+				// since not all methods will be uploads, but it comes from the
+				// secure-by-default approach.
+				//
+				// Also we're comparing hashes instead of their values.
+				// This, due to properties of a hashing function, reduces attacks
+				// based on side-channel information, including the length of the
+				// token. The subtle.ConstantTimeCompare is not really needed here
+				// but it does not do any harm.
+				username, password, ok := r.BasicAuth()
+
+				var validAuth int = 0
+				if ok {
+					validAuth = 1
+				}
+
+				usernameHash := sha256.Sum256([]byte(username))
+				validAuth &= subtle.ConstantTimeCompare(
+					expectedUsernameHash[:],
+					usernameHash[:],
+				)
+
+				passwordHash := sha256.Sum256([]byte(password))
+				validAuth &= subtle.ConstantTimeCompare(
+					expectedPasswordHash[:],
+					passwordHash[:],
+				)
+
+				if validAuth != 1 {
+					w.WriteHeader(http.StatusForbidden)
+					return
+				}
+			}
+			origHandler.ServeHTTP(w, r)
+		})
+	}
+
+	return handler, nil
 }
 
 type config struct {
 	mainDSLocation        string
 	additionalDSLocations []string
 	port                  int
+	log                   *slog.Logger
+
+	uploadUsername string
+	uploadPassword string
 }
 
 func getConfig() config {
-	cfg := config{}
+	cfg := config{
+		log: slog.Default(),
+	}
 
 	cfg.mainDSLocation = os.Getenv("CINODE_MAIN_DATASTORE")
 	if cfg.mainDSLocation == "" {
@@ -108,6 +165,8 @@ func getConfig() config {
 	}
 
 	cfg.port = 8080
+	cfg.uploadUsername = os.Getenv("CINODE_UPLOAD_USERNAME")
+	cfg.uploadPassword = os.Getenv("CINODE_UPLOAD_PASSWORD")
 
 	return cfg
 }
