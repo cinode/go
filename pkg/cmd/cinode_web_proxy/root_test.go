@@ -38,6 +38,7 @@ import (
 	"github.com/cinode/go/testvectors/testblobs"
 	"github.com/jbenet/go-base58"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
 )
 
 func TestGetConfig(t *testing.T) {
@@ -161,7 +162,7 @@ func TestWebProxyHandlerSimplePage(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		ep, err := structure.UploadStaticDirectory(context.Background(), os.DirFS(dir), be)
+		ep, err := structure.UploadStaticDirectory(context.Background(), slog.Default(), os.DirFS(dir), be)
 		require.NoError(t, err)
 		return ep
 	}()

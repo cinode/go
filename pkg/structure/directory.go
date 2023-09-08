@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,10 +27,13 @@ import (
 	"net/http"
 	"path"
 	"path/filepath"
+	"sort"
 
 	"github.com/cinode/go/pkg/blenc"
+	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/protobuf"
+	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -44,14 +47,15 @@ var (
 	ErrNotAFile      = errors.New("entry is not a file")
 )
 
-func UploadStaticDirectory(ctx context.Context, fsys fs.FS, be blenc.BE) (*protobuf.Entrypoint, error) {
+func UploadStaticDirectory(ctx context.Context, log *slog.Logger, fsys fs.FS, be blenc.BE) (*protobuf.Entrypoint, error) {
 	c := dirCompiler{
 		ctx:  ctx,
 		fsys: fsys,
 		be:   be,
+		log:  log,
 	}
 
-	return c.compilePath(".")
+	return c.compilePath(ctx, ".")
 }
 
 type headWriter struct {
@@ -84,45 +88,47 @@ type dirCompiler struct {
 	ctx  context.Context
 	fsys fs.FS
 	be   blenc.BE
+	log  *slog.Logger
 }
 
-func (d *dirCompiler) compilePath(path string) (*protobuf.Entrypoint, error) {
+func (d *dirCompiler) compilePath(ctx context.Context, path string) (*protobuf.Entrypoint, error) {
 	st, err := fs.Stat(d.fsys, path)
 	if err != nil {
+		d.log.DebugContext(ctx, "failed to stat path", "path", path, "err", err)
 		return nil, fmt.Errorf("couldn't check path: %w", err)
 	}
 
 	if st.IsDir() {
-		return d.compileDir(path)
+		return d.compileDir(ctx, path)
 	}
 
 	if st.Mode().IsRegular() {
-		return d.compileFile(path)
+		return d.compileFile(ctx, path)
 	}
 
+	d.log.ErrorContext(ctx, "path is neither dir nor a regular file", "path", path)
 	return nil, fmt.Errorf("neither dir nor a regular file: %v", path)
 }
 
-func (d *dirCompiler) compileFile(path string) (*protobuf.Entrypoint, error) {
-	// fmt.Println(" *", path)
-	fl, err := d.fsys.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't read file %v: %w", path, err)
-	}
-	defer fl.Close()
-
+// UploadStaticBlob uploads blob to the associated datastore and returns entrypoint to that file
+//
+// if mimeType is an empty string, it will be guessed from the content defaulting to
+func UploadStaticBlob(ctx context.Context, be blenc.BE, r io.Reader, mimeType string, log *slog.Logger) (*protobuf.Entrypoint, error) {
 	// Use the dataHead to store first 512 bytes of data into a buffer while uploading it to the blenc layer
 	// This buffer may then be used to detect the mime type
 	dataHead := newHeadWriter(512)
 
-	bn, ki, _, err := d.be.Create(context.Background(), blobtypes.Static, io.TeeReader(fl, &dataHead))
+	bn, ki, _, err := be.Create(context.Background(), blobtypes.Static, io.TeeReader(r, &dataHead))
 	if err != nil {
+		log.ErrorContext(ctx, "failed to upload static file", "err", err)
 		return nil, err
 	}
 
-	mimeType := mime.TypeByExtension(filepath.Ext(path))
+	log.DebugContext(ctx, "static file uploaded successfully")
+
 	if mimeType == "" {
 		mimeType = http.DetectContentType(dataHead.data)
+		log.DebugContext(ctx, "automatically detected content type", "contentType", mimeType)
 	}
 
 	return &protobuf.Entrypoint{
@@ -132,32 +138,96 @@ func (d *dirCompiler) compileFile(path string) (*protobuf.Entrypoint, error) {
 	}, nil
 }
 
-func (d *dirCompiler) compileDir(p string) (*protobuf.Entrypoint, error) {
+func (d *dirCompiler) compileFile(ctx context.Context, path string) (*protobuf.Entrypoint, error) {
+	d.log.InfoContext(ctx, "compiling file", "path", path)
+	fl, err := d.fsys.Open(path)
+	if err != nil {
+		d.log.ErrorContext(ctx, "failed to open file", "path", path, "err", err)
+		return nil, fmt.Errorf("couldn't open file %v: %w", path, err)
+	}
+	defer fl.Close()
+
+	ep, err := UploadStaticBlob(
+		ctx,
+		d.be,
+		fl,
+		mime.TypeByExtension(filepath.Ext(path)),
+		d.log.With("path", path),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload file %v: %w", path, err)
+	}
+
+	return ep, nil
+}
+
+func (d *dirCompiler) compileDir(ctx context.Context, p string) (*protobuf.Entrypoint, error) {
 	fileList, err := fs.ReadDir(d.fsys, p)
 	if err != nil {
+		d.log.ErrorContext(ctx, "couldn't read contents of dir", "path", p, "err", err)
 		return nil, fmt.Errorf("couldn't read contents of dir %v: %w", p, err)
 	}
 
-	dirStruct := protobuf.Directory{
-		Entries: make(map[string]*protobuf.Entrypoint),
-	}
+	dir := StaticDir{}
 	for _, e := range fileList {
 		subPath := path.Join(p, e.Name())
 
-		ep, err := d.compilePath(subPath)
+		ep, err := d.compilePath(ctx, subPath)
 		if err != nil {
 			return nil, err
 		}
 
-		dirStruct.Entries[e.Name()] = ep
+		dir.SetEntry(e.Name(), ep)
 	}
 
-	data, err := proto.Marshal(&dirStruct)
+	ep, err := dir.GenerateEntrypoint(context.Background(), d.be)
 	if err != nil {
+		d.log.ErrorContext(ctx, "failed to serialize directory", "path", p, "err", err)
 		return nil, fmt.Errorf("can not serialize directory %v: %w", p, err)
 	}
 
-	bn, ki, _, err := d.be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data))
+	d.log.DebugContext(ctx,
+		"directory uploaded successfully", "path", p,
+		"blobName", common.BlobName(ep.BlobName).String(),
+	)
+	return ep, nil
+}
+
+type StaticDir struct {
+	entries map[string]*protobuf.Entrypoint
+}
+
+func (s *StaticDir) SetEntry(name string, ep *protobuf.Entrypoint) {
+	if s.entries == nil {
+		s.entries = map[string]*protobuf.Entrypoint{}
+	}
+	s.entries[name] = ep
+}
+
+func (s *StaticDir) GenerateEntrypoint(ctx context.Context, be blenc.BE) (*protobuf.Entrypoint, error) {
+	// Convert to protobuf format
+	protoData := protobuf.Directory{
+		Entries: make([]*protobuf.Directory_Entry, 0, len(s.entries)),
+	}
+	for name, ep := range s.entries {
+		protoData.Entries = append(protoData.Entries, &protobuf.Directory_Entry{
+			Name: name,
+			Ep:   ep,
+		})
+	}
+
+	// Sort by name
+	sort.Slice(protoData.Entries, func(i, j int) bool {
+		return protoData.Entries[i].Name < protoData.Entries[j].Name
+	})
+
+	// TODO: Introduce various directory split strategies
+	data, err := proto.Marshal(&protoData)
+	if err != nil {
+		return nil, err
+	}
+
+	bn, ki, _, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}

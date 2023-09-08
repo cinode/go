@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import (
 	"github.com/cinode/go/pkg/structure"
 	"github.com/jbenet/go-base58"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slog"
 )
 
 func compileCmd() *cobra.Command {
@@ -149,7 +150,12 @@ func compileFS(
 
 	be := blenc.FromDatastore(ds)
 
-	ep, err := structure.UploadStaticDirectory(context.Background(), os.DirFS(srcDir), be)
+	ep, err := structure.UploadStaticDirectory(
+		context.Background(),
+		slog.Default(),
+		os.DirFS(srcDir),
+		be,
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't upload directory content: %w", err)
 	}

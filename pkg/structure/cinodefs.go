@@ -84,7 +84,21 @@ func (d *CinodeFS) findEntrypointInDir(
 	}
 
 	pathParts := strings.SplitN(remainingPath, "/", 2)
-	entry, exists := dirStruct.GetEntries()[pathParts[0]]
+	entryName := pathParts[0]
+	var entry *protobuf.Entrypoint
+	var exists bool
+	for _, dirEntry := range dirStruct.GetEntries() {
+		if entryName != dirEntry.GetName() {
+			continue
+		}
+		if exists {
+			// Doubled entry - reject such directory structure
+			// to avoid ambiguity-based attacks
+			return nil, ErrCorruptedLinkData
+		}
+		exists = true
+		entry = dirEntry.GetEp()
+	}
 	if !exists {
 		return nil, ErrNotFound
 	}
