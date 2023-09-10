@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"io/fs"
 	"mime"
@@ -28,6 +29,8 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+
+	_ "embed"
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/common"
@@ -204,7 +207,42 @@ func (s *StaticDir) SetEntry(name string, ep *protobuf.Entrypoint) {
 	s.entries[name] = ep
 }
 
-func (s *StaticDir) GenerateEntrypoint(ctx context.Context, be blenc.BE) (*protobuf.Entrypoint, error) {
+//go:embed templates/dir.html
+var _dirIndexTemplateStr string
+var dirIndexTemplate = func() *template.Template {
+	t, err := template.New("dir").
+		Funcs(template.FuncMap{
+			"isDir": func(entry *protobuf.Entrypoint) bool {
+				return entry.MimeType == CinodeDirMimeType
+			},
+		}).
+		Parse(_dirIndexTemplateStr)
+	if err != nil {
+		panic(err)
+	}
+	return t
+}()
+
+func (s *StaticDir) GenerateIndex(ctx context.Context, log *slog.Logger, indexName string, be blenc.BE) error {
+	buf := bytes.NewBuffer(nil)
+	err := dirIndexTemplate.Execute(buf, map[string]any{
+		"entries":   s.getProtobufData().GetEntries(),
+		"indexName": indexName,
+	})
+	if err != nil {
+		return err
+	}
+
+	ep, err := UploadStaticBlob(ctx, be, bytes.NewReader(buf.Bytes()), "text/html", log)
+	if err != nil {
+		return err
+	}
+
+	s.entries[indexName] = ep
+	return nil
+}
+
+func (s *StaticDir) getProtobufData() *protobuf.Directory {
 	// Convert to protobuf format
 	protoData := protobuf.Directory{
 		Entries: make([]*protobuf.Directory_Entry, 0, len(s.entries)),
@@ -221,8 +259,12 @@ func (s *StaticDir) GenerateEntrypoint(ctx context.Context, be blenc.BE) (*proto
 		return protoData.Entries[i].Name < protoData.Entries[j].Name
 	})
 
+	return &protoData
+}
+
+func (s *StaticDir) GenerateEntrypoint(ctx context.Context, be blenc.BE) (*protobuf.Entrypoint, error) {
 	// TODO: Introduce various directory split strategies
-	data, err := proto.Marshal(&protoData)
+	data, err := proto.Marshal(s.getProtobufData())
 	if err != nil {
 		return nil, err
 	}
