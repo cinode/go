@@ -116,7 +116,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 				w, err := securefifo.New()
 				require.NoError(t, err)
 
-				return &sfwWrappper{
+				return &sfwWrapper{
 					w: w,
 					closeFn: func() error {
 						firstSecureFifoClosed = true
@@ -135,7 +135,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 		})
 	})
 
-	t.Run("fail to call Done on securefifos", func(t *testing.T) {
+	t.Run("fail to call Done on secure fifos", func(t *testing.T) {
 		for i := 0; i < 2; i++ {
 			t.Run(fmt.Sprint(i), func(t *testing.T) {
 				be := FromDatastore(datastore.InMemory())
@@ -148,7 +148,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 					secureFifosCreated++
 					sf, err := securefifo.New()
 					require.NoError(t, err)
-					return &sfwWrappper{
+					return &sfwWrapper{
 						w: sf,
 						closeFn: func() error {
 							secureFifosClosed++
@@ -174,7 +174,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 		}
 	})
 
-	t.Run("fail to call write to securefifos", func(t *testing.T) {
+	t.Run("fail to call write to secure fifos", func(t *testing.T) {
 		for i := 0; i < 2; i++ {
 			t.Run(fmt.Sprint(i), func(t *testing.T) {
 				be := FromDatastore(datastore.InMemory())
@@ -187,7 +187,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 					secureFifosCreated++
 					sf, err := securefifo.New()
 					require.NoError(t, err)
-					return &sfwWrappper{
+					return &sfwWrapper{
 						w: sf,
 						closeFn: func() error {
 							secureFifosClosed++
@@ -225,7 +225,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 			w, err := securefifo.New()
 			require.NoError(t, err)
 
-			return &sfwWrappper{
+			return &sfwWrapper{
 				w: w,
 				closeFn: func() error {
 					secureFifosClosed++
@@ -258,7 +258,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 			w, err := securefifo.New()
 			require.NoError(t, err)
 
-			return &sfwWrappper{
+			return &sfwWrapper{
 				w: w,
 				closeFn: func() error {
 					secureFifosClosed++

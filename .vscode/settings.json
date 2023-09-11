@@ -7,18 +7,23 @@
         "blobtypes",
         "bmap",
         "cinode",
+        "cinodefs",
         "cipherfactory",
         "ciphertext",
         "containerimage",
         "coverprofile",
         "dynamiclink",
         "elink",
+        "fifos",
         "goveralls",
         "Hasher",
+        "jbenet",
         "protobuf",
         "securefifo",
         "shogo",
         "stretchr",
+        "testblobs",
+        "testvectors",
         "validatingreader"
     ]
 }

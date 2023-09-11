@@ -116,7 +116,7 @@ func TestDynamicLinkErrors(t *testing.T) {
 		dsw.openFn = nil
 	})
 
-	t.Run("fail to create dynamic link keypair", func(t *testing.T) {
+	t.Run("fail to create dynamic link key pair", func(t *testing.T) {
 
 		injectedErr := errors.New("test")
 
