@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,9 +25,9 @@ import (
 	"testing"
 	"testing/iotest"
 
+	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 	"github.com/stretchr/testify/suite"

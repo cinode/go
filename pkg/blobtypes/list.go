@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,9 +16,15 @@ limitations under the License.
 
 package blobtypes
 
-import "errors"
+import "github.com/cinode/go/pkg/common"
 
 var (
-	ErrUnknownBlobType  = errors.New("unknown blob type")
-	ErrValidationFailed = errors.New("blob validation failed")
+	Invalid     = common.NewBlobType(0x00)
+	Static      = common.NewBlobType(0x01)
+	DynamicLink = common.NewBlobType(0x02)
 )
+
+var All = map[string]common.BlobType{
+	"Static":      Static,
+	"DynamicLink": DynamicLink,
+}

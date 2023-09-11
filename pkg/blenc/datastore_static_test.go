@@ -25,35 +25,35 @@ import (
 	"testing"
 	"testing/iotest"
 
+	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/internal/utilities/securefifo"
 	"github.com/stretchr/testify/require"
 )
 
-type sfwWrappper struct {
+type sfwWrapper struct {
 	w       securefifo.Writer
 	writeFn func([]byte) (int, error)
 	closeFn func() error
 	doneFn  func() (securefifo.Reader, error)
 }
 
-func (w *sfwWrappper) Write(b []byte) (int, error) {
+func (w *sfwWrapper) Write(b []byte) (int, error) {
 	if w.writeFn != nil {
 		return w.writeFn(b)
 	}
 	return w.w.Write(b)
 }
 
-func (w *sfwWrappper) Close() error {
+func (w *sfwWrapper) Close() error {
 	if w.closeFn != nil {
 		return w.closeFn()
 	}
 	return w.w.Close()
 }
 
-func (w *sfwWrappper) Done() (securefifo.Reader, error) {
+func (w *sfwWrapper) Done() (securefifo.Reader, error) {
 	if w.doneFn != nil {
 		return w.doneFn()
 	}

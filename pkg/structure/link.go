@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/cinode/go/pkg/blenc"
+	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
-	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 	"github.com/cinode/go/pkg/protobuf"
 )
