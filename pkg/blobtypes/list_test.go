@@ -17,27 +17,20 @@ limitations under the License.
 package blobtypes
 
 import (
-	"fmt"
+	"testing"
 
 	"github.com/cinode/go/pkg/common"
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	Invalid     = common.NewBlobType(0x00)
-	Static      = common.NewBlobType(0x01)
-	DynamicLink = common.NewBlobType(0x02)
-)
-
-var All = map[string]common.BlobType{
-	"Static":      Static,
-	"DynamicLink": DynamicLink,
-}
-
-func ToName(t common.BlobType) string {
-	for name, tp := range All {
-		if tp == t {
-			return name
+func TestToName(t *testing.T) {
+	t.Run("valid known types", func(t *testing.T) {
+		for name, bType := range All {
+			require.Equal(t, name, ToName(bType))
 		}
-	}
-	return fmt.Sprintf("Invalid(%d)", t.IDByte())
+	})
+	t.Run("invalid type", func(t *testing.T) {
+		require.Equal(t, "Invalid(0)", ToName(Invalid))
+		require.Equal(t, "Invalid(255)", ToName(common.NewBlobType(255)))
+	})
 }
