@@ -35,6 +35,7 @@ import (
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
+	"github.com/cinode/go/pkg/internal/utilities/golang"
 	"github.com/cinode/go/pkg/protobuf"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
@@ -209,19 +210,15 @@ func (s *StaticDir) SetEntry(name string, ep *protobuf.Entrypoint) {
 
 //go:embed templates/dir.html
 var _dirIndexTemplateStr string
-var dirIndexTemplate = func() *template.Template {
-	t, err := template.New("dir").
+var dirIndexTemplate = golang.Must(
+	template.New("dir").
 		Funcs(template.FuncMap{
 			"isDir": func(entry *protobuf.Entrypoint) bool {
 				return entry.MimeType == CinodeDirMimeType
 			},
 		}).
-		Parse(_dirIndexTemplateStr)
-	if err != nil {
-		panic(err)
-	}
-	return t
-}()
+		Parse(_dirIndexTemplateStr),
+)
 
 func (s *StaticDir) GenerateIndex(ctx context.Context, log *slog.Logger, indexName string, be blenc.BE) error {
 	buf := bytes.NewBuffer(nil)
