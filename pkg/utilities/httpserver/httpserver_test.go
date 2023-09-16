@@ -19,10 +19,12 @@ package httpserver
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -118,4 +120,23 @@ func TestOptions(t *testing.T) {
 		Logger(log)(&cfg)
 		require.Equal(t, log, cfg.log)
 	})
+}
+
+func TestFailResponseOnError(t *testing.T) {
+	var triggeredError error
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		FailResponseOnError(w, triggeredError)
+	}))
+
+	resp, err := http.Get(server.URL)
+	resp.Body.Close()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	triggeredError = errors.New("error")
+
+	resp, err = http.Get(server.URL)
+	resp.Body.Close()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 }

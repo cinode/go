@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,8 @@ import (
 )
 
 type HTTPHandler struct {
-	FS *CinodeFS
+	FS        *CinodeFS
+	IndexFile string
 }
 
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +35,11 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path := strings.TrimPrefix(r.URL.Path, "/")
+	path := r.URL.Path
+	if strings.HasSuffix(path, "/") {
+		path += h.IndexFile
+	}
+	path = strings.TrimPrefix(path, "/")
 
 	fileEP, err := h.FS.FindEntrypoint(r.Context(), path)
 	switch {

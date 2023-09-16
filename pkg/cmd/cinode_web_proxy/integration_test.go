@@ -34,6 +34,7 @@ import (
 	"github.com/cinode/go/pkg/structure"
 	"github.com/jbenet/go-base58"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slog"
 )
 
 func TestIntegration(t *testing.T) {
@@ -63,7 +64,12 @@ func TestIntegration(t *testing.T) {
 	ds, err := datastore.InRawFileSystem(dir)
 	require.NoError(t, err)
 
-	ep, err := structure.UploadStaticDirectory(context.Background(), testFS, blenc.FromDatastore(ds))
+	ep, err := structure.UploadStaticDirectory(
+		context.Background(),
+		slog.Default(),
+		testFS,
+		blenc.FromDatastore(ds),
+	)
 	require.NoError(t, err)
 
 	epBytes, err := ep.ToBytes()

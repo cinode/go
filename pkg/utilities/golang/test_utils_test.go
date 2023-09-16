@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,17 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package blobtypes
+package golang
 
-import "github.com/cinode/go/pkg/common"
+import (
+	"os"
+	"testing"
 
-var (
-	Invalid     = common.NewBlobType(0x00)
-	Static      = common.NewBlobType(0x01)
-	DynamicLink = common.NewBlobType(0x02)
+	"github.com/stretchr/testify/require"
 )
 
-var All = map[string]common.BlobType{
-	"Static":      Static,
-	"DynamicLink": DynamicLink,
+func TestSetTestOsArgs(t *testing.T) {
+	SetTestOsArgs(t, "initial", "args")
+	t.Run("sub-test", func(t *testing.T) {
+		SetTestOsArgs(t, "other", "set", "of", "args")
+		require.Equal(t, []string{"other", "set", "of", "args"}, os.Args)
+	})
+	require.Equal(t, []string{"initial", "args"}, os.Args)
 }

@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ type CinodeFS struct {
 	BE               blenc.BE
 	RootEntrypoint   *protobuf.Entrypoint
 	MaxLinkRedirects int
-	IndexFile        string
 	CurrentTimeF     func() time.Time
 }
 
@@ -67,10 +66,6 @@ func (d *CinodeFS) findEntrypointInDir(
 		return nil, ErrNotADirectory
 	}
 
-	if remainingPath == "" {
-		remainingPath = d.IndexFile
-	}
-
 	rc, err := d.OpenContent(ctx, ep)
 	if err != nil {
 		return nil, err
@@ -89,7 +84,21 @@ func (d *CinodeFS) findEntrypointInDir(
 	}
 
 	pathParts := strings.SplitN(remainingPath, "/", 2)
-	entry, exists := dirStruct.GetEntries()[pathParts[0]]
+	entryName := pathParts[0]
+	var entry *protobuf.Entrypoint
+	var exists bool
+	for _, dirEntry := range dirStruct.GetEntries() {
+		if entryName != dirEntry.GetName() {
+			continue
+		}
+		if exists {
+			// Doubled entry - reject such directory structure
+			// to avoid ambiguity-based attacks
+			return nil, ErrCorruptedLinkData
+		}
+		exists = true
+		entry = dirEntry.GetEp()
+	}
 	if !exists {
 		return nil, ErrNotFound
 	}

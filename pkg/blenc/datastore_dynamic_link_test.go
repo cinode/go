@@ -26,9 +26,9 @@ import (
 	"testing"
 	"testing/iotest"
 
+	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/internal/blobtypes"
 	"github.com/stretchr/testify/require"
 )
 
@@ -116,7 +116,7 @@ func TestDynamicLinkErrors(t *testing.T) {
 		dsw.openFn = nil
 	})
 
-	t.Run("fail to create dynamic link keypair", func(t *testing.T) {
+	t.Run("fail to create dynamic link key pair", func(t *testing.T) {
 
 		injectedErr := errors.New("test")
 

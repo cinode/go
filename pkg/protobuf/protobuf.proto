@@ -1,4 +1,4 @@
-// Copyright © 2022 Bartłomiej Święcki (byo)
+// Copyright © 2023 Bartłomiej Święcki (byo)
 // 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,12 @@ message Entrypoint {
 
 // Directory represents a content of a static directory
 message Directory {
-  map<string, Entrypoint> entries = 1;
+  message Entry {
+    string name = 1;
+    Entrypoint ep = 2;
+  }
+  // List of directory entries, shall be sorted by the name (sorting topologically by the utf-8 byte representation of the name)
+  repeated Entry entries = 1;
 }
 
 // WriterInfo contains information that allows updating given blob

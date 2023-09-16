@@ -60,6 +60,7 @@ func RunGracefully(ctx context.Context, handler http.Handler, opt ...Option) err
 }
 
 func startGracefully(ctx context.Context, cfg cfg) (*http.Server, net.Listener, error) {
+	cfg.log.Info("Starting http server", "listenAddr", cfg.listenAddr)
 	listener, err := net.Listen("tcp", cfg.listenAddr)
 	if err != nil {
 		return nil, nil, err
@@ -93,4 +94,10 @@ func endGracefully(ctx context.Context, server *http.Server, cfg cfg) error {
 
 	// TODO: More graceful way?
 	return server.Close()
+}
+
+func FailResponseOnError(w http.ResponseWriter, err error) {
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
