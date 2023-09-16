@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/internal/utilities/httpserver"
+	"github.com/cinode/go/pkg/utilities/httpserver"
 	"golang.org/x/exp/slog"
 )
 

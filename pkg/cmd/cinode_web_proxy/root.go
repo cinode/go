@@ -30,9 +30,9 @@ import (
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/internal/utilities/httpserver"
 	"github.com/cinode/go/pkg/protobuf"
 	"github.com/cinode/go/pkg/structure"
+	"github.com/cinode/go/pkg/utilities/httpserver"
 	"github.com/jbenet/go-base58"
 	"golang.org/x/exp/slog"
 )

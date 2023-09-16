@@ -35,8 +35,8 @@ import (
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
-	"github.com/cinode/go/pkg/internal/utilities/golang"
 	"github.com/cinode/go/pkg/protobuf"
+	"github.com/cinode/go/pkg/utilities/golang"
 	"golang.org/x/exp/slog"
 	"google.golang.org/protobuf/proto"
 )
