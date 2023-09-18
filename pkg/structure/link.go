@@ -26,7 +26,6 @@ import (
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
-	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 	"github.com/cinode/go/pkg/protobuf"
 )
 
@@ -104,7 +103,7 @@ func DereferenceLink(
 		rc, err := be.Open(
 			ctx,
 			common.BlobName(link.BlobName),
-			cipherfactory.Key(link.GetKeyInfo().GetKey()),
+			common.BlobKey(link.GetKeyInfo().GetKey()),
 		)
 		if err != nil {
 			return nil, err

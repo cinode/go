@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/cinode/go/pkg/common"
 	"golang.org/x/crypto/chacha20"
 )
 
@@ -39,7 +40,7 @@ const (
 	reservedByteForKeyType byte = 0
 )
 
-func StreamCipherReader(key Key, iv IV, r io.Reader) (io.Reader, error) {
+func StreamCipherReader(key common.BlobKey, iv common.BlobIV, r io.Reader) (io.Reader, error) {
 	stream, err := _cipherForKeyIV(key, iv)
 	if err != nil {
 		return nil, err
@@ -47,7 +48,7 @@ func StreamCipherReader(key Key, iv IV, r io.Reader) (io.Reader, error) {
 	return &cipher.StreamReader{S: stream, R: r}, nil
 }
 
-func StreamCipherWriter(key Key, iv IV, w io.Writer) (io.Writer, error) {
+func StreamCipherWriter(key common.BlobKey, iv common.BlobIV, w io.Writer) (io.Writer, error) {
 	stream, err := _cipherForKeyIV(key, iv)
 	if err != nil {
 		return nil, err
@@ -55,7 +56,7 @@ func StreamCipherWriter(key Key, iv IV, w io.Writer) (io.Writer, error) {
 	return cipher.StreamWriter{S: stream, W: w}, nil
 }
 
-func _cipherForKeyIV(key Key, iv IV) (cipher.Stream, error) {
+func _cipherForKeyIV(key common.BlobKey, iv common.BlobIV) (cipher.Stream, error) {
 	if len(key) == 0 || key[0] != reservedByteForKeyType {
 		return nil, ErrInvalidEncryptionConfigKeyType
 	}

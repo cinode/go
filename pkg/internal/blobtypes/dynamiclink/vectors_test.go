@@ -27,7 +27,6 @@ import (
 	"testing"
 
 	"github.com/cinode/go/pkg/common"
-	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 	"github.com/stretchr/testify/require"
 )
 
@@ -104,7 +103,7 @@ func TestVectors(t *testing.T) {
 						return err
 					}
 
-					dr, err := pr.GetLinkDataReader(cipherfactory.Key(testCase.EncryptionKey))
+					dr, err := pr.GetLinkDataReader(common.BlobKey(testCase.EncryptionKey))
 					if err != nil {
 						return err
 					}

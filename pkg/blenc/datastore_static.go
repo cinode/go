@@ -33,14 +33,14 @@ var (
 	ErrCanNotUpdateStaticBlob = errors.New("blob update is not supported for static blobs")
 )
 
-func (be *beDatastore) openStatic(ctx context.Context, name common.BlobName, key cipherfactory.Key) (io.ReadCloser, error) {
+func (be *beDatastore) openStatic(ctx context.Context, name common.BlobName, key common.BlobKey) (io.ReadCloser, error) {
 
 	rc, err := be.ds.Open(ctx, name)
 	if err != nil {
 		return nil, err
 	}
 
-	scr, err := cipherfactory.StreamCipherReader(key, key.DefaultIV(), rc)
+	scr, err := cipherfactory.StreamCipherReader(key, cipherfactory.DefaultIV(key), rc)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (be *beDatastore) createStatic(
 	r io.Reader,
 ) (
 	common.BlobName,
-	cipherfactory.Key,
+	common.BlobKey,
 	AuthInfo,
 	error,
 ) {
@@ -92,7 +92,7 @@ func (be *beDatastore) createStatic(
 	}
 
 	key := keyGenerator.Generate()
-	iv := key.DefaultIV() // We can use this since each blob will have different key
+	iv := cipherfactory.DefaultIV(key) // We can use this since each blob will have different key
 
 	rClone, err := tempWriteBufferPlain.Done() // rClone will allow re-reading the source data
 	if err != nil {
@@ -143,7 +143,7 @@ func (be *beDatastore) updateStatic(
 	ctx context.Context,
 	name common.BlobName,
 	authInfo AuthInfo,
-	key cipherfactory.Key,
+	key common.BlobKey,
 	r io.Reader,
 ) error {
 	return ErrCanNotUpdateStaticBlob

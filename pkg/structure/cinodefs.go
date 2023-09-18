@@ -24,7 +24,6 @@ import (
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/common"
-	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 	"github.com/cinode/go/pkg/protobuf"
 	"google.golang.org/protobuf/proto"
 )
@@ -40,7 +39,7 @@ func (d *CinodeFS) OpenContent(ctx context.Context, ep *protobuf.Entrypoint) (io
 	return d.BE.Open(
 		ctx,
 		common.BlobName(ep.BlobName),
-		cipherfactory.Key(ep.GetKeyInfo().GetKey()),
+		common.BlobKey(ep.GetKeyInfo().GetKey()),
 	)
 }
 

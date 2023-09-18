@@ -261,13 +261,13 @@ func (s *BlencTestSuite) TestInvalidBlobTypes() {
 	})
 
 	s.Run("must fail to open blob of invalid type", func() {
-		rc, err := s.be.Open(context.Background(), invalidBlobName, cipherfactory.Key{})
+		rc, err := s.be.Open(context.Background(), invalidBlobName, common.BlobKey{})
 		s.Require().ErrorIs(err, blobtypes.ErrUnknownBlobType)
 		s.Require().Nil(rc)
 	})
 
 	s.Run("must fail to update blob of invalid type", func() {
-		err = s.be.Update(context.Background(), invalidBlobName, AuthInfo{}, cipherfactory.Key{}, bytes.NewReader(nil))
+		err = s.be.Update(context.Background(), invalidBlobName, AuthInfo{}, common.BlobKey{}, bytes.NewReader(nil))
 		s.Require().ErrorIs(err, blobtypes.ErrUnknownBlobType)
 	})
 }

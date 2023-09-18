@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import (
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
-	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 )
 
 var (
@@ -38,7 +37,7 @@ var (
 func (be *beDatastore) openDynamicLink(
 	ctx context.Context,
 	name common.BlobName,
-	key cipherfactory.Key,
+	key common.BlobKey,
 ) (
 	io.ReadCloser,
 	error,
@@ -78,7 +77,7 @@ func (be *beDatastore) createDynamicLink(
 	r io.Reader,
 ) (
 	common.BlobName,
-	cipherfactory.Key,
+	common.BlobKey,
 	AuthInfo,
 	error,
 ) {
@@ -111,7 +110,7 @@ func (be *beDatastore) updateDynamicLink(
 	ctx context.Context,
 	name common.BlobName,
 	authInfo AuthInfo,
-	key cipherfactory.Key,
+	key common.BlobKey,
 	r io.Reader,
 ) error {
 	newVersion := be.generateVersion()

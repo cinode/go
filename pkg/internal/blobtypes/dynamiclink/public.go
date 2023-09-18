@@ -244,7 +244,7 @@ func (d *PublicReader) ivGeneratorPrefilled() cipherfactory.IVGenerator {
 	return ivGenerator
 }
 
-func (d *PublicReader) validateKeyInLinkData(key cipherfactory.Key, r io.Reader) error {
+func (d *PublicReader) validateKeyInLinkData(key common.BlobKey, r io.Reader) error {
 	// At the beginning of the data there's the key validation block,
 	// that block contains a proof that the encryption key was deterministically derived
 	// from the blob name (thus preventing weak key attack)
@@ -276,7 +276,7 @@ func (d *PublicReader) validateKeyInLinkData(key cipherfactory.Key, r io.Reader)
 	return nil
 }
 
-func (d *PublicReader) GetLinkDataReader(key cipherfactory.Key) (io.Reader, error) {
+func (d *PublicReader) GetLinkDataReader(key common.BlobKey) (io.Reader, error) {
 
 	r, err := cipherfactory.StreamCipherReader(key, d.iv, d.GetEncryptedLinkReader())
 	if err != nil {

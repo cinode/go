@@ -46,7 +46,7 @@ func TestGenerator(t *testing.T) {
 		_, err = _cipherForKeyIV(key, iv)
 		require.NoError(t, err)
 
-		_, err = _cipherForKeyIV(key, key.DefaultIV())
+		_, err = _cipherForKeyIV(key, DefaultIV(key))
 		require.NoError(t, err)
 
 		// Check initial bytes of keys only - since key and IV are of different
@@ -56,8 +56,8 @@ func TestGenerator(t *testing.T) {
 		// be using same hashed dataset which may be exploitable since IV
 		// is made public
 		require.NotEqual(t, key[1:1+8], iv[:8])
-		require.NotEqual(t, key[1:1+8], key.DefaultIV()[:8])
-		require.NotEqual(t, iv[:8], key.DefaultIV()[:8])
+		require.NotEqual(t, key[1:1+8], DefaultIV(key)[:8])
+		require.NotEqual(t, iv[:8], DefaultIV(key)[:8])
 
 		// Note: once other key types are introduced, we should also check
 		// that for different key types there are different hashes
