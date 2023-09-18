@@ -93,7 +93,7 @@ func (s *BlencTestSuite) TestStaticBlobs() {
 		s.Run("new static blob must be different from the first one", func() {
 			s.Require().NoError(err)
 			s.Require().NotEqual(key, key2)
-			s.Require().Len(key2, len(key))
+			s.Require().Len(key2.Bytes(), len(key.Bytes()))
 		})
 
 		s.Run("must fail to update static blob", func() {
@@ -121,7 +121,8 @@ func (s *BlencTestSuite) TestStaticBlobs() {
 		})
 
 		s.Run("must fail to open static blob with invalid key", func() {
-			rc, err := s.be.Open(context.Background(), bn2, key2[1:])
+			brokenKey := common.BlobKeyFromBytes(key2.Bytes()[1:])
+			rc, err := s.be.Open(context.Background(), bn2, brokenKey)
 			s.Require().ErrorIs(err, cipherfactory.ErrInvalidEncryptionConfig)
 			s.Require().Nil(rc)
 		})
@@ -179,7 +180,7 @@ func (s *BlencTestSuite) TestDynamicLinkSuccessPath() {
 		s.Run("new dynamic link must be different from the first one", func() {
 			s.Require().NoError(err)
 			s.Require().NotEqual(key, key2)
-			s.Require().Len(key2, len(key))
+			s.Require().Len(key2.Bytes(), len(key.Bytes()))
 		})
 
 		s.Run("must correctly read blob's content", func() {
@@ -243,7 +244,7 @@ func (s *BlencTestSuite) TestDynamicLinkSuccessPath() {
 		bn, key, ai, err := s.be.Create(context.Background(), blobtypes.DynamicLink, iotest.ErrReader(injectedErr))
 		s.Require().ErrorIs(err, injectedErr)
 		s.Require().Nil(bn)
-		s.Require().Nil(key)
+		s.Require().Equal(common.BlobKey{}, key)
 		s.Require().Nil(ai)
 	})
 }
@@ -256,18 +257,28 @@ func (s *BlencTestSuite) TestInvalidBlobTypes() {
 		bn, key, ai, err := s.be.Create(context.Background(), blobtypes.Invalid, bytes.NewReader(nil))
 		s.Require().ErrorIs(err, blobtypes.ErrUnknownBlobType)
 		s.Require().Nil(bn)
-		s.Require().Nil(key)
+		s.Require().Equal(common.BlobKey{}, key)
 		s.Require().Nil(ai)
 	})
 
 	s.Run("must fail to open blob of invalid type", func() {
-		rc, err := s.be.Open(context.Background(), invalidBlobName, common.BlobKey{})
+		rc, err := s.be.Open(
+			context.Background(),
+			invalidBlobName,
+			common.BlobKey{},
+		)
 		s.Require().ErrorIs(err, blobtypes.ErrUnknownBlobType)
 		s.Require().Nil(rc)
 	})
 
 	s.Run("must fail to update blob of invalid type", func() {
-		err = s.be.Update(context.Background(), invalidBlobName, AuthInfo{}, common.BlobKey{}, bytes.NewReader(nil))
+		err = s.be.Update(
+			context.Background(),
+			invalidBlobName,
+			AuthInfo{},
+			common.BlobKey{},
+			bytes.NewReader(nil),
+		)
 		s.Require().ErrorIs(err, blobtypes.ErrUnknownBlobType)
 	})
 }

@@ -51,11 +51,11 @@ func CreateLink(ctx context.Context, be blenc.BE, ep *protobuf.Entrypoint) (*pro
 	return &protobuf.Entrypoint{
 			BlobName: name,
 			KeyInfo: &protobuf.KeyInfo{
-				Key: key,
+				Key: key.Bytes(),
 			},
 		}, &protobuf.WriterInfo{
 			BlobName: name,
-			Key:      key,
+			Key:      key.Bytes(),
 			AuthInfo: authInfo,
 		}, nil
 }
@@ -66,7 +66,13 @@ func UpdateLink(ctx context.Context, be blenc.BE, wi *protobuf.WriterInfo, ep *p
 		return nil, err
 	}
 
-	err = be.Update(ctx, wi.BlobName, wi.AuthInfo, wi.Key, bytes.NewReader(epBytes))
+	err = be.Update(
+		ctx,
+		wi.BlobName,
+		wi.AuthInfo,
+		common.BlobKeyFromBytes(wi.Key),
+		bytes.NewReader(epBytes),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +109,7 @@ func DereferenceLink(
 		rc, err := be.Open(
 			ctx,
 			common.BlobName(link.BlobName),
-			common.BlobKey(link.GetKeyInfo().GetKey()),
+			common.BlobKeyFromBytes(link.GetKeyInfo().GetKey()),
 		)
 		if err != nil {
 			return nil, err

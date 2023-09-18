@@ -80,7 +80,7 @@ type PublicReader struct {
 	Public
 	contentVersion uint64
 	signature      []byte
-	iv             []byte
+	iv             common.BlobIV
 	r              io.Reader
 }
 
@@ -140,10 +140,11 @@ func FromPublicData(name common.BlobName, r io.Reader) (*PublicReader, error) {
 		return nil, err
 	}
 
-	dl.iv, err = readDynamicSizeBuff(r, "iv")
+	iv, err := readDynamicSizeBuff(r, "iv")
 	if err != nil {
 		return nil, err
 	}
+	dl.iv = common.BlobIVFromBytes(iv)
 
 	// Starting from validations at this point, errors are returned while reading.
 	// This is to prepare for future improvements when real streaming is
@@ -201,7 +202,7 @@ func (d *PublicReader) GetPublicDataReader() io.Reader {
 	// Preamble - dynamic link data
 	storeBuff(w, d.signature)
 	storeUint64(w, d.contentVersion)
-	storeDynamicSizeBuff(w, d.iv)
+	storeDynamicSizeBuff(w, d.iv.Bytes())
 
 	return io.MultiReader(
 		bytes.NewReader(w.Bytes()), // Preamble
@@ -269,7 +270,7 @@ func (d *PublicReader) validateKeyInLinkData(key common.BlobKey, r io.Reader) er
 	keyGenerator.Write(signature)
 	generatedKey := keyGenerator.Generate()
 
-	if !bytes.Equal(generatedKey, key) {
+	if !generatedKey.Equal(key) {
 		return ErrInvalidDynamicLinkKeyMismatch
 	}
 
@@ -305,7 +306,7 @@ func (d *PublicReader) GetLinkDataReader(key common.BlobKey) (io.Reader, error) 
 	return validatingreader.CheckOnEOF(
 		r,
 		func() error {
-			if !bytes.Equal(ivHasher.Generate(), d.iv) {
+			if !d.iv.Equal(ivHasher.Generate()) {
 				return ErrInvalidDynamicLinkIVMismatch
 			}
 

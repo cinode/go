@@ -122,7 +122,7 @@ func UploadStaticBlob(ctx context.Context, be blenc.BE, r io.Reader, mimeType st
 	// This buffer may then be used to detect the mime type
 	dataHead := newHeadWriter(512)
 
-	bn, ki, _, err := be.Create(context.Background(), blobtypes.Static, io.TeeReader(r, &dataHead))
+	bn, key, _, err := be.Create(context.Background(), blobtypes.Static, io.TeeReader(r, &dataHead))
 	if err != nil {
 		log.ErrorContext(ctx, "failed to upload static file", "err", err)
 		return nil, err
@@ -137,7 +137,7 @@ func UploadStaticBlob(ctx context.Context, be blenc.BE, r io.Reader, mimeType st
 
 	return &protobuf.Entrypoint{
 		BlobName: bn,
-		KeyInfo:  &protobuf.KeyInfo{Key: ki},
+		KeyInfo:  &protobuf.KeyInfo{Key: key.Bytes()},
 		MimeType: mimeType,
 	}, nil
 }
@@ -266,14 +266,14 @@ func (s *StaticDir) GenerateEntrypoint(ctx context.Context, be blenc.BE) (*proto
 		return nil, err
 	}
 
-	bn, ki, _, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data))
+	bn, key, _, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
 
 	return &protobuf.Entrypoint{
 		BlobName: bn,
-		KeyInfo:  &protobuf.KeyInfo{Key: ki},
+		KeyInfo:  &protobuf.KeyInfo{Key: key.Bytes()},
 		MimeType: CinodeDirMimeType,
 	}, nil
 }

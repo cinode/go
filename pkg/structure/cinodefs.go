@@ -39,7 +39,7 @@ func (d *CinodeFS) OpenContent(ctx context.Context, ep *protobuf.Entrypoint) (io
 	return d.BE.Open(
 		ctx,
 		common.BlobName(ep.BlobName),
-		common.BlobKey(ep.GetKeyInfo().GetKey()),
+		common.BlobKeyFromBytes(ep.GetKeyInfo().GetKey()),
 	)
 }
 

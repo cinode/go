@@ -118,7 +118,7 @@ func TestWebProxyHandlerInvalidEntrypoint(t *testing.T) {
 			BlobName: n,
 			MimeType: structure.CinodeDirMimeType,
 			KeyInfo: &protobuf.KeyInfo{
-				Key: cipherfactory.NewKeyGenerator(blobtypes.Static).Generate(),
+				Key: cipherfactory.NewKeyGenerator(blobtypes.Static).Generate().Bytes(),
 			},
 		},
 	)

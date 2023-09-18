@@ -57,17 +57,19 @@ func StreamCipherWriter(key common.BlobKey, iv common.BlobIV, w io.Writer) (io.W
 }
 
 func _cipherForKeyIV(key common.BlobKey, iv common.BlobIV) (cipher.Stream, error) {
-	if len(key) == 0 || key[0] != reservedByteForKeyType {
+	keyBytes := key.Bytes()
+	if len(keyBytes) == 0 || keyBytes[0] != reservedByteForKeyType {
 		return nil, ErrInvalidEncryptionConfigKeyType
 	}
 
-	if len(key) != chacha20.KeySize+1 {
-		return nil, fmt.Errorf("%w, got %d bytes", ErrInvalidEncryptionConfigKeySize, len(key)+1)
+	if len(keyBytes) != chacha20.KeySize+1 {
+		return nil, fmt.Errorf("%w, got %d bytes", ErrInvalidEncryptionConfigKeySize, len(keyBytes)+1)
 	}
 
-	if len(iv) != chacha20.NonceSizeX {
-		return nil, fmt.Errorf("%w, got %d bytes", ErrInvalidEncryptionConfigIVSize, len(iv))
+	ivBytes := iv.Bytes()
+	if len(ivBytes) != chacha20.NonceSizeX {
+		return nil, fmt.Errorf("%w, got %d bytes", ErrInvalidEncryptionConfigIVSize, len(ivBytes))
 	}
 
-	return chacha20.NewUnauthenticatedCipher(key[1:], iv)
+	return chacha20.NewUnauthenticatedCipher(keyBytes[1:], ivBytes)
 }

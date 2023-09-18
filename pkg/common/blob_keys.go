@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,8 +16,27 @@ limitations under the License.
 
 package common
 
+import "crypto/subtle"
+
+func copyBytes(b []byte) []byte {
+	if b == nil {
+		return nil
+	}
+	ret := make([]byte, len(b))
+	copy(ret, b)
+	return ret
+}
+
 // Key with cipher type
-type BlobKey []byte
+type BlobKey struct{ key []byte }
+
+func BlobKeyFromBytes(key []byte) BlobKey { return BlobKey{key: copyBytes(key)} }
+func (k BlobKey) Bytes() []byte           { return copyBytes(k.key) }
+func (k BlobKey) Equal(k2 BlobKey) bool   { return subtle.ConstantTimeCompare(k.key, k2.key) == 1 }
 
 // IV
-type BlobIV []byte
+type BlobIV struct{ iv []byte }
+
+func BlobIVFromBytes(iv []byte) BlobIV { return BlobIV{iv: copyBytes(iv)} }
+func (i BlobIV) Bytes() []byte         { return copyBytes(i.iv) }
+func (i BlobIV) Equal(i2 BlobIV) bool  { return subtle.ConstantTimeCompare(i.iv, i2.iv) == 1 }

@@ -103,7 +103,9 @@ func TestVectors(t *testing.T) {
 						return err
 					}
 
-					dr, err := pr.GetLinkDataReader(common.BlobKey(testCase.EncryptionKey))
+					dr, err := pr.GetLinkDataReader(
+						common.BlobKeyFromBytes(testCase.EncryptionKey),
+					)
 					if err != nil {
 						return err
 					}

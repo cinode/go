@@ -85,19 +85,19 @@ func (be *beDatastore) createDynamicLink(
 
 	dl, err := dynamiclink.Create(be.rand)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, common.BlobKey{}, nil, err
 	}
 
 	pr, encryptionKey, err := dl.UpdateLinkData(r, version)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, common.BlobKey{}, nil, err
 	}
 
 	// Send update packet
 	bn := dl.BlobName()
 	err = be.ds.Update(ctx, bn, pr.GetPublicDataReader())
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, common.BlobKey{}, nil, err
 	}
 
 	return bn,
@@ -126,7 +126,7 @@ func (be *beDatastore) updateDynamicLink(
 	}
 
 	// Sanity checks
-	if !bytes.Equal(encryptionKey, key) {
+	if !encryptionKey.Equal(key) {
 		return ErrDynamicLinkUpdateFailedWrongKey
 	}
 	if !bytes.Equal(name, dl.BlobName()) {

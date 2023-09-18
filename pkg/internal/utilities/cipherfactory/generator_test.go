@@ -55,9 +55,12 @@ func TestGenerator(t *testing.T) {
 		// then the generation of key and iv for the same input dataset would
 		// be using same hashed dataset which may be exploitable since IV
 		// is made public
-		require.NotEqual(t, key[1:1+8], iv[:8])
-		require.NotEqual(t, key[1:1+8], DefaultIV(key)[:8])
-		require.NotEqual(t, iv[:8], DefaultIV(key)[:8])
+		keyBytes := key.Bytes()
+		ivBytes := iv.Bytes()
+		defIvBytes := DefaultIV(key).Bytes()
+		require.NotEqual(t, keyBytes[1:1+8], ivBytes[:8])
+		require.NotEqual(t, keyBytes[1:1+8], defIvBytes[:8])
+		require.NotEqual(t, ivBytes[:8], defIvBytes[:8])
 
 		// Note: once other key types are introduced, we should also check
 		// that for different key types there are different hashes

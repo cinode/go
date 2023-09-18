@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/cinode/go/pkg/common"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/chacha20"
 )
@@ -59,13 +60,21 @@ func TestCipherForKeyIV(t *testing.T) {
 		},
 	} {
 		t.Run(d.desc, func(t *testing.T) {
-			sr, err := StreamCipherReader(d.key, d.iv, bytes.NewReader([]byte{}))
+			sr, err := StreamCipherReader(
+				common.BlobKeyFromBytes(d.key),
+				common.BlobIVFromBytes(d.iv),
+				bytes.NewReader([]byte{}),
+			)
 			require.ErrorIs(t, err, d.err)
 			if err == nil {
 				require.NotNil(t, sr)
 			}
 
-			sw, err := StreamCipherWriter(d.key, d.iv, bytes.NewBuffer(nil))
+			sw, err := StreamCipherWriter(
+				common.BlobKeyFromBytes(d.key),
+				common.BlobIVFromBytes(d.iv),
+				bytes.NewBuffer(nil),
+			)
 			require.ErrorIs(t, err, d.err)
 			if err == nil {
 				require.NotNil(t, sw)
@@ -75,8 +84,8 @@ func TestCipherForKeyIV(t *testing.T) {
 }
 
 func TestStreamCipherRoundtrip(t *testing.T) {
-	key := make([]byte, chacha20.KeySize+1)
-	iv := make([]byte, chacha20.NonceSizeX)
+	key := common.BlobKeyFromBytes(make([]byte, chacha20.KeySize+1))
+	iv := common.BlobIVFromBytes(make([]byte, chacha20.NonceSizeX))
 
 	data := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06}
 	buf := bytes.NewBuffer(nil)

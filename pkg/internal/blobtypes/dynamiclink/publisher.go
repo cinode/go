@@ -24,6 +24,7 @@ import (
 	"io"
 
 	"github.com/cinode/go/pkg/blobtypes"
+	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 )
 
@@ -106,7 +107,7 @@ func (dl *Publisher) AuthInfo() []byte {
 	return ret[:]
 }
 
-func (dl *Publisher) calculateEncryptionKey() ([]byte, []byte) {
+func (dl *Publisher) calculateEncryptionKey() (common.BlobKey, []byte) {
 	dataSeed := append(
 		[]byte{signatureForEncryptionKeyGeneration},
 		dl.BlobName()...,
@@ -122,7 +123,7 @@ func (dl *Publisher) calculateEncryptionKey() ([]byte, []byte) {
 	return key, signature
 }
 
-func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader, []byte, error) {
+func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader, common.BlobKey, error) {
 	encryptionKey, kvb := dl.calculateEncryptionKey()
 
 	// key validation block precedes the link data
@@ -132,7 +133,7 @@ func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader,
 
 	_, err := io.Copy(unencryptedLinkBuff, r)
 	if err != nil {
-		return nil, nil, err
+		return nil, common.BlobKey{}, err
 	}
 
 	unencryptedLink := unencryptedLinkBuff.Bytes()
@@ -150,17 +151,17 @@ func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader,
 	encryptedLinkBuff := bytes.NewBuffer(nil)
 	w, err := cipherfactory.StreamCipherWriter(encryptionKey, pr.iv, encryptedLinkBuff)
 	if err != nil {
-		return nil, nil, err
+		return nil, common.BlobKey{}, err
 	}
 
 	_, err = w.Write(unencryptedLink)
 	if err != nil {
-		return nil, nil, err
+		return nil, common.BlobKey{}, err
 	}
 
 	signatureHasher := pr.toSignDataHasherPrefilled()
 	storeUint64(signatureHasher, pr.contentVersion)
-	storeDynamicSizeBuff(signatureHasher, pr.iv)
+	storeDynamicSizeBuff(signatureHasher, pr.iv.Bytes())
 	signatureHasher.Write(encryptedLinkBuff.Bytes())
 
 	pr.signature = ed25519.Sign(dl.privKey, signatureHasher.Sum(nil))
