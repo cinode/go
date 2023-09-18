@@ -243,9 +243,9 @@ func (s *BlencTestSuite) TestDynamicLinkSuccessPath() {
 
 		bn, key, ai, err := s.be.Create(context.Background(), blobtypes.DynamicLink, iotest.ErrReader(injectedErr))
 		s.Require().ErrorIs(err, injectedErr)
-		s.Require().Nil(bn)
-		s.Require().Equal(common.BlobKey{}, key)
-		s.Require().Nil(ai)
+		s.Require().Empty(bn)
+		s.Require().Empty(key)
+		s.Require().Empty(ai)
 	})
 }
 
@@ -256,9 +256,9 @@ func (s *BlencTestSuite) TestInvalidBlobTypes() {
 	s.Run("must fail to create blob of invalid type", func() {
 		bn, key, ai, err := s.be.Create(context.Background(), blobtypes.Invalid, bytes.NewReader(nil))
 		s.Require().ErrorIs(err, blobtypes.ErrUnknownBlobType)
-		s.Require().Nil(bn)
-		s.Require().Equal(common.BlobKey{}, key)
-		s.Require().Nil(ai)
+		s.Require().Empty(bn)
+		s.Require().Empty(key)
+		s.Require().Empty(ai)
 	})
 
 	s.Run("must fail to open blob of invalid type", func() {

@@ -115,7 +115,7 @@ func TestWebProxyHandlerInvalidEntrypoint(t *testing.T) {
 		datastore.InMemory(),
 		[]datastore.DS{},
 		&protobuf.Entrypoint{
-			BlobName: n,
+			BlobName: n.Bytes(),
 			MimeType: structure.CinodeDirMimeType,
 			KeyInfo: &protobuf.KeyInfo{
 				Key: cipherfactory.NewKeyGenerator(blobtypes.Static).Generate().Bytes(),

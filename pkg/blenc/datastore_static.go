@@ -74,20 +74,20 @@ func (be *beDatastore) createStatic(
 ) {
 	tempWriteBufferPlain, err := be.newSecureFifo()
 	if err != nil {
-		return nil, common.BlobKey{}, nil, err
+		return common.BlobName{}, common.BlobKey{}, nil, err
 	}
 	defer tempWriteBufferPlain.Close()
 
 	tempWriteBufferEncrypted, err := be.newSecureFifo()
 	if err != nil {
-		return nil, common.BlobKey{}, nil, err
+		return common.BlobName{}, common.BlobKey{}, nil, err
 	}
 	defer tempWriteBufferEncrypted.Close()
 
 	keyGenerator := cipherfactory.NewKeyGenerator(blobtypes.Static)
 	_, err = io.Copy(tempWriteBufferPlain, io.TeeReader(r, keyGenerator))
 	if err != nil {
-		return nil, common.BlobKey{}, nil, err
+		return common.BlobName{}, common.BlobKey{}, nil, err
 	}
 
 	key := keyGenerator.Generate()
@@ -95,7 +95,7 @@ func (be *beDatastore) createStatic(
 
 	rClone, err := tempWriteBufferPlain.Done() // rClone will allow re-reading the source data
 	if err != nil {
-		return nil, common.BlobKey{}, nil, err
+		return common.BlobName{}, common.BlobKey{}, nil, err
 	}
 	defer rClone.Close()
 
@@ -109,30 +109,30 @@ func (be *beDatastore) createStatic(
 		),
 	)
 	if err != nil {
-		return nil, common.BlobKey{}, nil, err
+		return common.BlobName{}, common.BlobKey{}, nil, err
 	}
 
 	_, err = io.Copy(encWriter, rClone)
 	if err != nil {
-		return nil, common.BlobKey{}, nil, err
+		return common.BlobName{}, common.BlobKey{}, nil, err
 	}
 
 	encReader, err := tempWriteBufferEncrypted.Done()
 	if err != nil {
-		return nil, common.BlobKey{}, nil, err
+		return common.BlobName{}, common.BlobKey{}, nil, err
 	}
 	defer encReader.Close()
 
 	// Generate blob name from the encrypted data
 	name, err := common.BlobNameFromHashAndType(blobNameHasher.Sum(nil), blobtypes.Static)
 	if err != nil {
-		return nil, common.BlobKey{}, nil, err
+		return common.BlobName{}, common.BlobKey{}, nil, err
 	}
 
 	// Send encrypted blob into the datastore
 	err = be.ds.Update(ctx, name, encReader)
 	if err != nil {
-		return nil, common.BlobKey{}, nil, err
+		return common.BlobName{}, common.BlobKey{}, nil, err
 	}
 
 	return name, key, nil, nil

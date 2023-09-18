@@ -49,12 +49,12 @@ func CreateLink(ctx context.Context, be blenc.BE, ep *protobuf.Entrypoint) (*pro
 	}
 
 	return &protobuf.Entrypoint{
-			BlobName: name,
+			BlobName: name.Bytes(),
 			KeyInfo: &protobuf.KeyInfo{
 				Key: key.Bytes(),
 			},
 		}, &protobuf.WriterInfo{
-			BlobName: name,
+			BlobName: name.Bytes(),
 			Key:      key.Bytes(),
 			AuthInfo: authInfo,
 		}, nil
@@ -66,9 +66,14 @@ func UpdateLink(ctx context.Context, be blenc.BE, wi *protobuf.WriterInfo, ep *p
 		return nil, err
 	}
 
+	bn, err := common.BlobNameFromBytes(wi.BlobName)
+	if err != nil {
+		return nil, err
+	}
+
 	err = be.Update(
 		ctx,
-		wi.BlobName,
+		bn,
 		wi.AuthInfo,
 		common.BlobKeyFromBytes(wi.Key),
 		bytes.NewReader(epBytes),
@@ -95,22 +100,18 @@ func DereferenceLink(
 	*protobuf.Entrypoint,
 	error,
 ) {
-	err := link.Validate(currentTime)
+	bn, key, err := link.ValidateAndParse(currentTime)
 	if err != nil {
 		return nil, err
 	}
 
-	for common.BlobName(link.BlobName).Type() == blobtypes.DynamicLink {
+	for bn.Type() == blobtypes.DynamicLink {
 		if maxRedirects == 0 {
 			return nil, ErrMaxRedirectsReached
 		}
 		maxRedirects--
 
-		rc, err := be.Open(
-			ctx,
-			common.BlobName(link.BlobName),
-			common.BlobKeyFromBytes(link.GetKeyInfo().GetKey()),
-		)
+		rc, err := be.Open(ctx, bn, key)
 		if err != nil {
 			return nil, err
 		}
@@ -127,7 +128,7 @@ func DereferenceLink(
 			return nil, err
 		}
 
-		err = link.Validate(time.Now())
+		bn, key, err = link.ValidateAndParse(time.Now())
 		if err != nil {
 			return nil, err
 		}

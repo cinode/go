@@ -136,7 +136,7 @@ func UploadStaticBlob(ctx context.Context, be blenc.BE, r io.Reader, mimeType st
 	}
 
 	return &protobuf.Entrypoint{
-		BlobName: bn,
+		BlobName: bn.Bytes(),
 		KeyInfo:  &protobuf.KeyInfo{Key: key.Bytes()},
 		MimeType: mimeType,
 	}, nil
@@ -190,9 +190,10 @@ func (d *dirCompiler) compileDir(ctx context.Context, p string) (*protobuf.Entry
 		return nil, fmt.Errorf("can not serialize directory %v: %w", p, err)
 	}
 
+	bn, _ := common.BlobNameFromBytes(ep.BlobName)
 	d.log.DebugContext(ctx,
 		"directory uploaded successfully", "path", p,
-		"blobName", common.BlobName(ep.BlobName).String(),
+		"blobName", bn.String(),
 	)
 	return ep, nil
 }
@@ -272,7 +273,7 @@ func (s *StaticDir) GenerateEntrypoint(ctx context.Context, be blenc.BE) (*proto
 	}
 
 	return &protobuf.Entrypoint{
-		BlobName: bn,
+		BlobName: bn.Bytes(),
 		KeyInfo:  &protobuf.KeyInfo{Key: key.Bytes()},
 		MimeType: CinodeDirMimeType,
 	}, nil

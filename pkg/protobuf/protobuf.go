@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/cinode/go/pkg/common"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -70,4 +71,24 @@ func (ep *Entrypoint) Validate(currentTime time.Time) error {
 	}
 
 	return nil
+}
+
+func (ep *Entrypoint) ValidateAndParse(currentTime time.Time) (
+	common.BlobName,
+	common.BlobKey,
+	error,
+) {
+	err := ep.Validate(currentTime)
+	if err != nil {
+		return common.BlobName{}, common.BlobKey{}, err
+	}
+
+	bn, err := common.BlobNameFromBytes(ep.BlobName)
+	if err != nil {
+		return common.BlobName{}, common.BlobKey{}, err
+	}
+
+	key := common.BlobKeyFromBytes(ep.GetKeyInfo().GetKey())
+
+	return bn, key, nil
 }

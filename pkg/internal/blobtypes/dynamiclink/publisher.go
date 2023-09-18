@@ -110,7 +110,7 @@ func (dl *Publisher) AuthInfo() []byte {
 func (dl *Publisher) calculateEncryptionKey() (common.BlobKey, []byte) {
 	dataSeed := append(
 		[]byte{signatureForEncryptionKeyGeneration},
-		dl.BlobName()...,
+		dl.BlobName().Bytes()...,
 	)
 
 	signature := ed25519.Sign(dl.privKey, dataSeed)

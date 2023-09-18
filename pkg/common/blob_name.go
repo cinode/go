@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"crypto/subtle"
 	"errors"
 
 	base58 "github.com/jbenet/go-base58"
@@ -38,7 +39,7 @@ type BlobName []byte
 // and given blob type
 func BlobNameFromHashAndType(hash []byte, t BlobType) (BlobName, error) {
 	if len(hash) == 0 || len(hash) > 0x7E {
-		return nil, ErrInvalidBlobName
+		return BlobName{}, ErrInvalidBlobName
 	}
 
 	ret := make([]byte, len(hash)+1)
@@ -56,11 +57,14 @@ func BlobNameFromHashAndType(hash []byte, t BlobType) (BlobName, error) {
 
 // BlobNameFromString decodes base58-encoded string into blob name
 func BlobNameFromString(s string) (BlobName, error) {
-	decoded := base58.Decode(s)
-	if len(decoded) == 0 || len(decoded) > 0x7F {
-		return nil, ErrInvalidBlobName
+	return BlobNameFromBytes(base58.Decode(s))
+}
+
+func BlobNameFromBytes(n []byte) (BlobName, error) {
+	if len(n) == 0 || len(n) > 0x7F {
+		return BlobName{}, ErrInvalidBlobName
 	}
-	return BlobName(decoded), nil
+	return BlobName(copyBytes(n)), nil
 }
 
 // Returns base58-encoded blob name
@@ -80,4 +84,12 @@ func (b BlobName) Type() BlobType {
 		ret ^= by
 	}
 	return BlobType{t: ret}
+}
+
+func (b BlobName) Bytes() []byte {
+	return copyBytes(b)
+}
+
+func (b BlobName) Equal(b2 BlobName) bool {
+	return subtle.ConstantTimeCompare(b, b2) == 1
 }

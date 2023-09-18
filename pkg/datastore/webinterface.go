@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -79,12 +79,12 @@ func (i *webInterface) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (i *webInterface) getName(w http.ResponseWriter, r *http.Request) (common.BlobName, error) {
 	// Don't allow url queries and require path to start with '/'
 	if r.URL.Path[0] != '/' || r.URL.RawQuery != "" {
-		return nil, common.ErrInvalidBlobName
+		return common.BlobName{}, common.ErrInvalidBlobName
 	}
 
 	bn, err := common.BlobNameFromString(r.URL.Path[1:])
 	if err != nil {
-		return nil, err
+		return common.BlobName{}, err
 	}
 
 	return bn, nil

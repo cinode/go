@@ -67,8 +67,12 @@ func TestVectors(t *testing.T) {
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Run("validate public scope", func(t *testing.T) {
 				err := func() error {
+					bn, err := common.BlobNameFromBytes(testCase.BlobName)
+					if err != nil {
+						return err
+					}
 					pr, err := FromPublicData(
-						common.BlobName(testCase.BlobName),
+						bn,
 						bytes.NewReader(testCase.UpdateDataset),
 					)
 					if err != nil {
@@ -94,9 +98,13 @@ func TestVectors(t *testing.T) {
 
 			t.Run("validate private scope", func(t *testing.T) {
 				err := func() error {
+					bn, err := common.BlobNameFromBytes(testCase.BlobName)
+					if err != nil {
+						return err
+					}
 
 					pr, err := FromPublicData(
-						common.BlobName(testCase.BlobName),
+						bn,
 						bytes.NewReader(testCase.UpdateDataset),
 					)
 					if err != nil {

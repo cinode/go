@@ -124,9 +124,9 @@ func TestDynamicLinkErrors(t *testing.T) {
 
 		bn, key, ai, err := be.Create(context.Background(), blobtypes.DynamicLink, bytes.NewReader(nil))
 		require.ErrorIs(t, err, injectedErr)
-		require.Nil(t, bn)
-		require.Equal(t, common.BlobKey{}, key)
-		require.Nil(t, ai)
+		require.Empty(t, bn)
+		require.Empty(t, key)
+		require.Empty(t, ai)
 
 		be.(*beDatastore).rand = rand.Reader
 
@@ -139,9 +139,9 @@ func TestDynamicLinkErrors(t *testing.T) {
 
 		bn, key, ai, err := be.Create(context.Background(), blobtypes.DynamicLink, bytes.NewReader(nil))
 		require.ErrorIs(t, err, injectedErr)
-		require.Nil(t, bn)
-		require.Equal(t, common.BlobKey{}, key)
-		require.Nil(t, ai)
+		require.Empty(t, bn)
+		require.Empty(t, key)
+		require.Empty(t, ai)
 
 		dsw.updateFn = nil
 	})

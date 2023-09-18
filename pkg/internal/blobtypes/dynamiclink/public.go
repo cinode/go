@@ -119,7 +119,7 @@ func FromPublicData(name common.BlobName, r io.Reader) (*PublicReader, error) {
 		return nil, err
 	}
 
-	if !bytes.Equal(dl.BlobName(), name) {
+	if !dl.BlobName().Equal(name) {
 		return nil, ErrInvalidDynamicLinkDataBlobName
 	}
 
@@ -214,7 +214,7 @@ func (d *PublicReader) toSignDataHasherPrefilled() hash.Hash {
 	h := sha256.New()
 
 	storeByte(h, signatureForLinkData)
-	storeDynamicSizeBuff(h, d.BlobName())
+	storeDynamicSizeBuff(h, d.BlobName().Bytes())
 
 	return h
 }
@@ -239,7 +239,7 @@ func (d *PublicReader) GreaterThan(d2 *PublicReader) bool {
 func (d *PublicReader) ivGeneratorPrefilled() cipherfactory.IVGenerator {
 	ivGenerator := cipherfactory.NewIVGenerator(blobtypes.DynamicLink)
 
-	storeDynamicSizeBuff(ivGenerator, d.BlobName())
+	storeDynamicSizeBuff(ivGenerator, d.BlobName().Bytes())
 	storeUint64(ivGenerator, d.contentVersion)
 
 	return ivGenerator
@@ -257,7 +257,7 @@ func (d *PublicReader) validateKeyInLinkData(key common.BlobKey, r io.Reader) er
 
 	dataSeed := append(
 		[]byte{signatureForEncryptionKeyGeneration},
-		d.BlobName()...,
+		d.BlobName().Bytes()...,
 	)
 
 	// Key validation block contains the signature of data seed

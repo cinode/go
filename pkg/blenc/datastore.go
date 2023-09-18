@@ -76,7 +76,7 @@ func (be *beDatastore) Create(
 	case blobtypes.DynamicLink:
 		return be.createDynamicLink(ctx, r)
 	}
-	return nil, common.BlobKey{}, nil, blobtypes.ErrUnknownBlobType
+	return common.BlobName{}, common.BlobKey{}, nil, blobtypes.ErrUnknownBlobType
 }
 
 func (be *beDatastore) Update(ctx context.Context, name common.BlobName, authInfo AuthInfo, key common.BlobKey, r io.Reader) error {

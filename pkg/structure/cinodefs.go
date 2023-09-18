@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/cinode/go/pkg/blenc"
-	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/protobuf"
 	"google.golang.org/protobuf/proto"
 )
@@ -36,11 +35,12 @@ type CinodeFS struct {
 }
 
 func (d *CinodeFS) OpenContent(ctx context.Context, ep *protobuf.Entrypoint) (io.ReadCloser, error) {
-	return d.BE.Open(
-		ctx,
-		common.BlobName(ep.BlobName),
-		common.BlobKeyFromBytes(ep.GetKeyInfo().GetKey()),
-	)
+	bn, key, err := ep.ValidateAndParse(time.Now())
+	if err != nil {
+		return nil, err
+	}
+
+	return d.BE.Open(ctx, bn, key)
 }
 
 func (d *CinodeFS) FindEntrypoint(ctx context.Context, path string) (*protobuf.Entrypoint, error) {
