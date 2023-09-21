@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/cinode/go/pkg/protobuf"
+	"github.com/cinode/go/pkg/structure/internal/protobuf"
 	"github.com/jbenet/go-base58"
 )
 

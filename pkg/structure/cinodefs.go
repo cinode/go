@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/cinode/go/pkg/blenc"
-	"github.com/cinode/go/pkg/protobuf"
+	"github.com/cinode/go/pkg/structure/internal/protobuf"
 	"google.golang.org/protobuf/proto"
 )
 
