@@ -123,6 +123,11 @@ func (dl *Publisher) calculateEncryptionKey() (common.BlobKey, []byte) {
 	return key, signature
 }
 
+func (dl *Publisher) EncryptionKey() common.BlobKey {
+	key, _ := dl.calculateEncryptionKey()
+	return key
+}
+
 func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader, common.BlobKey, error) {
 	encryptionKey, kvb := dl.calculateEncryptionKey()
 
