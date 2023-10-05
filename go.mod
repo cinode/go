@@ -1,6 +1,6 @@
 module github.com/cinode/go
 
-go 1.18
+go 1.21
 
 require (
 	github.com/jbenet/go-base58 v0.0.0-20150317085156-6237cf65f3a6
