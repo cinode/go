@@ -1,3 +1,19 @@
+/*
+Copyright © 2023 Bartłomiej Święcki (byo)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package graph
 
 import (
@@ -8,7 +24,6 @@ import (
 	"mime"
 	"net/http"
 	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/cinode/go/pkg/blenc"
@@ -18,35 +33,26 @@ import (
 )
 
 var (
-	ErrInvalidBE          = errors.New("invalid BE argument")
-	ErrCantOpenDir        = errors.New("can not open directory")
-	ErrTooManyRedirects   = errors.New("too many link redirects")
-	ErrCantComputeBlobKey = errors.New("can not compute blob keys")
-	ErrModifiedDirectory  = errors.New("can not get entrypoint for a directory, unsaved content")
-	ErrCantDeleteRoot     = errors.New("can not delete root object")
-	ErrNotADirectory      = errors.New("entry is not a directory")
-	ErrNilEntrypoint      = errors.New("nil entrypoint")
+	ErrInvalidBE            = errors.New("invalid BE argument")
+	ErrCantOpenDir          = errors.New("can not open directory")
+	ErrTooManyRedirects     = errors.New("too many link redirects")
+	ErrCantComputeBlobKey   = errors.New("can not compute blob keys")
+	ErrModifiedDirectory    = errors.New("can not get entrypoint for a directory, unsaved content")
+	ErrCantDeleteRoot       = errors.New("can not delete root object")
+	ErrNotADirectory        = errors.New("entry is not a directory")
+	ErrNotALink             = errors.New("entry is not a link")
+	ErrNilEntrypoint        = errors.New("nil entrypoint")
+	ErrEmptyName            = errors.New("entry name can not be empty")
+	ErrDuplicateEntry       = errors.New("duplicate entry")
+	ErrEntryNotFound        = errors.New("entry not found")
+	ErrCantReadDirectory    = errors.New("can not read directory")
+	ErrInvalidDirectoryData = errors.New("invalid directory data")
+	ErrCantWriteDirectory   = errors.New("can not write directory")
 )
 
-// Directory structure
-type dirCache = map[string]*cachedEntrypoint
-
-type linkCache struct {
-	ep     *Entrypoint       // entrypoint of the link itself
-	target *cachedEntrypoint // target for the link
-}
-
-// A single entry in directory cache, only one of entries below must be non-nil
-type cachedEntrypoint struct {
-	// target data is stored and we've got valid entrypoint to it
-	stored *Entrypoint
-
-	// Target is a link and contains modified data
-	link *linkCache
-
-	// Target is a directory containing partially modified content
-	dir dirCache
-}
+const (
+	CinodeDirMimeType = "application/cinode-dir"
+)
 
 type cinodeFS struct {
 	c                graphContext
@@ -54,7 +60,7 @@ type cinodeFS struct {
 	timeFunc         func() time.Time
 	randSource       io.Reader
 
-	rootEP *cachedEntrypoint
+	rootEP node
 }
 
 type CinodeFS = *cinodeFS
@@ -92,14 +98,18 @@ func (fs *cinodeFS) SetEntryFile(
 	ctx context.Context,
 	path []string,
 	data io.Reader,
-	mimeType string,
+	opts ...EntrypointOption,
 ) (*Entrypoint, error) {
-	if mimeType == "" && len(path) > 0 {
-		// Detect mime type by file extension
-		mimeType = mime.TypeByExtension(filepath.Ext(path[len(path)-1]))
+	protoEntrypoint, err := protoEntrypointFromOptions(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+	if protoEntrypoint.MimeType == "" && len(path) > 0 {
+		// Try detecting mime type from filename extension
+		protoEntrypoint.MimeType = mime.TypeByExtension(filepath.Ext(path[len(path)-1]))
 	}
 
-	ep, err := fs.CreateFileEntrypoint(ctx, data, mimeType)
+	ep, err := fs.createFileEntrypoint(ctx, data, protoEntrypoint)
 	if err != nil {
 		return nil, err
 	}
@@ -115,11 +125,25 @@ func (fs *cinodeFS) SetEntryFile(
 func (fs *cinodeFS) CreateFileEntrypoint(
 	ctx context.Context,
 	data io.Reader,
-	mimeType string,
+	opts ...EntrypointOption,
+) (*Entrypoint, error) {
+	ep, err := protoEntrypointFromOptions(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return fs.createFileEntrypoint(ctx, data, ep)
+}
+
+func (fs *cinodeFS) createFileEntrypoint(
+	ctx context.Context,
+	data io.Reader,
+	protoEntrypoint *protobuf.Entrypoint,
 ) (*Entrypoint, error) {
 	var hw headWriter
 
-	if mimeType == "" {
+	if protoEntrypoint.MimeType == "" {
+		// detect mimetype from the content
 		hw = newHeadWriter(512)
 		data = io.TeeReader(data, &hw)
 	}
@@ -129,12 +153,11 @@ func (fs *cinodeFS) CreateFileEntrypoint(
 		return nil, err
 	}
 
-	if mimeType == "" {
-		mimeType = http.DetectContentType(hw.data)
+	if protoEntrypoint.MimeType == "" {
+		protoEntrypoint.MimeType = http.DetectContentType(hw.data)
 	}
 
-	ep := entrypointFromBlobNameAndKey(bn, key)
-	ep.ep.MimeType = mimeType
+	ep := entrypointFromBlobNameKeyAndProtoEntrypoint(bn, key, protoEntrypoint)
 	return ep, nil
 }
 
@@ -143,371 +166,87 @@ func (fs *cinodeFS) SetEntry(
 	path []string,
 	ep *Entrypoint,
 ) error {
-	rootEP, err := fs.setEntry(ctx, fs.rootEP, path, ep, 0)
-	if err != nil {
-		return err
-	}
-	fs.rootEP = rootEP
-	return nil
-}
-
-func (fs *cinodeFS) setEntry(
-	ctx context.Context,
-	current *cachedEntrypoint,
-	path []string,
-	ep *Entrypoint,
-	linkDepth int,
-) (*cachedEntrypoint, error) {
-	if current == nil {
-		// creating brand new path that does not exist yet
-		if len(path) == 0 {
-			return &cachedEntrypoint{stored: ep}, nil
+	whenReached := func(
+		ctx context.Context,
+		current node,
+		isWriteable bool,
+	) (node, dirtyState, error) {
+		if !isWriteable {
+			return nil, 0, ErrMissingWriterInfo
 		}
-		// New empty directory
-		current = &cachedEntrypoint{dir: map[string]*cachedEntrypoint{}}
+		return &nodeUnloaded{ep: *ep}, dsDirty, nil
 	}
 
-	// entry not yet loaded, we only know the entrypoint, load it then
-	loaded, err := fs.loadEntrypoint(ctx, current)
-	if err != nil {
-		return nil, err
-	}
-	current = loaded
-
-	if current.link != nil {
-		if linkDepth >= fs.maxLinkRedirects {
-			return nil, ErrTooManyRedirects
-		}
-
-		if _, hasWriterInfo := fs.c.writerInfos[current.link.ep.BlobName().String()]; !hasWriterInfo {
-			// We won't be able to update data behind given link
-			// TODO: This is false for recursive links, we only have to check this at the last level
-			return nil, ErrMissingWriterInfo
-		}
-
-		// Update the target of the link
-		target, err := fs.setEntry(ctx, current.link.target, path, ep, linkDepth+1)
-		if err != nil {
-			return nil, err
-		}
-		current.link.target = target
-		return current, nil
-	}
-
-	if len(path) == 0 {
-		// reached the final spot for the entrypoint, replace the current content
-		// TODO: This could be a very destructive change, should we do additional checks here?
-		//       e.g. if there's a directory here, prevent replacing with a file
-		return &cachedEntrypoint{stored: ep}, nil
-	}
-
-	if current.dir == nil {
-		// we need to have directory at this level
-		current = &cachedEntrypoint{dir: map[string]*cachedEntrypoint{}}
-	}
-
-	if currentDirEntry, found := current.dir[path[0]]; found {
-		// Overwrite existing entry including descending into sub-dirs
-		updatedEntry, err := fs.setEntry(ctx, currentDirEntry, path[1:], ep, 0)
-		if err != nil {
-			return nil, err
-		}
-		current.dir[path[0]] = updatedEntry
-		return current, nil
-	}
-
-	// No entry, create completely new path
-	newEntry, err := fs.setEntry(ctx, nil, path[1:], ep, 0)
-	if err != nil {
-		return nil, err
-	}
-	current.dir[path[0]] = newEntry
-	return current, nil
-}
-
-func (fs *cinodeFS) loadEntrypoint(
-	ctx context.Context,
-	ep *cachedEntrypoint,
-) (
-	*cachedEntrypoint,
-	error,
-) {
-	if ep.stored != nil {
-		// Data is behind some entrypoint, try to load it
-		if ep.stored.IsLink() {
-			return fs.loadEntrypointLink(ctx, ep.stored)
-		}
-		if ep.stored.IsDir() {
-			return fs.loadEntrypointDir(ctx, ep.stored)
-		}
-	}
-
-	return ep, nil
-}
-
-func (fs *cinodeFS) loadEntrypointLink(
-	ctx context.Context,
-	ep *Entrypoint,
-) (
-	*cachedEntrypoint,
-	error,
-) {
-	msg := &protobuf.Entrypoint{}
-	err := fs.c.readProtobufMessage(ctx, ep, msg)
-	if err != nil {
-		return nil, err
-	}
-
-	targetEP, err := entrypointFromProtobuf(msg)
-	if err != nil {
-		return nil, err
-	}
-
-	return &cachedEntrypoint{
-		link: &linkCache{
-			ep: ep,
-			target: &cachedEntrypoint{
-				stored: targetEP,
-			},
+	return fs.traverseGraph(
+		ctx,
+		path,
+		traverseOptions{
+			createNodes:  true,
+			maxLinkDepth: fs.maxLinkRedirects,
 		},
-	}, nil
-}
-
-func (fs *cinodeFS) loadEntrypointDir(
-	ctx context.Context,
-	ep *Entrypoint,
-) (
-	*cachedEntrypoint,
-	error,
-) {
-	msg := &protobuf.Directory{}
-	err := fs.c.readProtobufMessage(ctx, ep, msg)
-	if err != nil {
-		return nil, err
-	}
-
-	dir := make(map[string]*cachedEntrypoint, len(msg.Entries))
-
-	for _, entry := range msg.Entries {
-		if entry.Name == "" {
-			return nil, errors.New("empty name")
-		}
-		if _, exists := dir[entry.Name]; exists {
-			return nil, errors.New("entry doubled")
-		}
-
-		ep, err := entrypointFromProtobuf(entry.Ep)
-		if err != nil {
-			return nil, err
-		}
-
-		dir[entry.Name] = &cachedEntrypoint{stored: ep}
-	}
-
-	return &cachedEntrypoint{dir: dir}, nil
+		whenReached,
+	)
 }
 
 func (fs *cinodeFS) Flush(ctx context.Context) error {
-	newRoot, err := fs.flush(ctx, fs.rootEP)
+	newRoot, err := fs.rootEP.flush(ctx, &fs.c)
 	if err != nil {
 		return err
 	}
-	fs.rootEP = &cachedEntrypoint{stored: newRoot}
+
+	fs.rootEP = &nodeUnloaded{ep: *newRoot}
 	return nil
 }
 
-func (fs *cinodeFS) flush(ctx context.Context, current *cachedEntrypoint) (*Entrypoint, error) {
-	if current.link != nil {
-		return fs.flushLink(ctx, current)
-	}
-	if current.dir != nil {
-		return fs.flushDir(ctx, current)
-	}
-	// already stored, no need to flush
-	return current.stored, nil
-}
-
-func (fs *cinodeFS) flushLink(ctx context.Context, current *cachedEntrypoint) (*Entrypoint, error) {
-	target, err := fs.flush(ctx, current.link.target)
-	if err != nil {
-		return nil, err
-	}
-
-	err = fs.c.updateProtobufMessage(ctx, current.link.ep, target.ep)
-	if err != nil {
-		return nil, err
-	}
-
-	return current.link.ep, nil
-}
-
-func (fs *cinodeFS) flushDir(ctx context.Context, current *cachedEntrypoint) (*Entrypoint, error) {
-	dir := protobuf.Directory{
-		Entries: make([]*protobuf.Directory_Entry, 0, len(current.dir)),
-	}
-
-	for name, entry := range current.dir {
-		flushed, err := fs.flush(ctx, entry)
-		if err != nil {
-			return nil, err
-		}
-
-		dir.Entries = append(dir.Entries, &protobuf.Directory_Entry{
-			Name: name,
-			Ep:   flushed.ep,
-		})
-	}
-
-	sort.Slice(dir.Entries, func(i, j int) bool {
-		return dir.Entries[i].Name < dir.Entries[j].Name
-	})
-
-	ep, err := fs.c.createProtobufMessage(ctx, blobtypes.Static, &dir)
-	if err != nil {
-		return nil, err
-	}
-	ep.ep.MimeType = CinodeDirMimeType
-
-	return ep, nil
-}
-
 func (fs *cinodeFS) FindEntry(ctx context.Context, path []string) (*Entrypoint, error) {
-	return fs.findEntry(ctx, fs.rootEP, path, 0)
-}
-
-func (fs *cinodeFS) findEntry(
-	ctx context.Context,
-	current *cachedEntrypoint,
-	path []string,
-	linkDepth int,
-) (*Entrypoint, error) {
-	current, err := fs.loadEntrypoint(ctx, current)
+	var ret *Entrypoint
+	err := fs.traverseGraph(
+		ctx,
+		path,
+		traverseOptions{doNotCache: true},
+		func(_ context.Context, ep node, _ bool) (node, dirtyState, error) {
+			var subErr error
+			ret, subErr = ep.entrypoint()
+			return nil, dsClean, subErr
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
-
-	if current.link != nil {
-		if linkDepth >= fs.maxLinkRedirects {
-			return nil, ErrTooManyRedirects
-		}
-		return fs.findEntry(ctx, current.link.target, path, linkDepth+1)
-	}
-
-	if current.dir != nil {
-		return fs.findEntryInDir(ctx, current.dir, path)
-	}
-
-	if len(path) > 0 {
-		return nil, ErrNotADirectory
-	}
-
-	return current.stored, nil
-}
-
-func (fs *cinodeFS) findEntryInDir(ctx context.Context, dir dirCache, path []string) (*Entrypoint, error) {
-	if len(path) == 0 {
-		return nil, ErrModifiedDirectory
-	}
-
-	entry, found := dir[path[0]]
-	if !found {
-		return nil, ErrEntryNotFound
-	}
-
-	return fs.findEntry(ctx, entry, path[1:], 0)
+	return ret, nil
 }
 
 func (fs *cinodeFS) DeleteEntry(ctx context.Context, path []string) error {
 	// Entry removal is done on the parent level, we find the parent directory
 	// and remove the entry from its list
-
 	if len(path) == 0 {
 		return ErrCantDeleteRoot
 	}
 
-	newRoot, err := fs.deleteEntry(
+	return fs.traverseGraph(
 		ctx,
-		fs.rootEP,
 		path[:len(path)-1],
-		path[len(path)-1],
-		0,
+		traverseOptions{createNodes: true},
+		func(_ context.Context, reachedEntrypoint node, isWriteable bool) (node, dirtyState, error) {
+			if !isWriteable {
+				return nil, 0, ErrMissingWriterInfo
+			}
+
+			dir, isDir := reachedEntrypoint.(*directoryNode)
+			if !isDir {
+				return nil, 0, ErrNotADirectory
+			}
+
+			if !dir.deleteEntry(path[len(path)-1]) {
+				return nil, 0, ErrEntryNotFound
+			}
+
+			return dir, dsDirty, nil
+		},
 	)
-	if err != nil {
-		return err
-	}
-	fs.rootEP = newRoot
-	return nil
 }
 
-func (fs *cinodeFS) deleteEntry(
-	ctx context.Context,
-	current *cachedEntrypoint,
-	path []string,
-	entryName string,
-	linkDepth int,
-) (
-	*cachedEntrypoint,
-	error,
-) {
-	current, err := fs.loadEntrypoint(ctx, current)
-	if err != nil {
-		return nil, err
-	}
-
-	if current.link != nil {
-		if linkDepth >= fs.maxLinkRedirects {
-			return nil, ErrTooManyRedirects
-		}
-
-		if _, hasWriterInfo := fs.c.writerInfos[current.link.ep.BlobName().String()]; !hasWriterInfo {
-			// We won't be able to update data behind given link
-			// TODO: This is false for recursive links, we only have to check this at the last level
-			return nil, ErrMissingWriterInfo
-		}
-
-		newTarget, err := fs.deleteEntry(
-			ctx,
-			current.link.target,
-			path,
-			entryName,
-			linkDepth+1,
-		)
-		if err != nil {
-			return nil, err
-		}
-		current.link.target = newTarget
-		return current, nil
-	}
-
-	if current.dir == nil {
-		return nil, ErrNotADirectory
-	}
-
-	if len(path) == 0 {
-		// Got to the target directory, try to remove the entry
-		if _, found := current.dir[entryName]; !found {
-			return nil, ErrEntryNotFound
-		}
-		delete(current.dir, entryName)
-		return current, nil
-	}
-
-	// Not yet at the target, descend to sub-directory
-	subDir, found := current.dir[path[0]]
-	if !found {
-		return nil, ErrEntryNotFound
-	}
-
-	subDir, err = fs.deleteEntry(ctx, subDir, path[1:], entryName, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	current.dir[path[0]] = subDir
-	return current, nil
-}
-
-func (fs *cinodeFS) generateNewDynamicLinkEntrypoint() (*Entrypoint, error) {
+func (fs *cinodeFS) GenerateNewDynamicLinkEntrypoint() (*Entrypoint, error) {
 	// Generate new entrypoint link data but do not yet store it in datastore
 	link, err := dynamiclink.Create(fs.randSource)
 	if err != nil {
@@ -522,10 +261,47 @@ func (fs *cinodeFS) generateNewDynamicLinkEntrypoint() (*Entrypoint, error) {
 	return entrypointFromBlobNameAndKey(bn, key), nil
 }
 
+// func (fs *cinodeFS) ReplacePathWithLink(ctx context.Context, path []string) (WriterInfo, error) {
+
+// }
+
 func (fs *cinodeFS) OpenEntrypointData(ctx context.Context, ep *Entrypoint) (io.ReadCloser, error) {
 	if ep == nil {
 		return nil, ErrNilEntrypoint
 	}
 
 	return fs.c.getDataReader(ctx, ep)
+}
+
+func (fs *cinodeFS) RootEntrypoint() (*Entrypoint, error) {
+	return fs.rootEP.entrypoint()
+}
+
+func (fs *cinodeFS) EntrypointWriterInfo(ctx context.Context, ep *Entrypoint) (WriterInfo, error) {
+	if !ep.IsLink() {
+		return WriterInfo{}, ErrNotALink
+	}
+
+	bn := ep.BlobName()
+
+	key, err := fs.c.keyFromEntrypoint(ctx, ep)
+	if err != nil {
+		return WriterInfo{}, err
+	}
+
+	authInfo, found := fs.c.writerInfos[bn.String()]
+	if !found {
+		return WriterInfo{}, ErrMissingWriterInfo
+	}
+
+	return writerInfoFromBlobNameKeyAndAuthInfo(bn, key, authInfo), nil
+}
+
+func (fs *cinodeFS) RootWriterInfo(ctx context.Context) (WriterInfo, error) {
+	rootEP, err := fs.RootEntrypoint()
+	if err != nil {
+		return WriterInfo{}, err
+	}
+
+	return fs.EntrypointWriterInfo(ctx, rootEP)
 }

@@ -1,9 +1,27 @@
+/*
+Copyright © 2023 Bartłomiej Święcki (byo)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package graph
 
 import (
 	"context"
 	"io"
 	"time"
+
+	"github.com/cinode/go/pkg/common"
 )
 
 const (
@@ -29,19 +47,46 @@ func MaxLinkRedirects(maxLinkRedirects int) CinodeFSOption {
 
 func RootEntrypoint(ep *Entrypoint) CinodeFSOption {
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
-		fs.rootEP = &cachedEntrypoint{stored: ep}
+		fs.rootEP = &nodeUnloaded{ep: *ep}
 		return nil
 	})
+}
+
+func errOption(err error) CinodeFSOption {
+	return optionFunc(func(ctx context.Context, fs *cinodeFS) error { return err })
 }
 
 func RootEntrypointString(eps string) CinodeFSOption {
 	ep, err := EntrypointFromString(eps)
 	if err != nil {
-		return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
-			return err
-		})
+		return errOption(err)
 	}
 	return RootEntrypoint(ep)
+}
+
+func RootWriterInfo(wi WriterInfo) CinodeFSOption {
+	bn, err := common.BlobNameFromBytes(wi.wi.BlobName)
+	if err != nil {
+		return errOption(err)
+	}
+
+	key := common.BlobKeyFromBytes(wi.wi.Key)
+	ep := entrypointFromBlobNameAndKey(bn, key)
+
+	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
+		fs.rootEP = &nodeUnloaded{ep: *ep}
+		fs.c.writerInfos[bn.String()] = wi.wi.AuthInfo
+		return nil
+	})
+}
+
+func RootWriterInfoString(wis string) CinodeFSOption {
+	wi, err := WriterInfoFromString(wis)
+	if err != nil {
+		return errOption(err)
+	}
+
+	return RootWriterInfo(wi)
 }
 
 func TimeFunc(f func() time.Time) CinodeFSOption {
@@ -62,7 +107,7 @@ func RandSource(r io.Reader) CinodeFSOption {
 // dynamic link as the root
 func NewRootDynamicLink() CinodeFSOption {
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
-		newLinkEntrypoint, err := fs.generateNewDynamicLinkEntrypoint()
+		newLinkEntrypoint, err := fs.GenerateNewDynamicLinkEntrypoint()
 		if err != nil {
 			return err
 		}
@@ -71,12 +116,11 @@ func NewRootDynamicLink() CinodeFSOption {
 		// and an empty directory, all the entries are in-memory upon
 		// creation and have to be flushed first to generate any
 		// blobs
-		fs.rootEP = &cachedEntrypoint{
-			link: &linkCache{
-				ep: newLinkEntrypoint,
-				target: &cachedEntrypoint{
-					dir: map[string]*cachedEntrypoint{},
-				},
+		fs.rootEP = &nodeLink{
+			ep:     *newLinkEntrypoint,
+			dState: dsSubDirty,
+			target: &directoryNode{
+				entries: map[string]node{},
 			},
 		}
 		return nil
