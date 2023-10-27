@@ -57,7 +57,7 @@ type node interface {
 	dirty() dirtyState
 
 	// flush this entrypoint
-	flush(ctx context.Context, gc *graphContext) (*Entrypoint, error)
+	flush(ctx context.Context, gc *graphContext) (node, *Entrypoint, error)
 
 	// traverse node
 	traverse(

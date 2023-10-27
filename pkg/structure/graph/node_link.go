@@ -33,24 +33,30 @@ func (c *nodeLink) dirty() dirtyState {
 	return c.dState
 }
 
-func (c *nodeLink) flush(ctx context.Context, gc *graphContext) (*Entrypoint, error) {
+func (c *nodeLink) flush(ctx context.Context, gc *graphContext) (node, *Entrypoint, error) {
 	if c.dState == dsClean {
 		// all clear
-		return &c.ep, nil
+		return c, &c.ep, nil
 	}
 
 	golang.Assert(c.dState == dsSubDirty, "link can be clean or sub-dirty")
-	target, err := c.target.flush(ctx, gc)
+	target, targetEP, err := c.target.flush(ctx, gc)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	err = gc.updateProtobufMessage(ctx, &c.ep, target.ep)
+	err = gc.updateProtobufMessage(ctx, &c.ep, targetEP.ep)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return &c.ep, nil
+	ret := &nodeLink{
+		ep:     c.ep,
+		target: target,
+		dState: dsClean,
+	}
+
+	return ret, &ret.ep, nil
 }
 
 func (c *nodeLink) traverse(

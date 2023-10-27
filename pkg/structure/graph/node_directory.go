@@ -36,23 +36,31 @@ func (d *directoryNode) dirty() dirtyState {
 	return d.dState
 }
 
-func (d *directoryNode) flush(ctx context.Context, gc *graphContext) (*Entrypoint, error) {
+func (d *directoryNode) flush(ctx context.Context, gc *graphContext) (node, *Entrypoint, error) {
 	if d.dState == dsClean {
 		// all clear, nothing to flush here or in sub-trees
-		return d.stored, nil
+		return d, d.stored, nil
 	}
 
 	if d.dState == dsSubDirty {
-		// Some sub-nodes are dirty, need to propagate flush to children
-		for _, entry := range d.entries {
-			if _, err := entry.flush(ctx, gc); err != nil {
-				return nil, err
+		// Some sub-nodes are dirty, need to propagate flush to
+		flushedEntries := make(map[string]node, len(d.entries))
+		for name, entry := range d.entries {
+			target, _, err := entry.flush(ctx, gc)
+			if err != nil {
+				return nil, nil, err
 			}
+
+			flushedEntries[name] = target
 		}
 
 		// directory itself was not modified and does not need flush, don't bother
 		// saving it to datastore
-		return d.stored, nil
+		return &directoryNode{
+			entries: flushedEntries,
+			stored:  d.stored,
+			dState:  dsClean,
+		}, d.stored, nil
 	}
 
 	golang.Assert(d.dState == dsDirty, "ensure correct dirtiness state")
@@ -61,16 +69,17 @@ func (d *directoryNode) flush(ctx context.Context, gc *graphContext) (*Entrypoin
 	dir := protobuf.Directory{
 		Entries: make([]*protobuf.Directory_Entry, 0, len(d.entries)),
 	}
-
+	flushedEntries := make(map[string]node, len(d.entries))
 	for name, entry := range d.entries {
-		flushed, err := entry.flush(ctx, gc)
+		target, targetEP, err := entry.flush(ctx, gc)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
+		flushedEntries[name] = target
 		dir.Entries = append(dir.Entries, &protobuf.Directory_Entry{
 			Name: name,
-			Ep:   flushed.ep,
+			Ep:   targetEP.ep,
 		})
 	}
 
@@ -82,11 +91,15 @@ func (d *directoryNode) flush(ctx context.Context, gc *graphContext) (*Entrypoin
 
 	ep, err := gc.createProtobufMessage(ctx, blobtypes.Static, &dir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ep.ep.MimeType = CinodeDirMimeType
 
-	return ep, nil
+	return &directoryNode{
+		entries: flushedEntries,
+		stored:  ep,
+		dState:  dsClean,
+	}, ep, nil
 }
 
 func (c *directoryNode) traverse(

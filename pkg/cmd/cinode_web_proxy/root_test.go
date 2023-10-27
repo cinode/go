@@ -41,6 +41,8 @@ import (
 )
 
 func TestGetConfig(t *testing.T) {
+	os.Clearenv()
+
 	t.Run("default config", func(t *testing.T) {
 		cfg, err := getConfig()
 		require.ErrorContains(t, err, "ENTRYPOINT")
@@ -232,7 +234,7 @@ func TestExecuteWithConfig(t *testing.T) {
 			mainDSLocation: "memory://",
 			entrypoint:     "!@#$",
 		})
-		require.ErrorContains(t, err, "decode")
+		require.ErrorContains(t, err, "could not parse")
 	})
 
 	t.Run("invalid entrypoint bytes", func(t *testing.T) {
@@ -240,7 +242,7 @@ func TestExecuteWithConfig(t *testing.T) {
 			mainDSLocation: "memory://",
 			entrypoint:     base58.Encode([]byte("1234567890")),
 		})
-		require.ErrorContains(t, err, "unmarshal")
+		require.ErrorContains(t, err, "could not parse")
 	})
 
 	t.Run("successful run", func(t *testing.T) {
@@ -261,6 +263,8 @@ func TestExecuteWithConfig(t *testing.T) {
 }
 
 func TestExecute(t *testing.T) {
+	os.Clearenv()
+
 	t.Run("valid configuration", func(t *testing.T) {
 		ep := testblobs.DynamicLink.Entrypoint()
 
@@ -275,7 +279,12 @@ func TestExecute(t *testing.T) {
 	})
 
 	t.Run("invalid configuration", func(t *testing.T) {
-		err := Execute(context.Background())
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			cancel()
+		}()
+		err := Execute(ctx)
 		require.ErrorContains(t, err, "CINODE_ENTRYPOINT")
 	})
 }

@@ -172,6 +172,14 @@ func (c *CinodeFSMultiFileTestSuite) TestReopeningInReadOnlyMode() {
 	err = c.fs.Flush(ctx)
 	require.NoError(c.T(), err)
 
+	// reopen fs2 to avoid any caching issues
+	fs2, err = graph.NewCinodeFS(
+		ctx,
+		blenc.FromDatastore(c.ds),
+		graph.RootEntrypoint(rootEP),
+	)
+	require.NoError(c.T(), err)
+
 	// Check with modified content map
 	c.contentMap[0].content = "modified content"
 	c.checkContentMap(fs2)

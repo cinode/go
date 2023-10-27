@@ -240,12 +240,12 @@ func (fs *cinodeFS) SetEntry(
 }
 
 func (fs *cinodeFS) Flush(ctx context.Context) error {
-	newRoot, err := fs.rootEP.flush(ctx, &fs.c)
+	_, newRootEP, err := fs.rootEP.flush(ctx, &fs.c)
 	if err != nil {
 		return err
 	}
 
-	fs.rootEP = &nodeUnloaded{ep: *newRoot}
+	fs.rootEP = &nodeUnloaded{ep: *newRootEP}
 	return nil
 }
 
@@ -254,11 +254,13 @@ func (fs *cinodeFS) FindEntry(ctx context.Context, path []string) (*Entrypoint, 
 	err := fs.traverseGraph(
 		ctx,
 		path,
-		traverseOptions{doNotCache: true},
+		traverseOptions{
+			doNotCache: true,
+		},
 		func(_ context.Context, ep node, _ bool) (node, dirtyState, error) {
 			var subErr error
 			ret, subErr = ep.entrypoint()
-			return nil, dsClean, subErr
+			return ep, dsClean, subErr
 		},
 	)
 	if err != nil {

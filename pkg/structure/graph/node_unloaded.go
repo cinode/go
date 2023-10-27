@@ -31,8 +31,8 @@ func (c *nodeUnloaded) dirty() dirtyState {
 	return dsClean
 }
 
-func (c *nodeUnloaded) flush(ctx context.Context, gc *graphContext) (*Entrypoint, error) {
-	return &c.ep, nil
+func (c *nodeUnloaded) flush(ctx context.Context, gc *graphContext) (node, *Entrypoint, error) {
+	return c, &c.ep, nil
 }
 
 func (c *nodeUnloaded) traverse(

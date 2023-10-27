@@ -71,7 +71,8 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	fileEP, err := h.FS.FindEntry(r.Context(), pathList)
 	switch {
-	case errors.Is(err, graph.ErrEntryNotFound):
+	case errors.Is(err, graph.ErrEntryNotFound),
+		errors.Is(err, graph.ErrNotADirectory):
 		log.Warn("Not found")
 		http.NotFound(w, r)
 		return

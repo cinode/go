@@ -16,7 +16,9 @@ limitations under the License.
 
 package graph
 
-import "context"
+import (
+	"context"
+)
 
 // Entry is a file with its entrypoint
 type nodeFile struct {
@@ -27,8 +29,8 @@ func (c *nodeFile) dirty() dirtyState {
 	return dsClean
 }
 
-func (c *nodeFile) flush(ctx context.Context, gc *graphContext) (*Entrypoint, error) {
-	return &c.ep, nil
+func (c *nodeFile) flush(ctx context.Context, gc *graphContext) (node, *Entrypoint, error) {
+	return c, &c.ep, nil
 }
 
 func (c *nodeFile) traverse(
