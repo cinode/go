@@ -71,7 +71,7 @@ func RootWriterInfo(wi WriterInfo) CinodeFSOption {
 	}
 
 	key := common.BlobKeyFromBytes(wi.wi.Key)
-	ep := entrypointFromBlobNameAndKey(bn, key)
+	ep := EntrypointFromBlobNameAndKey(bn, key)
 
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
 		fs.rootEP = &nodeUnloaded{ep: *ep}
@@ -121,7 +121,20 @@ func NewRootDynamicLink() CinodeFSOption {
 			dState: dsSubDirty,
 			target: &directoryNode{
 				entries: map[string]node{},
+				dState:  dsDirty,
 			},
+		}
+		return nil
+	})
+}
+
+// NewRootDynamicLink option can be used to create completely new, random
+// dynamic link as the root
+func NewRootStaticDirectory() CinodeFSOption {
+	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
+		fs.rootEP = &directoryNode{
+			entries: map[string]node{},
+			dState:  dsDirty,
 		}
 		return nil
 	})

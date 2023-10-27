@@ -23,14 +23,15 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/cinode/go/pkg/structure/internal/protobuf"
+	"github.com/cinode/go/pkg/common"
+	"github.com/cinode/go/pkg/structure/graph"
 	"github.com/jbenet/go-base58"
 )
 
 type TestBlob struct {
 	UpdateDataset    []byte
-	BlobName         []byte
-	EncryptionKey    []byte
+	BlobName         common.BlobName
+	EncryptionKey    common.BlobKey
 	DecryptedDataset []byte
 }
 
@@ -98,11 +99,9 @@ func (s *TestBlob) Get(baseUrl string) ([]byte, error) {
 	return body, nil
 }
 
-func (s *TestBlob) Entrypoint() *protobuf.Entrypoint {
-	return &protobuf.Entrypoint{
-		BlobName: s.BlobName,
-		KeyInfo: &protobuf.KeyInfo{
-			Key: s.EncryptionKey,
-		},
-	}
+func (s *TestBlob) Entrypoint() *graph.Entrypoint {
+	return graph.EntrypointFromBlobNameAndKey(
+		s.BlobName,
+		s.EncryptionKey,
+	)
 }

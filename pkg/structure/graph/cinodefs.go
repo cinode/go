@@ -54,6 +54,59 @@ const (
 	CinodeDirMimeType = "application/cinode-dir"
 )
 
+type CinodeFS interface {
+	SetEntryFile(
+		ctx context.Context,
+		path []string,
+		data io.Reader,
+		opts ...EntrypointOption,
+	) (*Entrypoint, error)
+
+	CreateFileEntrypoint(
+		ctx context.Context,
+		data io.Reader,
+		opts ...EntrypointOption,
+	) (*Entrypoint, error)
+
+	SetEntry(
+		ctx context.Context,
+		path []string,
+		ep *Entrypoint,
+	) error
+
+	Flush(
+		ctx context.Context,
+	) error
+
+	FindEntry(
+		ctx context.Context,
+		path []string,
+	) (*Entrypoint, error)
+
+	DeleteEntry(
+		ctx context.Context,
+		path []string,
+	) error
+
+	GenerateNewDynamicLinkEntrypoint() (*Entrypoint, error)
+
+	OpenEntrypointData(
+		ctx context.Context,
+		ep *Entrypoint,
+	) (io.ReadCloser, error)
+
+	RootEntrypoint() (*Entrypoint, error)
+
+	EntrypointWriterInfo(
+		ctx context.Context,
+		ep *Entrypoint,
+	) (WriterInfo, error)
+
+	RootWriterInfo(
+		ctx context.Context,
+	) (WriterInfo, error)
+}
+
 type cinodeFS struct {
 	c                graphContext
 	maxLinkRedirects int
@@ -63,13 +116,11 @@ type cinodeFS struct {
 	rootEP node
 }
 
-type CinodeFS = *cinodeFS
-
 func NewCinodeFS(
 	ctx context.Context,
 	be blenc.BE,
 	options ...CinodeFSOption,
-) (*cinodeFS, error) {
+) (CinodeFS, error) {
 	if be == nil {
 		return nil, ErrInvalidBE
 	}
@@ -258,7 +309,7 @@ func (fs *cinodeFS) GenerateNewDynamicLinkEntrypoint() (*Entrypoint, error) {
 
 	fs.c.writerInfos[bn.String()] = link.AuthInfo()
 
-	return entrypointFromBlobNameAndKey(bn, key), nil
+	return EntrypointFromBlobNameAndKey(bn, key), nil
 }
 
 // func (fs *cinodeFS) ReplacePathWithLink(ctx context.Context, path []string) (WriterInfo, error) {

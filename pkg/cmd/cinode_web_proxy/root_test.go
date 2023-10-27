@@ -33,12 +33,11 @@ import (
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
-	"github.com/cinode/go/pkg/protobuf"
-	"github.com/cinode/go/pkg/structure"
+	"github.com/cinode/go/pkg/structure/graph"
+	"github.com/cinode/go/pkg/structure/graphutils"
 	"github.com/cinode/go/testvectors/testblobs"
 	"github.com/jbenet/go-base58"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
 )
 
 func TestGetConfig(t *testing.T) {
@@ -111,17 +110,15 @@ func TestWebProxyHandlerInvalidEntrypoint(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	handler := setupCinodeProxy(
+	key := cipherfactory.NewKeyGenerator(blobtypes.Static).Generate()
+
+	handler, err := setupCinodeProxy(
+		context.Background(),
 		datastore.InMemory(),
 		[]datastore.DS{},
-		&protobuf.Entrypoint{
-			BlobName: n.Bytes(),
-			MimeType: structure.CinodeDirMimeType,
-			KeyInfo: &protobuf.KeyInfo{
-				Key: cipherfactory.NewKeyGenerator(blobtypes.Static).Generate().Bytes(),
-			},
-		},
+		graph.EntrypointFromBlobNameAndKey(n, key),
 	)
+	require.NoError(t, err)
 
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -148,7 +145,7 @@ func TestWebProxyHandlerSimplePage(t *testing.T) {
 	ds := datastore.InMemory()
 	be := blenc.FromDatastore(ds)
 
-	ep := func() *protobuf.Entrypoint {
+	ep := func() *graph.Entrypoint {
 		dir := t.TempDir()
 
 		for name, content := range map[string]string{
@@ -162,12 +159,23 @@ func TestWebProxyHandlerSimplePage(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		ep, err := structure.UploadStaticDirectory(context.Background(), slog.Default(), os.DirFS(dir), be)
+		fs, err := graph.NewCinodeFS(context.Background(), be, graph.NewRootDynamicLink())
+		require.NoError(t, err)
+
+		err = graphutils.UploadStaticDirectory(
+			context.Background(),
+			os.DirFS(dir),
+			fs,
+		)
+		require.NoError(t, err)
+
+		ep, err := fs.RootEntrypoint()
 		require.NoError(t, err)
 		return ep
 	}()
 
-	handler := setupCinodeProxy(ds, []datastore.DS{}, ep)
+	handler, err := setupCinodeProxy(context.Background(), ds, []datastore.DS{}, ep)
+	require.NoError(t, err)
 
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -236,8 +244,7 @@ func TestExecuteWithConfig(t *testing.T) {
 	})
 
 	t.Run("successful run", func(t *testing.T) {
-		epBytes, err := testblobs.DynamicLink.Entrypoint().ToBytes()
-		require.NoError(t, err)
+		ep := testblobs.DynamicLink.Entrypoint()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
@@ -245,9 +252,9 @@ func TestExecuteWithConfig(t *testing.T) {
 			cancel()
 		}()
 
-		err = executeWithConfig(ctx, &config{
+		err := executeWithConfig(ctx, &config{
 			mainDSLocation: "memory://",
-			entrypoint:     base58.Encode(epBytes),
+			entrypoint:     ep.String(),
 		})
 		require.NoError(t, err)
 	})
@@ -255,16 +262,15 @@ func TestExecuteWithConfig(t *testing.T) {
 
 func TestExecute(t *testing.T) {
 	t.Run("valid configuration", func(t *testing.T) {
-		epBytes, err := testblobs.DynamicLink.Entrypoint().ToBytes()
-		require.NoError(t, err)
+		ep := testblobs.DynamicLink.Entrypoint()
 
-		t.Setenv("CINODE_ENTRYPOINT", base58.Encode(epBytes))
+		t.Setenv("CINODE_ENTRYPOINT", ep.String())
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
 			time.Sleep(10 * time.Millisecond)
 			cancel()
 		}()
-		err = Execute(ctx)
+		err := Execute(ctx)
 		require.NoError(t, err)
 	})
 

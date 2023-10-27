@@ -25,11 +25,9 @@ import (
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/protobuf"
-	"github.com/cinode/go/pkg/structure"
-	"github.com/jbenet/go-base58"
+	"github.com/cinode/go/pkg/structure/graph"
+	"github.com/cinode/go/pkg/structure/graphutils"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/slog"
 )
 
 func compileCmd() *cobra.Command {
@@ -68,7 +66,7 @@ simple http server.
 				log.Fatalf(msg)
 			}
 
-			var wi *protobuf.WriterInfo
+			var wi *graph.WriterInfo
 			if len(rootWriterInfoFile) > 0 {
 				data, err := os.ReadFile(rootWriterInfoFile)
 				if err != nil {
@@ -80,39 +78,35 @@ simple http server.
 				rootWriterInfoStr = string(data)
 			}
 			if len(rootWriterInfoStr) > 0 {
-				_wi, err := protobuf.WriterInfoFromBytes(base58.Decode(rootWriterInfoStr))
+				_wi, err := graph.WriterInfoFromString(rootWriterInfoStr)
 				if err != nil {
 					fatalResult("Couldn't parse writer info: %v", err)
 				}
-				wi = _wi
+				wi = &_wi
 			}
 
-			ep, wi, err := compileFS(srcDir, dstDir, useStaticBlobs, wi, useRawFilesystem)
+			ep, wi, err := compileFS(
+				cmd.Context(),
+				srcDir,
+				dstDir,
+				useStaticBlobs,
+				wi,
+				useRawFilesystem,
+			)
 			if err != nil {
 				fatalResult("%s", err)
 			}
 
-			epBytes, err := ep.ToBytes()
-			if err != nil {
-				fatalResult("Couldn't serialize entrypoint: %v", err)
-			}
-
 			result := map[string]string{
 				"result":     "OK",
-				"entrypoint": base58.Encode(epBytes),
+				"entrypoint": ep.String(),
 			}
 			if wi != nil {
-				wiBytes, err := wi.ToBytes()
-				if err != nil {
-					fatalResult("Couldn't serialize writer info: %v", err)
-				}
-
-				result["writer-info"] = base58.Encode(wiBytes)
+				result["writer-info"] = wi.String()
 			}
 			enc.Encode(result)
 
 			log.Println("DONE")
-
 		},
 	}
 
@@ -127,17 +121,16 @@ simple http server.
 }
 
 func compileFS(
+	ctx context.Context,
 	srcDir, dstDir string,
 	static bool,
-	writerInfo *protobuf.WriterInfo,
+	writerInfo *graph.WriterInfo,
 	useRawFS bool,
 ) (
-	*protobuf.Entrypoint,
-	*protobuf.WriterInfo,
+	*graph.Entrypoint,
+	*graph.WriterInfo,
 	error,
 ) {
-	var retWi *protobuf.WriterInfo
-
 	ds, err := func() (datastore.DS, error) {
 		if useRawFS {
 			return datastore.InRawFileSystem(dstDir)
@@ -148,31 +141,38 @@ func compileFS(
 		return nil, nil, fmt.Errorf("could not open datastore: %w", err)
 	}
 
-	be := blenc.FromDatastore(ds)
+	opts := []graph.CinodeFSOption{}
+	if static {
+		opts = append(opts, graph.NewRootStaticDirectory())
+	} else if writerInfo == nil {
+		opts = append(opts, graph.NewRootDynamicLink())
+	} else {
+		opts = append(opts, graph.RootWriterInfo(*writerInfo))
+	}
 
-	ep, err := structure.UploadStaticDirectory(
-		context.Background(),
-		slog.Default(),
-		os.DirFS(srcDir),
-		be,
+	fs, err := graph.NewCinodeFS(
+		ctx,
+		blenc.FromDatastore(ds),
+		opts...,
 	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("couldn't create cinode filesystem instance: %w", err)
+	}
+
+	err = graphutils.UploadStaticDirectory(ctx, os.DirFS(srcDir), fs)
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't upload directory content: %w", err)
 	}
 
-	if !static {
-		if writerInfo == nil {
-			ep, retWi, err = structure.CreateLink(context.Background(), be, ep)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to update root link: %w", err)
-			}
-		} else {
-			ep, err = structure.UpdateLink(context.Background(), be, writerInfo, ep)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to update root link: %w", err)
-			}
-		}
+	ep, err := fs.RootEntrypoint()
+	if err != nil {
+		return nil, nil, fmt.Errorf("couldn't get root entrypoint from cinodefs instance: %w", err)
 	}
 
-	return ep, retWi, nil
+	wi, err := fs.RootWriterInfo(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("couldn't get root writer info from cinodefs instance: %w", err)
+	}
+
+	return ep, &wi, nil
 }

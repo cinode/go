@@ -90,7 +90,7 @@ func entrypointFromProtobuf(data *protobuf.Entrypoint) (*Entrypoint, error) {
 	return &ret, nil
 }
 
-func entrypointFromBlobNameAndKey(bn common.BlobName, key common.BlobKey) *Entrypoint {
+func EntrypointFromBlobNameAndKey(bn common.BlobName, key common.BlobKey) *Entrypoint {
 	return entrypointFromBlobNameKeyAndProtoEntrypoint(bn, key, &protobuf.Entrypoint{})
 }
 

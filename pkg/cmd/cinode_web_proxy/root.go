@@ -30,10 +30,9 @@ import (
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/protobuf"
-	"github.com/cinode/go/pkg/structure"
+	"github.com/cinode/go/pkg/structure/graph"
+	"github.com/cinode/go/pkg/structure/graphutils"
 	"github.com/cinode/go/pkg/utilities/httpserver"
-	"github.com/jbenet/go-base58"
 	"golang.org/x/exp/slog"
 )
 
@@ -60,13 +59,9 @@ func executeWithConfig(ctx context.Context, cfg *config) error {
 		additionalDSs = append(additionalDSs, ds)
 	}
 
-	entrypointRaw := base58.Decode(cfg.entrypoint)
-	if len(entrypointRaw) == 0 {
-		return errors.New("could not decode base58 entrypoint data")
-	}
-	entrypoint, err := protobuf.EntryPointFromBytes(entrypointRaw)
+	entrypoint, err := graph.EntrypointFromString(cfg.entrypoint)
 	if err != nil {
-		return fmt.Errorf("could not unmarshal entrypoint data: %w", err)
+		return fmt.Errorf("could not parse entrypoint data: %w", err)
 	}
 
 	log := slog.Default()
@@ -82,7 +77,11 @@ func executeWithConfig(ctx context.Context, cfg *config) error {
 		"cpus", runtime.NumCPU(),
 	)
 
-	handler := setupCinodeProxy(mainDS, additionalDSs, entrypoint)
+	handler, err := setupCinodeProxy(ctx, mainDS, additionalDSs, entrypoint)
+	if err != nil {
+		return err
+	}
+
 	return httpserver.RunGracefully(ctx,
 		handler,
 		httpserver.ListenPort(cfg.port),
@@ -91,22 +90,32 @@ func executeWithConfig(ctx context.Context, cfg *config) error {
 }
 
 func setupCinodeProxy(
+	ctx context.Context,
 	mainDS datastore.DS,
 	additionalDSs []datastore.DS,
-	entrypoint *protobuf.Entrypoint,
-) http.Handler {
-	fs := structure.CinodeFS{
-		BE: blenc.FromDatastore(
-			datastore.NewMultiSource(mainDS, time.Hour, additionalDSs...),
+	entrypoint *graph.Entrypoint,
+) (http.Handler, error) {
+	fs, err := graph.NewCinodeFS(
+		ctx,
+		blenc.FromDatastore(
+			datastore.NewMultiSource(
+				mainDS,
+				time.Hour,
+				additionalDSs...,
+			),
 		),
-		RootEntrypoint:   entrypoint,
-		MaxLinkRedirects: 10,
+		graph.RootEntrypoint(entrypoint),
+		graph.MaxLinkRedirects(10),
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	return &structure.HTTPHandler{
-		FS:        &fs,
+	return &graphutils.HTTPHandler{
+		FS:        fs,
 		IndexFile: "index.html",
-	}
+		Log:       slog.Default(),
+	}, nil
 }
 
 type config struct {

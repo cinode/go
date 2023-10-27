@@ -22,6 +22,7 @@ import (
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/structure/internal/protobuf"
+	"github.com/cinode/go/pkg/utilities/golang"
 	"github.com/jbenet/go-base58"
 	"google.golang.org/protobuf/proto"
 )
@@ -33,6 +34,14 @@ var (
 
 type WriterInfo struct {
 	wi *protobuf.WriterInfo
+}
+
+func (wi *WriterInfo) Bytes() []byte {
+	return golang.Must(proto.Marshal(wi.wi))
+}
+
+func (wi *WriterInfo) String() string {
+	return base58.Encode(wi.Bytes())
 }
 
 func WriterInfoFromString(s string) (WriterInfo, error) {

@@ -18,6 +18,7 @@ package static_datastore
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -27,10 +28,11 @@ import (
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/protobuf"
-	"github.com/cinode/go/pkg/structure"
+	"github.com/cinode/go/pkg/structure/graph"
+	"github.com/cinode/go/pkg/structure/graphutils"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/exp/slog"
 )
 
 type datasetFile struct {
@@ -100,10 +102,10 @@ func TestCompileAndReadTestSuite(t *testing.T) {
 func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 	dataset []datasetFile,
 	datastoreDir string,
-	wi *protobuf.WriterInfo,
-) (*protobuf.WriterInfo, *protobuf.Entrypoint) {
+	wi *graph.WriterInfo,
+) (*graph.WriterInfo, *graph.Entrypoint) {
 
-	var ep *protobuf.Entrypoint
+	var ep *graph.Entrypoint
 	s.T().Run("prepare dataset", func(t *testing.T) {
 
 		dir := t.TempDir()
@@ -116,7 +118,14 @@ func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 			s.Require().NoError(err)
 		}
 
-		retEp, retWi, err := compileFS(dir, datastoreDir, false, wi, false)
+		retEp, retWi, err := compileFS(
+			context.Background(),
+			dir,
+			datastoreDir,
+			false,
+			wi,
+			false,
+		)
 		require.NoError(t, err)
 		wi = retWi
 		ep = retEp
@@ -127,21 +136,24 @@ func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 
 func (s *CompileAndReadTestSuite) validateDataset(
 	dataset []datasetFile,
-	ep *protobuf.Entrypoint,
+	ep *graph.Entrypoint,
 	datastoreDir string,
 ) {
 	ds, err := datastore.InFileSystem(datastoreDir)
 	s.Require().NoError(err)
 
-	fs := structure.CinodeFS{
-		BE:               blenc.FromDatastore(ds),
-		RootEntrypoint:   ep,
-		MaxLinkRedirects: 10,
-	}
+	fs, err := graph.NewCinodeFS(
+		context.Background(),
+		blenc.FromDatastore(ds),
+		graph.RootEntrypoint(ep),
+		graph.MaxLinkRedirects(10),
+	)
+	s.Require().NoError(err)
 
-	testServer := httptest.NewServer(&structure.HTTPHandler{
-		FS:        &fs,
+	testServer := httptest.NewServer(&graphutils.HTTPHandler{
+		FS:        fs,
 		IndexFile: "index.html",
+		Log:       slog.Default(),
 	})
 	defer testServer.Close()
 
