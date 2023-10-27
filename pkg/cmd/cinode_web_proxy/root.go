@@ -69,6 +69,8 @@ func executeWithConfig(ctx context.Context, cfg *config) error {
 	log.Info("Server listening for connections",
 		"address", fmt.Sprintf("http://localhost:%d", cfg.port),
 	)
+	log.Info("Main datastore", "addr", cfg.mainDSLocation)
+	log.Info("Additional datastores", "addrs", cfg.additionalDSLocations)
 
 	log.Info("System info",
 		"goos", runtime.GOOS,

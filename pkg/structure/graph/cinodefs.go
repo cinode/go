@@ -74,6 +74,11 @@ type CinodeFS interface {
 		ep *Entrypoint,
 	) error
 
+	ResetDir(
+		ctx context.Context,
+		path []string,
+	) error
+
 	Flush(
 		ctx context.Context,
 	) error
@@ -239,6 +244,32 @@ func (fs *cinodeFS) SetEntry(
 	)
 }
 
+func (fs *cinodeFS) ResetDir(ctx context.Context, path []string) error {
+	whenReached := func(
+		ctx context.Context,
+		current node,
+		isWriteable bool,
+	) (node, dirtyState, error) {
+		if !isWriteable {
+			return nil, 0, ErrMissingWriterInfo
+		}
+		return &nodeDirectory{
+			entries: map[string]node{},
+			dState:  dsDirty,
+		}, dsDirty, nil
+	}
+
+	return fs.traverseGraph(
+		ctx,
+		path,
+		traverseOptions{
+			createNodes:  true,
+			maxLinkDepth: fs.maxLinkRedirects,
+		},
+		whenReached,
+	)
+}
+
 func (fs *cinodeFS) Flush(ctx context.Context) error {
 	_, newRootEP, err := fs.rootEP.flush(ctx, &fs.c)
 	if err != nil {
@@ -285,7 +316,7 @@ func (fs *cinodeFS) DeleteEntry(ctx context.Context, path []string) error {
 				return nil, 0, ErrMissingWriterInfo
 			}
 
-			dir, isDir := reachedEntrypoint.(*directoryNode)
+			dir, isDir := reachedEntrypoint.(*nodeDirectory)
 			if !isDir {
 				return nil, 0, ErrNotADirectory
 			}

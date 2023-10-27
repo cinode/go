@@ -119,7 +119,7 @@ func NewRootDynamicLink() CinodeFSOption {
 		fs.rootEP = &nodeLink{
 			ep:     *newLinkEntrypoint,
 			dState: dsSubDirty,
-			target: &directoryNode{
+			target: &nodeDirectory{
 				entries: map[string]node{},
 				dState:  dsDirty,
 			},
@@ -132,7 +132,7 @@ func NewRootDynamicLink() CinodeFSOption {
 // dynamic link as the root
 func NewRootStaticDirectory() CinodeFSOption {
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
-		fs.rootEP = &directoryNode{
+		fs.rootEP = &nodeDirectory{
 			entries: map[string]node{},
 			dState:  dsDirty,
 		}

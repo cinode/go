@@ -17,9 +17,11 @@ limitations under the License.
 package graphutils
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"html/template"
 	"io/fs"
 	"path"
 
@@ -27,6 +29,7 @@ import (
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/structure/graph"
+	"github.com/cinode/go/pkg/utilities/golang"
 	"golang.org/x/exp/slog"
 )
 
@@ -58,7 +61,7 @@ func UploadStaticDirectory(
 		}
 	}
 
-	err := c.compilePath(ctx, ".", c.basePath)
+	_, err := c.compilePath(ctx, ".", c.basePath)
 	if err != nil {
 		return err
 	}
@@ -80,52 +83,91 @@ func BasePath(path []string) UploadStaticDirectoryOption {
 	})
 }
 
+func CreateIndexFile(indexFile string) UploadStaticDirectoryOption {
+	return UploadStaticDirectoryOption(func(d *dirCompiler) error {
+		d.createIndexFile = true
+		d.indexFileName = indexFile
+		return nil
+	})
+}
+
 type dirCompiler struct {
-	ctx      context.Context
-	fsys     fs.FS
-	cfs      graph.CinodeFS
-	log      *slog.Logger
-	basePath []string
+	ctx             context.Context
+	fsys            fs.FS
+	cfs             graph.CinodeFS
+	log             *slog.Logger
+	basePath        []string
+	createIndexFile bool
+	indexFileName   string
+}
+
+type dirEntry struct {
+	Name     string
+	MimeType string
+	IsDir    bool
+	Size     int64
 }
 
 func (d *dirCompiler) compilePath(
 	ctx context.Context,
 	srcPath string,
 	destPath []string,
-) error {
+) (*dirEntry, error) {
 	st, err := fs.Stat(d.fsys, srcPath)
 	if err != nil {
 		d.log.ErrorCtx(ctx, "failed to stat path", "path", srcPath, "err", err)
-		return fmt.Errorf("couldn't check path: %w", err)
+		return nil, fmt.Errorf("couldn't check path: %w", err)
+	}
+
+	var name string
+	if len(destPath) > 0 {
+		name = destPath[len(destPath)-1]
 	}
 
 	if st.IsDir() {
-		return d.compileDir(ctx, srcPath, destPath)
+		err = d.compileDir(ctx, srcPath, destPath)
+		if err != nil {
+			return nil, err
+		}
+		return &dirEntry{
+			Name:     name,
+			MimeType: graph.CinodeDirMimeType,
+			IsDir:    true,
+		}, nil
 	}
 
 	if st.Mode().IsRegular() {
-		return d.compileFile(ctx, srcPath, destPath)
+		mime, err := d.compileFile(ctx, srcPath, destPath)
+		if err != nil {
+			return nil, err
+		}
+		return &dirEntry{
+			Name:     name,
+			MimeType: mime,
+			IsDir:    false,
+			Size:     st.Size(),
+		}, nil
 	}
 
 	d.log.ErrorContext(ctx, "path is neither dir nor a regular file", "path", srcPath)
-	return fmt.Errorf("neither dir nor a regular file: %v", srcPath)
+	return nil, fmt.Errorf("neither dir nor a regular file: %v", srcPath)
 }
 
-func (d *dirCompiler) compileFile(ctx context.Context, srcPath string, dstPath []string) error {
+func (d *dirCompiler) compileFile(ctx context.Context, srcPath string, dstPath []string) (string, error) {
 	d.log.InfoContext(ctx, "compiling file", "path", srcPath)
 	fl, err := d.fsys.Open(srcPath)
 	if err != nil {
 		d.log.ErrorContext(ctx, "failed to open file", "path", srcPath, "err", err)
-		return fmt.Errorf("couldn't open file %v: %w", srcPath, err)
+		return "", fmt.Errorf("couldn't open file %v: %w", srcPath, err)
 	}
 	defer fl.Close()
 
-	_, err = d.cfs.SetEntryFile(ctx, dstPath, fl)
+	ep, err := d.cfs.SetEntryFile(ctx, dstPath, fl)
 	if err != nil {
-		return fmt.Errorf("failed to upload file %v: %w", srcPath, err)
+		return "", fmt.Errorf("failed to upload file %v: %w", srcPath, err)
 	}
 
-	return nil
+	return ep.MimeType(), nil
 }
 
 func (d *dirCompiler) compileDir(ctx context.Context, srcPath string, dstPath []string) error {
@@ -138,11 +180,39 @@ func (d *dirCompiler) compileDir(ctx context.Context, srcPath string, dstPath []
 	// TODO: Reset directory content
 	// TODO: Build index file
 
+	entries := make([]*dirEntry, 0, len(fileList))
+	hasIndex := false
+
 	for _, e := range fileList {
-		err := d.compilePath(
+		entry, err := d.compilePath(
 			ctx,
 			path.Join(srcPath, e.Name()),
 			append(dstPath, e.Name()),
+		)
+		if err != nil {
+			return err
+		}
+
+		if entry.Name == d.indexFileName {
+			hasIndex = true
+		} else {
+			entries = append(entries, entry)
+		}
+	}
+
+	if d.createIndexFile && !hasIndex {
+		buf := bytes.NewBuffer(nil)
+		err = dirIndexTemplate.Execute(buf, map[string]any{
+			"entries":   entries,
+			"indexName": d.indexFileName,
+		})
+		if err != nil {
+			return err
+		}
+
+		_, err = d.cfs.SetEntryFile(ctx,
+			append(dstPath, d.indexFileName),
+			bytes.NewReader(buf.Bytes()),
 		)
 		if err != nil {
 			return err
@@ -151,3 +221,9 @@ func (d *dirCompiler) compileDir(ctx context.Context, srcPath string, dstPath []
 
 	return nil
 }
+
+//go:embed templates/dir.html
+var _dirIndexTemplateStr string
+var dirIndexTemplate = golang.Must(
+	template.New("dir").Parse(_dirIndexTemplateStr),
+)

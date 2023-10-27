@@ -123,7 +123,7 @@ func (c *nodeUnloaded) loadEntrypointDir(ctx context.Context, gc *graphContext) 
 		dir[entry.Name] = &nodeUnloaded{ep: *ep}
 	}
 
-	return &directoryNode{
+	return &nodeDirectory{
 		stored:  &c.ep,
 		entries: dir,
 		dState:  dsClean,

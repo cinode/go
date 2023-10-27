@@ -1,0 +1,76 @@
+{{/*
+Copyright © 2023 Bartłomiej Święcki (byo)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/}}
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>Directory Listing</title>
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+		}
+
+		table {
+			width: 100%;
+			border-collapse: collapse;
+		}
+
+		th,
+		td {
+			padding: 8px;
+			text-align: left;
+		}
+
+		tr:nth-child(even) {
+			background-color: #f2f2f2;
+		}
+
+		th {
+			background-color: #4CAF50;
+			color: white;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Directory Listing</h1>
+	<table>
+		<tr>
+			<th>Dir</th>
+			<th>Name</th>
+			<th>Size</th>
+			<th>MimeType</th>
+		</tr>
+		{{range .entries}}{{if .IsDir}}
+		<tr>
+			<td>[DIR]</td>
+			<td><a href="./{{.Name}}/">{{.Name}}</a></td>
+			<td></td>
+			<td>{{.MimeType}}</td>
+		</tr>
+		{{end}}{{end}}
+		{{range .entries}}{{if not .IsDir}}
+		<tr>
+			<td></td>
+			<td><a href="{{.Name}}">{{.Name}}</a></td>
+			<td>{{.Size}}</td>
+			<td>{{.MimeType}}</td>
+		</tr>
+		{{end}}{{end}}
+	</table>
+</body>
+
+</html>

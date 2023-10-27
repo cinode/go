@@ -19,6 +19,7 @@ package static_datastore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -159,7 +160,17 @@ func compileFS(
 		return nil, nil, fmt.Errorf("couldn't create cinode filesystem instance: %w", err)
 	}
 
-	err = graphutils.UploadStaticDirectory(ctx, os.DirFS(srcDir), fs)
+	err = fs.ResetDir(ctx, []string{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to reset the root directory: %w", err)
+	}
+
+	err = graphutils.UploadStaticDirectory(
+		ctx,
+		os.DirFS(srcDir),
+		fs,
+		graphutils.CreateIndexFile("index.html"),
+	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't upload directory content: %w", err)
 	}
@@ -170,6 +181,9 @@ func compileFS(
 	}
 
 	wi, err := fs.RootWriterInfo(ctx)
+	if errors.Is(err, graph.ErrNotALink) {
+		return ep, nil, nil
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't get root writer info from cinodefs instance: %w", err)
 	}

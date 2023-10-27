@@ -25,18 +25,18 @@ import (
 	"github.com/cinode/go/pkg/utilities/golang"
 )
 
-// directoryNode holds a directory entry loaded into memory
-type directoryNode struct {
+// nodeDirectory holds a directory entry loaded into memory
+type nodeDirectory struct {
 	entries map[string]node
 	stored  *Entrypoint // current entrypoint, will be nil if directory was modified
 	dState  dirtyState  // true if any subtree is dirty
 }
 
-func (d *directoryNode) dirty() dirtyState {
+func (d *nodeDirectory) dirty() dirtyState {
 	return d.dState
 }
 
-func (d *directoryNode) flush(ctx context.Context, gc *graphContext) (node, *Entrypoint, error) {
+func (d *nodeDirectory) flush(ctx context.Context, gc *graphContext) (node, *Entrypoint, error) {
 	if d.dState == dsClean {
 		// all clear, nothing to flush here or in sub-trees
 		return d, d.stored, nil
@@ -56,7 +56,7 @@ func (d *directoryNode) flush(ctx context.Context, gc *graphContext) (node, *Ent
 
 		// directory itself was not modified and does not need flush, don't bother
 		// saving it to datastore
-		return &directoryNode{
+		return &nodeDirectory{
 			entries: flushedEntries,
 			stored:  d.stored,
 			dState:  dsClean,
@@ -95,14 +95,14 @@ func (d *directoryNode) flush(ctx context.Context, gc *graphContext) (node, *Ent
 	}
 	ep.ep.MimeType = CinodeDirMimeType
 
-	return &directoryNode{
+	return &nodeDirectory{
 		entries: flushedEntries,
 		stored:  ep,
 		dState:  dsClean,
 	}, ep, nil
 }
 
-func (c *directoryNode) traverse(
+func (c *nodeDirectory) traverse(
 	ctx context.Context,
 	gc *graphContext,
 	path []string,
@@ -185,7 +185,7 @@ func (c *directoryNode) traverse(
 
 }
 
-func (c *directoryNode) traverseRecursiveNewPath(
+func (c *nodeDirectory) traverseRecursiveNewPath(
 	ctx context.Context,
 	path []string,
 	pathPosition int,
@@ -211,7 +211,7 @@ func (c *directoryNode) traverseRecursiveNewPath(
 		return nil, err
 	}
 
-	return &directoryNode{
+	return &nodeDirectory{
 		entries: map[string]node{
 			path[pathPosition]: sub,
 		},
@@ -219,7 +219,7 @@ func (c *directoryNode) traverseRecursiveNewPath(
 	}, nil
 }
 
-func (c *directoryNode) entrypoint() (*Entrypoint, error) {
+func (c *nodeDirectory) entrypoint() (*Entrypoint, error) {
 	if c.dState == dsDirty {
 		return nil, ErrModifiedDirectory
 	}
@@ -232,7 +232,7 @@ func (c *directoryNode) entrypoint() (*Entrypoint, error) {
 	return c.stored, nil
 }
 
-func (c *directoryNode) deleteEntry(name string) bool {
+func (c *nodeDirectory) deleteEntry(name string) bool {
 	if _, hasEntry := c.entries[name]; !hasEntry {
 		return false
 	}
