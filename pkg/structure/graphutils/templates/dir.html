@@ -26,12 +26,15 @@ limitations under the License.
 		table {
 			width: 100%;
 			border-collapse: collapse;
+			table-layout: fixed;
+			border: 1px solid #ddd;
 		}
 
 		th,
 		td {
 			padding: 8px;
 			text-align: left;
+			border-right: 1px solid #ddd;
 		}
 
 		tr:nth-child(even) {
@@ -42,6 +45,32 @@ limitations under the License.
 			background-color: #4CAF50;
 			color: white;
 		}
+
+		th.is-dir {
+			width: 40px;
+		}
+
+		th.name {
+			width: 60%
+		}
+
+		th.size {
+			width: 100px;
+		}
+
+		th.mimetype {
+			width: 40%;
+		}
+
+		td.empty {
+			text-align: center;
+			font-style: italic;
+		}
+
+		th.size,
+		td.size {
+			text-align: right;
+		}
 	</style>
 </head>
 
@@ -49,27 +78,33 @@ limitations under the License.
 	<h1>Directory Listing</h1>
 	<table>
 		<tr>
-			<th>Dir</th>
-			<th>Name</th>
-			<th>Size</th>
-			<th>MimeType</th>
+			<th class="is-dir"></th>
+			<th class="name">Name</th>
+			<th class="size">Size</th>
+			<th class="mimetype">MimeType</th>
 		</tr>
-		{{range .entries}}{{if .IsDir}}
+		{{- if eq (len .entries) 0 }}
 		<tr>
-			<td>[DIR]</td>
-			<td><a href="./{{.Name}}/">{{.Name}}</a></td>
-			<td></td>
-			<td>{{.MimeType}}</td>
+			<td colspan="4" class="empty">&mdash; Empty &mdash;</td>
 		</tr>
-		{{end}}{{end}}
-		{{range .entries}}{{if not .IsDir}}
+		{{- else }}
+		{{- range .entries }}{{- if .IsDir }}
 		<tr>
-			<td></td>
-			<td><a href="{{.Name}}">{{.Name}}</a></td>
-			<td>{{.Size}}</td>
-			<td>{{.MimeType}}</td>
+			<td class="is-dir">[DIR]</td>
+			<td class="name"><a href="./{{.Name}}/">{{ .Name }}</a></td>
+			<td class="size">{{ .Size }} entries</td>
+			<td class="mimetype">{{ .MimeType }}</td>
 		</tr>
-		{{end}}{{end}}
+		{{- end }}{{- end }}
+		{{- range .entries }}{{- if not .IsDir }}
+		<tr>
+			<td class="is-dir"></td>
+			<td class="name"><a href="{{.Name}}">{{ .Name }}</a></td>
+			<td class="size">{{ .Size }} bytes</td>
+			<td class="mimetype">{{ .MimeType }}</td>
+		</tr>
+		{{- end }}{{- end }}
+		{{- end }}
 	</table>
 </body>
 

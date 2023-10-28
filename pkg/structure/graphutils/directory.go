@@ -125,7 +125,7 @@ func (d *dirCompiler) compilePath(
 	}
 
 	if st.IsDir() {
-		err = d.compileDir(ctx, srcPath, destPath)
+		size, err := d.compileDir(ctx, srcPath, destPath)
 		if err != nil {
 			return nil, err
 		}
@@ -133,6 +133,7 @@ func (d *dirCompiler) compilePath(
 			Name:     name,
 			MimeType: graph.CinodeDirMimeType,
 			IsDir:    true,
+			Size:     int64(size),
 		}, nil
 	}
 
@@ -170,11 +171,11 @@ func (d *dirCompiler) compileFile(ctx context.Context, srcPath string, dstPath [
 	return ep.MimeType(), nil
 }
 
-func (d *dirCompiler) compileDir(ctx context.Context, srcPath string, dstPath []string) error {
+func (d *dirCompiler) compileDir(ctx context.Context, srcPath string, dstPath []string) (int, error) {
 	fileList, err := fs.ReadDir(d.fsys, srcPath)
 	if err != nil {
 		d.log.ErrorContext(ctx, "couldn't read contents of dir", "path", srcPath, "err", err)
-		return fmt.Errorf("couldn't read contents of dir %v: %w", srcPath, err)
+		return 0, fmt.Errorf("couldn't read contents of dir %v: %w", srcPath, err)
 	}
 
 	// TODO: Reset directory content
@@ -190,7 +191,7 @@ func (d *dirCompiler) compileDir(ctx context.Context, srcPath string, dstPath []
 			append(dstPath, e.Name()),
 		)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		if entry.Name == d.indexFileName {
@@ -207,7 +208,7 @@ func (d *dirCompiler) compileDir(ctx context.Context, srcPath string, dstPath []
 			"indexName": d.indexFileName,
 		})
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		_, err = d.cfs.SetEntryFile(ctx,
@@ -215,11 +216,11 @@ func (d *dirCompiler) compileDir(ctx context.Context, srcPath string, dstPath []
 			bytes.NewReader(buf.Bytes()),
 		)
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
 
-	return nil
+	return len(fileList), nil
 }
 
 //go:embed templates/dir.html
