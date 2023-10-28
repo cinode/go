@@ -33,14 +33,14 @@ import (
 
 func compileCmd() *cobra.Command {
 
-	var srcDir, dstDir string
+	var srcDir, dstLocation string
 	var useStaticBlobs bool
 	var useRawFilesystem bool
 	var rootWriterInfoStr string
 	var rootWriterInfoFile string
 
 	cmd := &cobra.Command{
-		Use:   "compile --source <src_dir> --destination <dst_dir>",
+		Use:   "compile --source <src_dir> --destination <dst_location>",
 		Short: "Compile datastore from static files",
 		Long: `
 The compile command can be used to create an encrypted datastore from
@@ -48,7 +48,7 @@ a content with static files that can then be used to serve through a
 simple http server.
 `,
 		Run: func(cmd *cobra.Command, args []string) {
-			if srcDir == "" || dstDir == "" {
+			if srcDir == "" || dstLocation == "" {
 				cmd.Help()
 				return
 			}
@@ -86,13 +86,17 @@ simple http server.
 				wi = &_wi
 			}
 
+			if useRawFilesystem {
+				// For backwards compatibility
+				dstLocation = "file-raw://" + dstLocation
+			}
+
 			ep, wi, err := compileFS(
 				cmd.Context(),
 				srcDir,
-				dstDir,
+				dstLocation,
 				useStaticBlobs,
 				wi,
-				useRawFilesystem,
 			)
 			if err != nil {
 				fatalResult("%s", err)
@@ -112,9 +116,10 @@ simple http server.
 	}
 
 	cmd.Flags().StringVarP(&srcDir, "source", "s", "", "Source directory with content to compile")
-	cmd.Flags().StringVarP(&dstDir, "destination", "d", "", "Destination directory for blobs")
+	cmd.Flags().StringVarP(&dstLocation, "destination", "d", "", "Location of destination datastore for blobs, can be a directory or an url prefixed with file://, file-raw://, http://, https://")
 	cmd.Flags().BoolVarP(&useStaticBlobs, "static", "t", false, "If set to true, compile only the static dataset, do not create or update dynamic link")
 	cmd.Flags().BoolVarP(&useRawFilesystem, "raw-filesystem", "r", false, "If set to true, use raw filesystem instead of the optimized one, can be used to create dataset for a standard http server")
+	cmd.Flags().MarkDeprecated("raw-filesystem", "use file-raw:// destination prefix instead")
 	cmd.Flags().StringVarP(&rootWriterInfoStr, "writer-info", "w", "", "Writer info for the root dynamic link, if neither writer info nor writer info file is specified, a random writer info will be generated and printed out")
 	cmd.Flags().StringVarP(&rootWriterInfoFile, "writer-info-file", "f", "", "Name of the file containing writer info for the root dynamic link, if neither writer info nor writer info file is specified, a random writer info will be generated and printed out")
 
@@ -123,21 +128,15 @@ simple http server.
 
 func compileFS(
 	ctx context.Context,
-	srcDir, dstDir string,
+	srcDir, dstLocation string,
 	static bool,
 	writerInfo *graph.WriterInfo,
-	useRawFS bool,
 ) (
 	*graph.Entrypoint,
 	*graph.WriterInfo,
 	error,
 ) {
-	ds, err := func() (datastore.DS, error) {
-		if useRawFS {
-			return datastore.InRawFileSystem(dstDir)
-		}
-		return datastore.InFileSystem(dstDir)
-	}()
+	ds, err := datastore.FromLocation(dstLocation)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not open datastore: %w", err)
 	}

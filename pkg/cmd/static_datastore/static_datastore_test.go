@@ -124,7 +124,6 @@ func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 			datastoreDir,
 			false,
 			wi,
-			false,
 		)
 		require.NoError(t, err)
 		wi = retWi
