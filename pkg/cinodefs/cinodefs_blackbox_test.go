@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package graph_test
+package cinodefs_test
 
 import (
 	"context"
@@ -24,17 +24,17 @@ import (
 	"testing"
 
 	"github.com/cinode/go/pkg/blenc"
+	"github.com/cinode/go/pkg/cinodefs"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/structure/graph"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
 func TestCinodeFSSingleFileScenario(t *testing.T) {
 	ctx := context.Background()
-	fs, err := graph.NewCinodeFS(ctx,
+	fs, err := cinodefs.New(ctx,
 		blenc.FromDatastore(datastore.InMemory()),
-		graph.NewRootDynamicLink(),
+		cinodefs.NewRootDynamicLink(),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, fs)
@@ -61,7 +61,7 @@ func TestCinodeFSSingleFileScenario(t *testing.T) {
 		// Directories are modified, not yet flushed
 		for i := range path1 {
 			ep3, err := fs.FindEntry(ctx, path1[:i])
-			require.ErrorIs(t, err, graph.ErrModifiedDirectory)
+			require.ErrorIs(t, err, cinodefs.ErrModifiedDirectory)
 			require.Nil(t, ep3)
 		}
 
@@ -80,7 +80,7 @@ type CinodeFSMultiFileTestSuite struct {
 	suite.Suite
 
 	ds         datastore.DS
-	fs         graph.CinodeFS
+	fs         cinodefs.FS
 	contentMap []testFileEntry
 }
 
@@ -92,9 +92,9 @@ func (c *CinodeFSMultiFileTestSuite) SetupTest() {
 	ctx := context.Background()
 
 	c.ds = datastore.InMemory()
-	fs, err := graph.NewCinodeFS(ctx,
+	fs, err := cinodefs.New(ctx,
 		blenc.FromDatastore(c.ds),
-		graph.NewRootDynamicLink(),
+		cinodefs.NewRootDynamicLink(),
 	)
 	require.NoError(c.T(), err)
 	require.NotNil(c.T(), fs)
@@ -127,7 +127,7 @@ func (c *CinodeFSMultiFileTestSuite) SetupTest() {
 	c.checkContentMap(c.fs)
 }
 
-func (c *CinodeFSMultiFileTestSuite) checkContentMap(fs graph.CinodeFS) {
+func (c *CinodeFSMultiFileTestSuite) checkContentMap(fs cinodefs.FS) {
 	ctx := context.Background()
 	for _, file := range c.contentMap {
 		ep, err := fs.FindEntry(ctx, file.path)
@@ -150,10 +150,10 @@ func (c *CinodeFSMultiFileTestSuite) TestReopeningInReadOnlyMode() {
 	rootEP, err := c.fs.RootEntrypoint()
 	require.NoError(c.T(), err)
 
-	fs2, err := graph.NewCinodeFS(
+	fs2, err := cinodefs.New(
 		ctx,
 		blenc.FromDatastore(c.ds),
-		graph.RootEntrypoint(rootEP),
+		cinodefs.RootEntrypoint(rootEP),
 	)
 	require.NoError(c.T(), err)
 	require.NotNil(c.T(), fs2)
@@ -173,10 +173,10 @@ func (c *CinodeFSMultiFileTestSuite) TestReopeningInReadOnlyMode() {
 	require.NoError(c.T(), err)
 
 	// reopen fs2 to avoid any caching issues
-	fs2, err = graph.NewCinodeFS(
+	fs2, err = cinodefs.New(
 		ctx,
 		blenc.FromDatastore(c.ds),
-		graph.RootEntrypoint(rootEP),
+		cinodefs.RootEntrypoint(rootEP),
 	)
 	require.NoError(c.T(), err)
 
@@ -186,7 +186,7 @@ func (c *CinodeFSMultiFileTestSuite) TestReopeningInReadOnlyMode() {
 
 	// We should not be allowed to modify fs2 without writer info
 	ep, err := fs2.SetEntryFile(ctx, c.contentMap[0].path, strings.NewReader("should fail"))
-	require.ErrorIs(c.T(), err, graph.ErrMissingWriterInfo)
+	require.ErrorIs(c.T(), err, cinodefs.ErrMissingWriterInfo)
 	require.Nil(c.T(), ep)
 	c.checkContentMap(c.fs)
 	c.checkContentMap(fs2)
@@ -199,10 +199,10 @@ func (c *CinodeFSMultiFileTestSuite) TestReopeningInReadWriteMode() {
 	require.NoError(c.T(), err)
 	require.NotNil(c.T(), rootWriterInfo)
 
-	fs3, err := graph.NewCinodeFS(
+	fs3, err := cinodefs.New(
 		ctx,
 		blenc.FromDatastore(c.ds),
-		graph.RootWriterInfo(rootWriterInfo),
+		cinodefs.RootWriterInfo(rootWriterInfo),
 	)
 	require.NoError(c.T(), err)
 	require.NotNil(c.T(), fs3)
@@ -252,7 +252,7 @@ func (c *CinodeFSMultiFileTestSuite) TestRemovalOfADirectory() {
 	c.checkContentMap(c.fs)
 
 	err = c.fs.DeleteEntry(ctx, removedPath)
-	require.ErrorIs(c.T(), err, graph.ErrEntryNotFound)
+	require.ErrorIs(c.T(), err, cinodefs.ErrEntryNotFound)
 
 	c.checkContentMap(c.fs)
 }
@@ -262,7 +262,7 @@ func (c *CinodeFSMultiFileTestSuite) TestDeleteTreatFileAsDirectory() {
 
 	path := append(c.contentMap[0].path, "sub-file")
 	err := c.fs.DeleteEntry(ctx, path)
-	require.ErrorIs(c.T(), err, graph.ErrNotADirectory)
+	require.ErrorIs(c.T(), err, cinodefs.ErrNotADirectory)
 }
 
 func (c *CinodeFSMultiFileTestSuite) TestPreventSettingFileAsDirectory() {
@@ -270,7 +270,7 @@ func (c *CinodeFSMultiFileTestSuite) TestPreventSettingFileAsDirectory() {
 
 	path := append(c.contentMap[0].path, "sub-file")
 	_, err := c.fs.SetEntryFile(ctx, path, strings.NewReader("should not happen"))
-	require.ErrorIs(c.T(), err, graph.ErrNotADirectory)
+	require.ErrorIs(c.T(), err, cinodefs.ErrNotADirectory)
 }
 
 func (c *CinodeFSMultiFileTestSuite) TestPreventSettingEmptyEntryName() {
@@ -283,7 +283,7 @@ func (c *CinodeFSMultiFileTestSuite) TestPreventSettingEmptyEntryName() {
 	} {
 		c.T().Run(strings.Join(path, "::"), func(t *testing.T) {
 			_, err := c.fs.SetEntryFile(ctx, path, strings.NewReader("should not succeed"))
-			require.ErrorIs(t, err, graph.ErrEmptyName)
+			require.ErrorIs(t, err, cinodefs.ErrEmptyName)
 
 		})
 	}
@@ -320,9 +320,9 @@ func (c *CinodeFSMultiFileTestSuite) TestRootEPDirectoryOnDirtyFS() {
 	rootDir, err := c.fs.FindEntry(ctx, []string{})
 	require.NoError(c.T(), err)
 
-	fs2, err := graph.NewCinodeFS(ctx,
+	fs2, err := cinodefs.New(ctx,
 		blenc.FromDatastore(c.ds),
-		graph.RootEntrypoint(rootDir),
+		cinodefs.RootEntrypoint(rootDir),
 	)
 	require.NoError(c.T(), err)
 
@@ -334,7 +334,7 @@ func (c *CinodeFSMultiFileTestSuite) TestRootEPDirectoryOnDirtyFS() {
 	require.NoError(c.T(), err)
 
 	ep2, err := fs2.RootEntrypoint()
-	require.ErrorIs(c.T(), err, graph.ErrModifiedDirectory)
+	require.ErrorIs(c.T(), err, cinodefs.ErrModifiedDirectory)
 	require.Nil(c.T(), ep2)
 
 	err = fs2.Flush(ctx)

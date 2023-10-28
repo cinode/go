@@ -14,54 +14,48 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package graph
+package cinodefs
 
 import (
 	"context"
 	"time"
-
-	"github.com/cinode/go/pkg/structure/internal/protobuf"
 )
 
 type EntrypointOption interface {
-	apply(ctx context.Context, opts *entrypointOptions) error
+	apply(ctx context.Context, ep *Entrypoint) error
 }
 
-type entrypointOptionBasicFunc func(opts *entrypointOptions)
+type entrypointOptionBasicFunc func(ep *Entrypoint)
 
-func (ep entrypointOptionBasicFunc) apply(ctx context.Context, opts *entrypointOptions) error {
-	ep(opts)
+func (f entrypointOptionBasicFunc) apply(ctx context.Context, ep *Entrypoint) error {
+	f(ep)
 	return nil
 }
 
-type entrypointOptions struct {
-	ep *protobuf.Entrypoint
-}
-
 func SetMimeType(mimeType string) EntrypointOption {
-	return entrypointOptionBasicFunc(func(ep *entrypointOptions) {
+	return entrypointOptionBasicFunc(func(ep *Entrypoint) {
 		ep.ep.MimeType = mimeType
 	})
 }
 
 func SetNotValidBefore(t time.Time) EntrypointOption {
-	return entrypointOptionBasicFunc(func(opts *entrypointOptions) {
-		opts.ep.NotValidBeforeUnixMicro = t.UnixMicro()
+	return entrypointOptionBasicFunc(func(ep *Entrypoint) {
+		ep.ep.NotValidBeforeUnixMicro = t.UnixMicro()
 	})
 }
 
 func SetNotValidAfter(t time.Time) EntrypointOption {
-	return entrypointOptionBasicFunc(func(opts *entrypointOptions) {
-		opts.ep.NotValidAfterUnixMicro = t.UnixMicro()
+	return entrypointOptionBasicFunc(func(ep *Entrypoint) {
+		ep.ep.NotValidAfterUnixMicro = t.UnixMicro()
 	})
 }
 
-func protoEntrypointFromOptions(ctx context.Context, opts ...EntrypointOption) (*protobuf.Entrypoint, error) {
-	scratchpad := entrypointOptions{ep: &protobuf.Entrypoint{}}
+func entrypointFromOptions(ctx context.Context, opts ...EntrypointOption) (*Entrypoint, error) {
+	ep := &Entrypoint{}
 	for _, o := range opts {
-		if err := o.apply(ctx, &scratchpad); err != nil {
+		if err := o.apply(ctx, ep); err != nil {
 			return nil, err
 		}
 	}
-	return scratchpad.ep, nil
+	return ep, nil
 }

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package graph
+package cinodefs
 
 import (
 	"context"
@@ -28,7 +28,7 @@ const (
 	DefaultMaxLinksRedirects = 10
 )
 
-type CinodeFSOption interface {
+type Option interface {
 	apply(ctx context.Context, fs *cinodeFS) error
 }
 
@@ -38,25 +38,25 @@ func (f optionFunc) apply(ctx context.Context, fs *cinodeFS) error {
 	return f(ctx, fs)
 }
 
-func MaxLinkRedirects(maxLinkRedirects int) CinodeFSOption {
+func MaxLinkRedirects(maxLinkRedirects int) Option {
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
 		fs.maxLinkRedirects = maxLinkRedirects
 		return nil
 	})
 }
 
-func RootEntrypoint(ep *Entrypoint) CinodeFSOption {
+func RootEntrypoint(ep *Entrypoint) Option {
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
-		fs.rootEP = &nodeUnloaded{ep: *ep}
+		fs.rootEP = &nodeUnloaded{ep: ep}
 		return nil
 	})
 }
 
-func errOption(err error) CinodeFSOption {
+func errOption(err error) Option {
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error { return err })
 }
 
-func RootEntrypointString(eps string) CinodeFSOption {
+func RootEntrypointString(eps string) Option {
 	ep, err := EntrypointFromString(eps)
 	if err != nil {
 		return errOption(err)
@@ -64,7 +64,7 @@ func RootEntrypointString(eps string) CinodeFSOption {
 	return RootEntrypoint(ep)
 }
 
-func RootWriterInfo(wi WriterInfo) CinodeFSOption {
+func RootWriterInfo(wi *WriterInfo) Option {
 	bn, err := common.BlobNameFromBytes(wi.wi.BlobName)
 	if err != nil {
 		return errOption(err)
@@ -74,13 +74,13 @@ func RootWriterInfo(wi WriterInfo) CinodeFSOption {
 	ep := EntrypointFromBlobNameAndKey(bn, key)
 
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
-		fs.rootEP = &nodeUnloaded{ep: *ep}
+		fs.rootEP = &nodeUnloaded{ep: ep}
 		fs.c.writerInfos[bn.String()] = wi.wi.AuthInfo
 		return nil
 	})
 }
 
-func RootWriterInfoString(wis string) CinodeFSOption {
+func RootWriterInfoString(wis string) Option {
 	wi, err := WriterInfoFromString(wis)
 	if err != nil {
 		return errOption(err)
@@ -89,14 +89,14 @@ func RootWriterInfoString(wis string) CinodeFSOption {
 	return RootWriterInfo(wi)
 }
 
-func TimeFunc(f func() time.Time) CinodeFSOption {
+func TimeFunc(f func() time.Time) Option {
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
 		fs.timeFunc = f
 		return nil
 	})
 }
 
-func RandSource(r io.Reader) CinodeFSOption {
+func RandSource(r io.Reader) Option {
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
 		fs.randSource = r
 		return nil
@@ -105,7 +105,7 @@ func RandSource(r io.Reader) CinodeFSOption {
 
 // NewRootDynamicLink option can be used to create completely new, random
 // dynamic link as the root
-func NewRootDynamicLink() CinodeFSOption {
+func NewRootDynamicLink() Option {
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
 		newLinkEntrypoint, err := fs.GenerateNewDynamicLinkEntrypoint()
 		if err != nil {
@@ -117,7 +117,7 @@ func NewRootDynamicLink() CinodeFSOption {
 		// creation and have to be flushed first to generate any
 		// blobs
 		fs.rootEP = &nodeLink{
-			ep:     *newLinkEntrypoint,
+			ep:     newLinkEntrypoint,
 			dState: dsSubDirty,
 			target: &nodeDirectory{
 				entries: map[string]node{},
@@ -130,7 +130,7 @@ func NewRootDynamicLink() CinodeFSOption {
 
 // NewRootDynamicLink option can be used to create completely new, random
 // dynamic link as the root
-func NewRootStaticDirectory() CinodeFSOption {
+func NewRootStaticDirectory() Option {
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
 		fs.rootEP = &nodeDirectory{
 			entries: map[string]node{},

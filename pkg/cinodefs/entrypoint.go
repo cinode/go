@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package graph
+package cinodefs
 
 import (
 	"errors"
@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"github.com/cinode/go/pkg/blobtypes"
+	"github.com/cinode/go/pkg/cinodefs/internal/protobuf"
 	"github.com/cinode/go/pkg/common"
-	"github.com/cinode/go/pkg/structure/internal/protobuf"
 	"github.com/cinode/go/pkg/utilities/golang"
 	"github.com/jbenet/go-base58"
 	"google.golang.org/protobuf/proto"
@@ -40,7 +40,7 @@ var (
 )
 
 type Entrypoint struct {
-	ep *protobuf.Entrypoint
+	ep protobuf.Entrypoint
 	bn common.BlobName
 }
 
@@ -58,14 +58,19 @@ func EntrypointFromString(s string) (*Entrypoint, error) {
 }
 
 func EntrypointFromBytes(b []byte) (*Entrypoint, error) {
-	data := protobuf.Entrypoint{}
+	ep := &Entrypoint{}
 
-	err := proto.Unmarshal(b, &data)
+	err := proto.Unmarshal(b, &ep.ep)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrInvalidEntrypointDataParse, err)
 	}
 
-	return entrypointFromProtobuf(&data)
+	err = expandEntrypointProto(ep)
+	if err != nil {
+		return nil, err
+	}
+
+	return ep, nil
 }
 
 func entrypointFromProtobuf(data *protobuf.Entrypoint) (*Entrypoint, error) {
@@ -73,35 +78,40 @@ func entrypointFromProtobuf(data *protobuf.Entrypoint) (*Entrypoint, error) {
 		return nil, ErrInvalidEntrypointDataNil
 	}
 
-	ret := Entrypoint{ep: data}
-
-	// Extract blob name from entrypoint
-	bn, err := common.BlobNameFromBytes(data.BlobName)
+	ep := &Entrypoint{}
+	proto.Merge(&ep.ep, data)
+	err := expandEntrypointProto(ep)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrInvalidEntrypointData, err)
+		return nil, err
 	}
-	ret.bn = bn
+	return ep, nil
+}
+
+func expandEntrypointProto(ep *Entrypoint) error {
+	// Extract blob name from entrypoint
+	bn, err := common.BlobNameFromBytes(ep.ep.BlobName)
+	if err != nil {
+		return fmt.Errorf("%w: %s", ErrInvalidEntrypointData, err)
+	}
+	ep.bn = bn
 
 	// Links must not have mimetype set
-	if ret.IsLink() && data.MimeType != "" {
-		return nil, ErrInvalidEntrypointDataLinkMimetype
+	if ep.IsLink() && ep.ep.MimeType != "" {
+		return ErrInvalidEntrypointDataLinkMimetype
 	}
 
-	return &ret, nil
+	return nil
 }
 
 func EntrypointFromBlobNameAndKey(bn common.BlobName, key common.BlobKey) *Entrypoint {
-	return entrypointFromBlobNameKeyAndProtoEntrypoint(bn, key, &protobuf.Entrypoint{})
+	return setEntrypointBlobNameAndKey(bn, key, &Entrypoint{})
 }
 
-func entrypointFromBlobNameKeyAndProtoEntrypoint(bn common.BlobName, key common.BlobKey, protoEp *protobuf.Entrypoint) *Entrypoint {
-	protoEp.BlobName = bn.Bytes()
-	protoEp.KeyInfo = &protobuf.KeyInfo{Key: key.Bytes()}
-
-	return &Entrypoint{
-		ep: protoEp,
-		bn: bn,
-	}
+func setEntrypointBlobNameAndKey(bn common.BlobName, key common.BlobKey, ep *Entrypoint) *Entrypoint {
+	ep.bn = bn
+	ep.ep.BlobName = bn.Bytes()
+	ep.ep.KeyInfo = &protobuf.KeyInfo{Key: key.Bytes()}
+	return ep
 }
 
 func (e *Entrypoint) String() string {
@@ -109,7 +119,7 @@ func (e *Entrypoint) String() string {
 }
 
 func (e *Entrypoint) Bytes() []byte {
-	return golang.Must(proto.Marshal(e.ep))
+	return golang.Must(proto.Marshal(&e.ep))
 }
 
 func (e *Entrypoint) BlobName() common.BlobName {

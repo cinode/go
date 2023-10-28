@@ -14,17 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package graph
+package cinodefs
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/cinode/go/pkg/structure/internal/protobuf"
+	"github.com/cinode/go/pkg/cinodefs/internal/protobuf"
 )
 
 type nodeUnloaded struct {
-	ep Entrypoint
+	ep *Entrypoint
 }
 
 func (c *nodeUnloaded) dirty() dirtyState {
@@ -32,7 +32,7 @@ func (c *nodeUnloaded) dirty() dirtyState {
 }
 
 func (c *nodeUnloaded) flush(ctx context.Context, gc *graphContext) (node, *Entrypoint, error) {
-	return c, &c.ep, nil
+	return c, c.ep, nil
 }
 
 func (c *nodeUnloaded) traverse(
@@ -80,27 +80,27 @@ func (c *nodeUnloaded) load(ctx context.Context, gc *graphContext) (node, error)
 }
 
 func (c *nodeUnloaded) loadEntrypointLink(ctx context.Context, gc *graphContext) (node, error) {
-	msg := &protobuf.Entrypoint{}
-	err := gc.readProtobufMessage(ctx, &c.ep, msg)
+	targetEP := &Entrypoint{}
+	err := gc.readProtobufMessage(ctx, c.ep, &targetEP.ep)
 	if err != nil {
 		return nil, err
 	}
 
-	targetEP, err := entrypointFromProtobuf(msg)
+	err = expandEntrypointProto(targetEP)
 	if err != nil {
 		return nil, err
 	}
 
 	return &nodeLink{
 		ep:     c.ep,
-		target: &nodeUnloaded{ep: *targetEP},
+		target: &nodeUnloaded{ep: targetEP},
 		dState: dsClean,
 	}, nil
 }
 
 func (c *nodeUnloaded) loadEntrypointDir(ctx context.Context, gc *graphContext) (node, error) {
 	msg := &protobuf.Directory{}
-	err := gc.readProtobufMessage(ctx, &c.ep, msg)
+	err := gc.readProtobufMessage(ctx, c.ep, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -120,16 +120,16 @@ func (c *nodeUnloaded) loadEntrypointDir(ctx context.Context, gc *graphContext) 
 			return nil, err
 		}
 
-		dir[entry.Name] = &nodeUnloaded{ep: *ep}
+		dir[entry.Name] = &nodeUnloaded{ep: ep}
 	}
 
 	return &nodeDirectory{
-		stored:  &c.ep,
+		stored:  c.ep,
 		entries: dir,
 		dState:  dsClean,
 	}, nil
 }
 
 func (c *nodeUnloaded) entrypoint() (*Entrypoint, error) {
-	return &c.ep, nil
+	return c.ep, nil
 }

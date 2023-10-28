@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package graph
+package cinodefs
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 
 // Entry is a file with its entrypoint
 type nodeFile struct {
-	ep Entrypoint
+	ep *Entrypoint
 }
 
 func (c *nodeFile) dirty() dirtyState {
@@ -30,7 +30,7 @@ func (c *nodeFile) dirty() dirtyState {
 }
 
 func (c *nodeFile) flush(ctx context.Context, gc *graphContext) (node, *Entrypoint, error) {
-	return c, &c.ep, nil
+	return c, c.ep, nil
 }
 
 func (c *nodeFile) traverse(
@@ -56,5 +56,5 @@ func (c *nodeFile) traverse(
 }
 
 func (c *nodeFile) entrypoint() (*Entrypoint, error) {
-	return &c.ep, nil
+	return c.ep, nil
 }

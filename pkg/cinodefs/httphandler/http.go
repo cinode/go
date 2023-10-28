@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package graphutils
+package httphandler
 
 import (
 	"errors"
@@ -24,17 +24,17 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/cinode/go/pkg/structure/graph"
+	"github.com/cinode/go/pkg/cinodefs"
 	"golang.org/x/exp/slog"
 )
 
-type HTTPHandler struct {
-	FS        graph.CinodeFS
+type Handler struct {
+	FS        cinodefs.FS
 	IndexFile string
 	Log       *slog.Logger
 }
 
-func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log := h.Log.With(
 		slog.String("RemoteAddr", r.RemoteAddr),
 		slog.String("URL", r.URL.String()),
@@ -71,8 +71,8 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	fileEP, err := h.FS.FindEntry(r.Context(), pathList)
 	switch {
-	case errors.Is(err, graph.ErrEntryNotFound),
-		errors.Is(err, graph.ErrNotADirectory):
+	case errors.Is(err, cinodefs.ErrEntryNotFound),
+		errors.Is(err, cinodefs.ErrNotADirectory):
 		log.Warn("Not found")
 		http.NotFound(w, r)
 		return

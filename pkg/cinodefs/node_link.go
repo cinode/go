@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package graph
+package cinodefs
 
 import (
 	"context"
@@ -24,8 +24,8 @@ import (
 
 // Entry is a link loaded into memory
 type nodeLink struct {
-	ep     Entrypoint // entrypoint of the link itself
-	target node       // target for the link
+	ep     *Entrypoint // entrypoint of the link itself
+	target node        // target for the link
 	dState dirtyState
 }
 
@@ -36,7 +36,7 @@ func (c *nodeLink) dirty() dirtyState {
 func (c *nodeLink) flush(ctx context.Context, gc *graphContext) (node, *Entrypoint, error) {
 	if c.dState == dsClean {
 		// all clear
-		return c, &c.ep, nil
+		return c, c.ep, nil
 	}
 
 	golang.Assert(c.dState == dsSubDirty, "link can be clean or sub-dirty")
@@ -45,7 +45,7 @@ func (c *nodeLink) flush(ctx context.Context, gc *graphContext) (node, *Entrypoi
 		return nil, nil, err
 	}
 
-	err = gc.updateProtobufMessage(ctx, &c.ep, targetEP.ep)
+	err = gc.updateProtobufMessage(ctx, c.ep, &targetEP.ep)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -56,7 +56,7 @@ func (c *nodeLink) flush(ctx context.Context, gc *graphContext) (node, *Entrypoi
 		dState: dsClean,
 	}
 
-	return ret, &ret.ep, nil
+	return ret, ret.ep, nil
 }
 
 func (c *nodeLink) traverse(
@@ -123,5 +123,5 @@ func (c *nodeLink) traverse(
 }
 
 func (c *nodeLink) entrypoint() (*Entrypoint, error) {
-	return &c.ep, nil
+	return c.ep, nil
 }

@@ -29,9 +29,9 @@ import (
 	"time"
 
 	"github.com/cinode/go/pkg/blenc"
+	"github.com/cinode/go/pkg/cinodefs"
+	"github.com/cinode/go/pkg/cinodefs/httphandler"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/structure/graph"
-	"github.com/cinode/go/pkg/structure/graphutils"
 	"github.com/cinode/go/pkg/utilities/httpserver"
 	"golang.org/x/exp/slog"
 )
@@ -59,7 +59,7 @@ func executeWithConfig(ctx context.Context, cfg *config) error {
 		additionalDSs = append(additionalDSs, ds)
 	}
 
-	entrypoint, err := graph.EntrypointFromString(cfg.entrypoint)
+	entrypoint, err := cinodefs.EntrypointFromString(cfg.entrypoint)
 	if err != nil {
 		return fmt.Errorf("could not parse entrypoint data: %w", err)
 	}
@@ -95,9 +95,9 @@ func setupCinodeProxy(
 	ctx context.Context,
 	mainDS datastore.DS,
 	additionalDSs []datastore.DS,
-	entrypoint *graph.Entrypoint,
+	entrypoint *cinodefs.Entrypoint,
 ) (http.Handler, error) {
-	fs, err := graph.NewCinodeFS(
+	fs, err := cinodefs.New(
 		ctx,
 		blenc.FromDatastore(
 			datastore.NewMultiSource(
@@ -106,14 +106,14 @@ func setupCinodeProxy(
 				additionalDSs...,
 			),
 		),
-		graph.RootEntrypoint(entrypoint),
-		graph.MaxLinkRedirects(10),
+		cinodefs.RootEntrypoint(entrypoint),
+		cinodefs.MaxLinkRedirects(10),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return &graphutils.HTTPHandler{
+	return &httphandler.Handler{
 		FS:        fs,
 		IndexFile: "index.html",
 		Log:       slog.Default(),

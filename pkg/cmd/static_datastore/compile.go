@@ -26,9 +26,9 @@ import (
 	"strings"
 
 	"github.com/cinode/go/pkg/blenc"
+	"github.com/cinode/go/pkg/cinodefs"
+	"github.com/cinode/go/pkg/cinodefs/uploader"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/structure/graph"
-	"github.com/cinode/go/pkg/structure/graphutils"
 	"github.com/spf13/cobra"
 )
 
@@ -77,11 +77,11 @@ func compileCmd() *cobra.Command {
 				rootWriterInfoStr = string(data)
 			}
 			if len(rootWriterInfoStr) > 0 {
-				wi, err := graph.WriterInfoFromString(rootWriterInfoStr)
+				wi, err := cinodefs.WriterInfoFromString(rootWriterInfoStr)
 				if err != nil {
 					fatalResult("Couldn't parse writer info: %v", err)
 				}
-				o.writerInfo = &wi
+				o.writerInfo = wi
 			}
 
 			if useRawFilesystem {
@@ -160,7 +160,7 @@ type compileFSOptions struct {
 	srcDir             string
 	dstLocation        string
 	static             bool
-	writerInfo         *graph.WriterInfo
+	writerInfo         *cinodefs.WriterInfo
 	generateIndexFiles bool
 	indexFile          string
 	append             bool
@@ -170,8 +170,8 @@ func compileFS(
 	ctx context.Context,
 	o compileFSOptions,
 ) (
-	*graph.Entrypoint,
-	*graph.WriterInfo,
+	*cinodefs.Entrypoint,
+	*cinodefs.WriterInfo,
 	error,
 ) {
 	ds, err := datastore.FromLocation(o.dstLocation)
@@ -179,16 +179,16 @@ func compileFS(
 		return nil, nil, fmt.Errorf("could not open datastore: %w", err)
 	}
 
-	opts := []graph.CinodeFSOption{}
+	opts := []cinodefs.Option{}
 	if o.static {
-		opts = append(opts, graph.NewRootStaticDirectory())
+		opts = append(opts, cinodefs.NewRootStaticDirectory())
 	} else if o.writerInfo == nil {
-		opts = append(opts, graph.NewRootDynamicLink())
+		opts = append(opts, cinodefs.NewRootDynamicLink())
 	} else {
-		opts = append(opts, graph.RootWriterInfo(*o.writerInfo))
+		opts = append(opts, cinodefs.RootWriterInfo(o.writerInfo))
 	}
 
-	fs, err := graph.NewCinodeFS(
+	fs, err := cinodefs.New(
 		ctx,
 		blenc.FromDatastore(ds),
 		opts...,
@@ -204,12 +204,12 @@ func compileFS(
 		}
 	}
 
-	var genOpts []graphutils.UploadStaticDirectoryOption
+	var genOpts []uploader.Option
 	if o.generateIndexFiles {
-		genOpts = append(genOpts, graphutils.CreateIndexFile(o.indexFile))
+		genOpts = append(genOpts, uploader.CreateIndexFile(o.indexFile))
 	}
 
-	err = graphutils.UploadStaticDirectory(
+	err = uploader.UploadStaticDirectory(
 		ctx,
 		os.DirFS(o.srcDir),
 		fs,
@@ -225,12 +225,12 @@ func compileFS(
 	}
 
 	wi, err := fs.RootWriterInfo(ctx)
-	if errors.Is(err, graph.ErrNotALink) {
+	if errors.Is(err, cinodefs.ErrNotALink) {
 		return ep, nil, nil
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't get root writer info from cinodefs instance: %w", err)
 	}
 
-	return ep, &wi, nil
+	return ep, wi, nil
 }

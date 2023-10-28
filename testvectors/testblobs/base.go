@@ -23,8 +23,8 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/cinode/go/pkg/cinodefs"
 	"github.com/cinode/go/pkg/common"
-	"github.com/cinode/go/pkg/structure/graph"
 	"github.com/jbenet/go-base58"
 )
 
@@ -99,8 +99,8 @@ func (s *TestBlob) Get(baseUrl string) ([]byte, error) {
 	return body, nil
 }
 
-func (s *TestBlob) Entrypoint() *graph.Entrypoint {
-	return graph.EntrypointFromBlobNameAndKey(
+func (s *TestBlob) Entrypoint() *cinodefs.Entrypoint {
+	return cinodefs.EntrypointFromBlobNameAndKey(
 		s.BlobName,
 		s.EncryptionKey,
 	)

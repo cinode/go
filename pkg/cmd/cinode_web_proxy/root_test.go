@@ -30,11 +30,11 @@ import (
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/blobtypes"
+	"github.com/cinode/go/pkg/cinodefs"
+	"github.com/cinode/go/pkg/cinodefs/uploader"
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
-	"github.com/cinode/go/pkg/structure/graph"
-	"github.com/cinode/go/pkg/structure/graphutils"
 	"github.com/cinode/go/testvectors/testblobs"
 	"github.com/jbenet/go-base58"
 	"github.com/stretchr/testify/require"
@@ -118,7 +118,7 @@ func TestWebProxyHandlerInvalidEntrypoint(t *testing.T) {
 		context.Background(),
 		datastore.InMemory(),
 		[]datastore.DS{},
-		graph.EntrypointFromBlobNameAndKey(n, key),
+		cinodefs.EntrypointFromBlobNameAndKey(n, key),
 	)
 	require.NoError(t, err)
 
@@ -147,7 +147,7 @@ func TestWebProxyHandlerSimplePage(t *testing.T) {
 	ds := datastore.InMemory()
 	be := blenc.FromDatastore(ds)
 
-	ep := func() *graph.Entrypoint {
+	ep := func() *cinodefs.Entrypoint {
 		dir := t.TempDir()
 
 		for name, content := range map[string]string{
@@ -161,10 +161,10 @@ func TestWebProxyHandlerSimplePage(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		fs, err := graph.NewCinodeFS(context.Background(), be, graph.NewRootDynamicLink())
+		fs, err := cinodefs.New(context.Background(), be, cinodefs.NewRootDynamicLink())
 		require.NoError(t, err)
 
-		err = graphutils.UploadStaticDirectory(
+		err = uploader.UploadStaticDirectory(
 			context.Background(),
 			os.DirFS(dir),
 			fs,

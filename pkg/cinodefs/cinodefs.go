@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package graph
+package cinodefs
 
 import (
 	"context"
@@ -29,7 +29,6 @@ import (
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
-	"github.com/cinode/go/pkg/structure/internal/protobuf"
 )
 
 var (
@@ -54,7 +53,7 @@ const (
 	CinodeDirMimeType = "application/cinode-dir"
 )
 
-type CinodeFS interface {
+type FS interface {
 	SetEntryFile(
 		ctx context.Context,
 		path []string,
@@ -93,7 +92,10 @@ type CinodeFS interface {
 		path []string,
 	) error
 
-	GenerateNewDynamicLinkEntrypoint() (*Entrypoint, error)
+	GenerateNewDynamicLinkEntrypoint() (
+		*Entrypoint,
+		error,
+	)
 
 	OpenEntrypointData(
 		ctx context.Context,
@@ -105,11 +107,11 @@ type CinodeFS interface {
 	EntrypointWriterInfo(
 		ctx context.Context,
 		ep *Entrypoint,
-	) (WriterInfo, error)
+	) (*WriterInfo, error)
 
 	RootWriterInfo(
 		ctx context.Context,
-	) (WriterInfo, error)
+	) (*WriterInfo, error)
 }
 
 type cinodeFS struct {
@@ -121,11 +123,11 @@ type cinodeFS struct {
 	rootEP node
 }
 
-func NewCinodeFS(
+func New(
 	ctx context.Context,
 	be blenc.BE,
-	options ...CinodeFSOption,
-) (CinodeFS, error) {
+	options ...Option,
+) (FS, error) {
 	if be == nil {
 		return nil, ErrInvalidBE
 	}
@@ -156,16 +158,16 @@ func (fs *cinodeFS) SetEntryFile(
 	data io.Reader,
 	opts ...EntrypointOption,
 ) (*Entrypoint, error) {
-	protoEntrypoint, err := protoEntrypointFromOptions(ctx, opts...)
+	ep, err := entrypointFromOptions(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
-	if protoEntrypoint.MimeType == "" && len(path) > 0 {
+	if ep.ep.MimeType == "" && len(path) > 0 {
 		// Try detecting mime type from filename extension
-		protoEntrypoint.MimeType = mime.TypeByExtension(filepath.Ext(path[len(path)-1]))
+		ep.ep.MimeType = mime.TypeByExtension(filepath.Ext(path[len(path)-1]))
 	}
 
-	ep, err := fs.createFileEntrypoint(ctx, data, protoEntrypoint)
+	ep, err = fs.createFileEntrypoint(ctx, data, ep)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +185,7 @@ func (fs *cinodeFS) CreateFileEntrypoint(
 	data io.Reader,
 	opts ...EntrypointOption,
 ) (*Entrypoint, error) {
-	ep, err := protoEntrypointFromOptions(ctx, opts...)
+	ep, err := entrypointFromOptions(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -194,11 +196,11 @@ func (fs *cinodeFS) CreateFileEntrypoint(
 func (fs *cinodeFS) createFileEntrypoint(
 	ctx context.Context,
 	data io.Reader,
-	protoEntrypoint *protobuf.Entrypoint,
+	ep *Entrypoint,
 ) (*Entrypoint, error) {
 	var hw headWriter
 
-	if protoEntrypoint.MimeType == "" {
+	if ep.ep.MimeType == "" {
 		// detect mimetype from the content
 		hw = newHeadWriter(512)
 		data = io.TeeReader(data, &hw)
@@ -209,12 +211,11 @@ func (fs *cinodeFS) createFileEntrypoint(
 		return nil, err
 	}
 
-	if protoEntrypoint.MimeType == "" {
-		protoEntrypoint.MimeType = http.DetectContentType(hw.data)
+	if ep.ep.MimeType == "" {
+		ep.ep.MimeType = http.DetectContentType(hw.data)
 	}
 
-	ep := entrypointFromBlobNameKeyAndProtoEntrypoint(bn, key, protoEntrypoint)
-	return ep, nil
+	return setEntrypointBlobNameAndKey(bn, key, ep), nil
 }
 
 func (fs *cinodeFS) SetEntry(
@@ -230,7 +231,7 @@ func (fs *cinodeFS) SetEntry(
 		if !isWriteable {
 			return nil, 0, ErrMissingWriterInfo
 		}
-		return &nodeUnloaded{ep: *ep}, dsDirty, nil
+		return &nodeUnloaded{ep: ep}, dsDirty, nil
 	}
 
 	return fs.traverseGraph(
@@ -276,7 +277,7 @@ func (fs *cinodeFS) Flush(ctx context.Context) error {
 		return err
 	}
 
-	fs.rootEP = &nodeUnloaded{ep: *newRootEP}
+	fs.rootEP = &nodeUnloaded{ep: newRootEP}
 	return nil
 }
 
@@ -361,30 +362,30 @@ func (fs *cinodeFS) RootEntrypoint() (*Entrypoint, error) {
 	return fs.rootEP.entrypoint()
 }
 
-func (fs *cinodeFS) EntrypointWriterInfo(ctx context.Context, ep *Entrypoint) (WriterInfo, error) {
+func (fs *cinodeFS) EntrypointWriterInfo(ctx context.Context, ep *Entrypoint) (*WriterInfo, error) {
 	if !ep.IsLink() {
-		return WriterInfo{}, ErrNotALink
+		return nil, ErrNotALink
 	}
 
 	bn := ep.BlobName()
 
 	key, err := fs.c.keyFromEntrypoint(ctx, ep)
 	if err != nil {
-		return WriterInfo{}, err
+		return nil, err
 	}
 
 	authInfo, found := fs.c.writerInfos[bn.String()]
 	if !found {
-		return WriterInfo{}, ErrMissingWriterInfo
+		return nil, ErrMissingWriterInfo
 	}
 
 	return writerInfoFromBlobNameKeyAndAuthInfo(bn, key, authInfo), nil
 }
 
-func (fs *cinodeFS) RootWriterInfo(ctx context.Context) (WriterInfo, error) {
+func (fs *cinodeFS) RootWriterInfo(ctx context.Context) (*WriterInfo, error) {
 	rootEP, err := fs.RootEntrypoint()
 	if err != nil {
-		return WriterInfo{}, err
+		return nil, err
 	}
 
 	return fs.EntrypointWriterInfo(ctx, rootEP)

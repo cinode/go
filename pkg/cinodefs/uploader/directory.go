@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package graphutils
+package uploader
 
 import (
 	"bytes"
@@ -28,7 +28,7 @@ import (
 	_ "embed"
 
 	"github.com/cinode/go/pkg/blenc"
-	"github.com/cinode/go/pkg/structure/graph"
+	"github.com/cinode/go/pkg/cinodefs"
 	"github.com/cinode/go/pkg/utilities/golang"
 	"golang.org/x/exp/slog"
 )
@@ -46,8 +46,8 @@ var (
 func UploadStaticDirectory(
 	ctx context.Context,
 	fsys fs.FS,
-	cfs graph.CinodeFS,
-	opts ...UploadStaticDirectoryOption,
+	cfs cinodefs.FS,
+	opts ...Option,
 ) error {
 	c := dirCompiler{
 		ctx:  ctx,
@@ -74,17 +74,17 @@ func UploadStaticDirectory(
 	return nil
 }
 
-type UploadStaticDirectoryOption func(d *dirCompiler) error
+type Option func(d *dirCompiler) error
 
-func BasePath(path []string) UploadStaticDirectoryOption {
-	return UploadStaticDirectoryOption(func(d *dirCompiler) error {
+func BasePath(path []string) Option {
+	return Option(func(d *dirCompiler) error {
 		d.basePath = path
 		return nil
 	})
 }
 
-func CreateIndexFile(indexFile string) UploadStaticDirectoryOption {
-	return UploadStaticDirectoryOption(func(d *dirCompiler) error {
+func CreateIndexFile(indexFile string) Option {
+	return Option(func(d *dirCompiler) error {
 		d.createIndexFile = true
 		d.indexFileName = indexFile
 		return nil
@@ -94,7 +94,7 @@ func CreateIndexFile(indexFile string) UploadStaticDirectoryOption {
 type dirCompiler struct {
 	ctx             context.Context
 	fsys            fs.FS
-	cfs             graph.CinodeFS
+	cfs             cinodefs.FS
 	log             *slog.Logger
 	basePath        []string
 	createIndexFile bool
@@ -131,7 +131,7 @@ func (d *dirCompiler) compilePath(
 		}
 		return &dirEntry{
 			Name:     name,
-			MimeType: graph.CinodeDirMimeType,
+			MimeType: cinodefs.CinodeDirMimeType,
 			IsDir:    true,
 			Size:     int64(size),
 		}, nil

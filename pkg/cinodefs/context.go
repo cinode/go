@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package graph
+package cinodefs
 
 import (
 	"bytes"
@@ -24,8 +24,8 @@ import (
 	"io"
 
 	"github.com/cinode/go/pkg/blenc"
+	"github.com/cinode/go/pkg/cinodefs/internal/protobuf"
 	"github.com/cinode/go/pkg/common"
-	"github.com/cinode/go/pkg/structure/internal/protobuf"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -51,8 +51,7 @@ func (c *graphContext) keyFromEntrypoint(
 	ctx context.Context,
 	ep *Entrypoint,
 ) (common.BlobKey, error) {
-	if ep.ep == nil ||
-		ep.ep.KeyInfo == nil ||
+	if ep.ep.KeyInfo == nil ||
 		ep.ep.KeyInfo.Key == nil {
 		return common.BlobKey{}, ErrMissingKeyInfo
 	}
@@ -127,7 +126,7 @@ func (c *graphContext) createProtobufMessage(
 
 	return &Entrypoint{
 		bn: bn,
-		ep: &protobuf.Entrypoint{
+		ep: protobuf.Entrypoint{
 			BlobName: bn.Bytes(),
 			KeyInfo: &protobuf.KeyInfo{
 				Key: key.Bytes(),

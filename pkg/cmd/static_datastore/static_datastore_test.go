@@ -27,9 +27,9 @@ import (
 	"testing"
 
 	"github.com/cinode/go/pkg/blenc"
+	"github.com/cinode/go/pkg/cinodefs"
+	"github.com/cinode/go/pkg/cinodefs/httphandler"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/structure/graph"
-	"github.com/cinode/go/pkg/structure/graphutils"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/exp/slog"
@@ -102,10 +102,10 @@ func TestCompileAndReadTestSuite(t *testing.T) {
 func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 	dataset []datasetFile,
 	datastoreDir string,
-	wi *graph.WriterInfo,
-) (*graph.WriterInfo, *graph.Entrypoint) {
+	wi *cinodefs.WriterInfo,
+) (*cinodefs.WriterInfo, *cinodefs.Entrypoint) {
 
-	var ep *graph.Entrypoint
+	var ep *cinodefs.Entrypoint
 	s.T().Run("prepare dataset", func(t *testing.T) {
 
 		dir := t.TempDir()
@@ -133,21 +133,21 @@ func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 
 func (s *CompileAndReadTestSuite) validateDataset(
 	dataset []datasetFile,
-	ep *graph.Entrypoint,
+	ep *cinodefs.Entrypoint,
 	datastoreDir string,
 ) {
 	ds, err := datastore.InFileSystem(datastoreDir)
 	s.Require().NoError(err)
 
-	fs, err := graph.NewCinodeFS(
+	fs, err := cinodefs.New(
 		context.Background(),
 		blenc.FromDatastore(ds),
-		graph.RootEntrypoint(ep),
-		graph.MaxLinkRedirects(10),
+		cinodefs.RootEntrypoint(ep),
+		cinodefs.MaxLinkRedirects(10),
 	)
 	s.Require().NoError(err)
 
-	testServer := httptest.NewServer(&graphutils.HTTPHandler{
+	testServer := httptest.NewServer(&httphandler.Handler{
 		FS:        fs,
 		IndexFile: "index.html",
 		Log:       slog.Default(),

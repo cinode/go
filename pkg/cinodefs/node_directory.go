@@ -14,14 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package graph
+package cinodefs
 
 import (
 	"context"
 	"sort"
 
 	"github.com/cinode/go/pkg/blobtypes"
-	"github.com/cinode/go/pkg/structure/internal/protobuf"
+	"github.com/cinode/go/pkg/cinodefs/internal/protobuf"
 	"github.com/cinode/go/pkg/utilities/golang"
 )
 
@@ -79,7 +79,7 @@ func (d *nodeDirectory) flush(ctx context.Context, gc *graphContext) (node, *Ent
 		flushedEntries[name] = target
 		dir.Entries = append(dir.Entries, &protobuf.Directory_Entry{
 			Name: name,
-			Ep:   targetEP.ep,
+			Ep:   &targetEP.ep,
 		})
 	}
 
