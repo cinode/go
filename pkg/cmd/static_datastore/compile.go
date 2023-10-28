@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/datastore"
@@ -32,23 +33,21 @@ import (
 )
 
 func compileCmd() *cobra.Command {
-
-	var srcDir, dstLocation string
-	var useStaticBlobs bool
-	var useRawFilesystem bool
+	var o compileFSOptions
 	var rootWriterInfoStr string
 	var rootWriterInfoFile string
+	var useRawFilesystem bool
 
 	cmd := &cobra.Command{
 		Use:   "compile --source <src_dir> --destination <dst_location>",
 		Short: "Compile datastore from static files",
-		Long: `
-The compile command can be used to create an encrypted datastore from
-a content with static files that can then be used to serve through a
-simple http server.
-`,
+		Long: strings.Join([]string{
+			"The compile command can be used to create an encrypted datastore from",
+			"a content with static files that can then be used to serve through a",
+			"simple http server.",
+		}, "\n"),
 		Run: func(cmd *cobra.Command, args []string) {
-			if srcDir == "" || dstLocation == "" {
+			if o.srcDir == "" || o.dstLocation == "" {
 				cmd.Help()
 				return
 			}
@@ -67,7 +66,6 @@ simple http server.
 				log.Fatalf(msg)
 			}
 
-			var wi *graph.WriterInfo
 			if len(rootWriterInfoFile) > 0 {
 				data, err := os.ReadFile(rootWriterInfoFile)
 				if err != nil {
@@ -79,25 +77,19 @@ simple http server.
 				rootWriterInfoStr = string(data)
 			}
 			if len(rootWriterInfoStr) > 0 {
-				_wi, err := graph.WriterInfoFromString(rootWriterInfoStr)
+				wi, err := graph.WriterInfoFromString(rootWriterInfoStr)
 				if err != nil {
 					fatalResult("Couldn't parse writer info: %v", err)
 				}
-				wi = &_wi
+				o.writerInfo = &wi
 			}
 
 			if useRawFilesystem {
 				// For backwards compatibility
-				dstLocation = "file-raw://" + dstLocation
+				o.dstLocation = "file-raw://" + o.dstLocation
 			}
 
-			ep, wi, err := compileFS(
-				cmd.Context(),
-				srcDir,
-				dstLocation,
-				useStaticBlobs,
-				wi,
-			)
+			ep, wi, err := compileFS(cmd.Context(), o)
 			if err != nil {
 				fatalResult("%s", err)
 			}
@@ -115,39 +107,85 @@ simple http server.
 		},
 	}
 
-	cmd.Flags().StringVarP(&srcDir, "source", "s", "", "Source directory with content to compile")
-	cmd.Flags().StringVarP(&dstLocation, "destination", "d", "", "Location of destination datastore for blobs, can be a directory or an url prefixed with file://, file-raw://, http://, https://")
-	cmd.Flags().BoolVarP(&useStaticBlobs, "static", "t", false, "If set to true, compile only the static dataset, do not create or update dynamic link")
-	cmd.Flags().BoolVarP(&useRawFilesystem, "raw-filesystem", "r", false, "If set to true, use raw filesystem instead of the optimized one, can be used to create dataset for a standard http server")
-	cmd.Flags().MarkDeprecated("raw-filesystem", "use file-raw:// destination prefix instead")
-	cmd.Flags().StringVarP(&rootWriterInfoStr, "writer-info", "w", "", "Writer info for the root dynamic link, if neither writer info nor writer info file is specified, a random writer info will be generated and printed out")
-	cmd.Flags().StringVarP(&rootWriterInfoFile, "writer-info-file", "f", "", "Name of the file containing writer info for the root dynamic link, if neither writer info nor writer info file is specified, a random writer info will be generated and printed out")
+	cmd.Flags().StringVarP(
+		&o.srcDir, "source", "s", "",
+		"Source directory with content to compile",
+	)
+	cmd.Flags().StringVarP(
+		&o.dstLocation, "destination", "d", "",
+		"location of destination datastore for blobs, can be a directory "+
+			"or an url prefixed with file://, file-raw://, http://, https://",
+	)
+	cmd.Flags().BoolVarP(
+		&o.static, "static", "t", false,
+		"if set to true, compile only the static dataset, do not create or update dynamic link",
+	)
+	cmd.Flags().BoolVarP(
+		&useRawFilesystem, "raw-filesystem", "r", false,
+		"if set to true, use raw filesystem instead of the optimized one, "+
+			"can be used to create dataset for a standard http server",
+	)
+	cmd.Flags().MarkDeprecated(
+		"raw-filesystem",
+		"use file-raw:// destination prefix instead",
+	)
+	cmd.Flags().StringVarP(
+		&rootWriterInfoStr, "writer-info", "w", "",
+		"writer info for the root dynamic link, if neither writer info nor writer info file is specified, "+
+			"a random writer info will be generated and printed out",
+	)
+	cmd.Flags().StringVarP(
+		&rootWriterInfoFile, "writer-info-file", "f", "",
+		"name of the file containing writer info for the root dynamic link, "+
+			"if neither writer info nor writer info file is specified, "+
+			"a random writer info will be generated and printed out",
+	)
+	cmd.Flags().StringVar(
+		&o.indexFile, "index-file", "index.html",
+		"name of the index file",
+	)
+	cmd.Flags().BoolVar(
+		&o.generateIndexFiles, "generate-index-files", false,
+		"automatically generate index html files with directory listing if index file is not present",
+	)
+	cmd.Flags().BoolVar(
+		&o.append, "append", false,
+		"append file in existing datastore leaving existing unchanged files as is",
+	)
 
 	return cmd
 }
 
+type compileFSOptions struct {
+	srcDir             string
+	dstLocation        string
+	static             bool
+	writerInfo         *graph.WriterInfo
+	generateIndexFiles bool
+	indexFile          string
+	append             bool
+}
+
 func compileFS(
 	ctx context.Context,
-	srcDir, dstLocation string,
-	static bool,
-	writerInfo *graph.WriterInfo,
+	o compileFSOptions,
 ) (
 	*graph.Entrypoint,
 	*graph.WriterInfo,
 	error,
 ) {
-	ds, err := datastore.FromLocation(dstLocation)
+	ds, err := datastore.FromLocation(o.dstLocation)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not open datastore: %w", err)
 	}
 
 	opts := []graph.CinodeFSOption{}
-	if static {
+	if o.static {
 		opts = append(opts, graph.NewRootStaticDirectory())
-	} else if writerInfo == nil {
+	} else if o.writerInfo == nil {
 		opts = append(opts, graph.NewRootDynamicLink())
 	} else {
-		opts = append(opts, graph.RootWriterInfo(*writerInfo))
+		opts = append(opts, graph.RootWriterInfo(*o.writerInfo))
 	}
 
 	fs, err := graph.NewCinodeFS(
@@ -159,16 +197,23 @@ func compileFS(
 		return nil, nil, fmt.Errorf("couldn't create cinode filesystem instance: %w", err)
 	}
 
-	err = fs.ResetDir(ctx, []string{})
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to reset the root directory: %w", err)
+	if !o.append {
+		err = fs.ResetDir(ctx, []string{})
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to reset the root directory: %w", err)
+		}
+	}
+
+	var genOpts []graphutils.UploadStaticDirectoryOption
+	if o.generateIndexFiles {
+		genOpts = append(genOpts, graphutils.CreateIndexFile(o.indexFile))
 	}
 
 	err = graphutils.UploadStaticDirectory(
 		ctx,
-		os.DirFS(srcDir),
+		os.DirFS(o.srcDir),
 		fs,
-		graphutils.CreateIndexFile("index.html"),
+		genOpts...,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't upload directory content: %w", err)

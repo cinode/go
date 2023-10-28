@@ -118,13 +118,11 @@ func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 			s.Require().NoError(err)
 		}
 
-		retEp, retWi, err := compileFS(
-			context.Background(),
-			dir,
-			datastoreDir,
-			false,
-			wi,
-		)
+		retEp, retWi, err := compileFS(context.Background(), compileFSOptions{
+			srcDir:      dir,
+			dstLocation: datastoreDir,
+			writerInfo:  wi,
+		})
 		require.NoError(t, err)
 		wi = retWi
 		ep = retEp

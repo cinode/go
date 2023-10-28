@@ -19,6 +19,7 @@ package public_node
 import (
 	"context"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -28,6 +29,8 @@ import (
 )
 
 func TestGetConfig(t *testing.T) {
+	os.Clearenv()
+
 	t.Run("default config", func(t *testing.T) {
 		cfg := getConfig()
 		require.Equal(t, "memory://", cfg.mainDSLocation)
