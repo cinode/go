@@ -24,7 +24,6 @@ import (
 	"testing"
 	"testing/iotest"
 
-	"github.com/cinode/go/pkg/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,7 +79,7 @@ func TestFromAuthInfo(t *testing.T) {
 	})
 }
 
-func TestRenonc(t *testing.T) {
+func TestReNonce(t *testing.T) {
 	dl1, err := Create(rand.Reader)
 	require.NoError(t, err)
 
@@ -132,6 +131,6 @@ func TestPublisherUpdateLinkData(t *testing.T) {
 		pr2, key2, err := dl.UpdateLinkData(iotest.ErrReader(injectedErr), 3)
 		require.ErrorIs(t, err, injectedErr)
 		require.Nil(t, pr2)
-		require.Equal(t, common.BlobKey{}, key2)
+		require.Nil(t, key2)
 	})
 }

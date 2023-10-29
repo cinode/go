@@ -31,7 +31,7 @@ import (
 )
 
 var testBlobs = []struct {
-	name     common.BlobName
+	name     *common.BlobName
 	data     []byte
 	expected []byte
 }{
@@ -69,7 +69,7 @@ var testBlobs = []struct {
 }
 
 var dynamicLinkPropagationData = []struct {
-	name     common.BlobName
+	name     *common.BlobName
 	data     []byte
 	expected []byte
 }{
@@ -93,7 +93,7 @@ var dynamicLinkPropagationData = []struct {
 func TestDatasetGeneration(t *testing.T) {
 	t.SkipNow()
 
-	dumpBlob := func(name common.BlobName, content []byte, expected []byte) {
+	dumpBlob := func(name *common.BlobName, content []byte, expected []byte) {
 		fmt.Printf(""+
 			"	{\n"+
 			"		golang.Must(common.BlobNameFromString(\"%s\")),\n"+

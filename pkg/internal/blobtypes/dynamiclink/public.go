@@ -61,7 +61,7 @@ type Public struct {
 	nonce     uint64
 }
 
-func (d *Public) BlobName() common.BlobName {
+func (d *Public) BlobName() *common.BlobName {
 	hasher := sha256.New()
 
 	storeByte(hasher, reservedByteValue)
@@ -80,7 +80,7 @@ type PublicReader struct {
 	Public
 	contentVersion uint64
 	signature      []byte
-	iv             common.BlobIV
+	iv             *common.BlobIV
 	r              io.Reader
 }
 
@@ -88,7 +88,7 @@ type PublicReader struct {
 //
 // Invalid links are rejected - i.e. if there's any error while reading the data
 // or when the validation of the link fails for whatever reason
-func FromPublicData(name common.BlobName, r io.Reader) (*PublicReader, error) {
+func FromPublicData(name *common.BlobName, r io.Reader) (*PublicReader, error) {
 	dl := PublicReader{
 		Public: Public{
 			publicKey: make([]byte, ed25519.PublicKeySize),
@@ -245,7 +245,7 @@ func (d *PublicReader) ivGeneratorPrefilled() cipherfactory.IVGenerator {
 	return ivGenerator
 }
 
-func (d *PublicReader) validateKeyInLinkData(key common.BlobKey, r io.Reader) error {
+func (d *PublicReader) validateKeyInLinkData(key *common.BlobKey, r io.Reader) error {
 	// At the beginning of the data there's the key validation block,
 	// that block contains a proof that the encryption key was deterministically derived
 	// from the blob name (thus preventing weak key attack)
@@ -277,7 +277,7 @@ func (d *PublicReader) validateKeyInLinkData(key common.BlobKey, r io.Reader) er
 	return nil
 }
 
-func (d *PublicReader) GetLinkDataReader(key common.BlobKey) (io.Reader, error) {
+func (d *PublicReader) GetLinkDataReader(key *common.BlobKey) (io.Reader, error) {
 
 	r, err := cipherfactory.StreamCipherReader(key, d.iv, d.GetEncryptedLinkReader())
 	if err != nil {

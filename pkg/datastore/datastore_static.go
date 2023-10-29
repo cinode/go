@@ -27,7 +27,7 @@ import (
 	"github.com/cinode/go/pkg/internal/utilities/validatingreader"
 )
 
-func (ds *datastore) openStatic(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+func (ds *datastore) openStatic(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 	rc, err := ds.s.openReadStream(ctx, name)
 	if err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func (ds *datastore) openStatic(ctx context.Context, name common.BlobName) (io.R
 	}, nil
 }
 
-func (ds *datastore) updateStatic(ctx context.Context, name common.BlobName, updateStream io.Reader) error {
+func (ds *datastore) updateStatic(ctx context.Context, name *common.BlobName, updateStream io.Reader) error {
 	outputStream, err := ds.s.openWriteStream(ctx, name)
 	if err != nil {
 		return err

@@ -27,7 +27,7 @@ func TestBlobKey(t *testing.T) {
 	key := BlobKeyFromBytes(keyBytes)
 	require.Equal(t, keyBytes, key.Bytes())
 	require.True(t, key.Equal(BlobKeyFromBytes(keyBytes)))
-	require.Nil(t, BlobKey{}.Bytes())
+	require.Nil(t, new(BlobKey).Bytes())
 }
 
 func TestBlobIV(t *testing.T) {
@@ -35,5 +35,5 @@ func TestBlobIV(t *testing.T) {
 	iv := BlobIVFromBytes(ivBytes)
 	require.Equal(t, ivBytes, iv.Bytes())
 	require.True(t, iv.Equal(BlobIVFromBytes(ivBytes)))
-	require.Nil(t, BlobKey{}.Bytes())
+	require.Nil(t, new(BlobKey).Bytes())
 }

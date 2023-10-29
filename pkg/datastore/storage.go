@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,8 +31,8 @@ type WriteCloseCanceller interface {
 type storage interface {
 	kind() string
 	address() string
-	openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error)
-	openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error)
-	exists(ctx context.Context, name common.BlobName) (bool, error)
-	delete(ctx context.Context, name common.BlobName) error
+	openReadStream(ctx context.Context, name *common.BlobName) (io.ReadCloser, error)
+	openWriteStream(ctx context.Context, name *common.BlobName) (WriteCloseCanceller, error)
+	exists(ctx context.Context, name *common.BlobName) (bool, error)
+	delete(ctx context.Context, name *common.BlobName) error
 }

@@ -31,7 +31,7 @@ import (
 
 func TestMultiSourceDatastore(t *testing.T) {
 
-	addBlob := func(ds DS, c string) common.BlobName {
+	addBlob := func(ds DS, c string) *common.BlobName {
 		hash := sha256.Sum256([]byte(c))
 		name, err := common.BlobNameFromHashAndType(hash[:], blobtypes.Static)
 		require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestMultiSourceDatastore(t *testing.T) {
 		return name
 	}
 
-	fetchBlob := func(ds DS, n common.BlobName) string {
+	fetchBlob := func(ds DS, n *common.BlobName) string {
 		rc, err := ds.Open(context.Background(), n)
 		require.NoError(t, err)
 
@@ -53,7 +53,7 @@ func TestMultiSourceDatastore(t *testing.T) {
 		return string(data)
 	}
 
-	ensureNotFound := func(ds DS, n common.BlobName) {
+	ensureNotFound := func(ds DS, n *common.BlobName) {
 		_, err := ds.Open(context.Background(), n)
 		require.ErrorIs(t, err, ErrNotFound)
 	}

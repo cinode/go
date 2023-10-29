@@ -50,7 +50,7 @@ func (fs *rawFileSystem) address() string {
 	return rawFilePrefix + fs.path
 }
 
-func (fs *rawFileSystem) openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+func (fs *rawFileSystem) openReadStream(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 	rc, err := os.Open(filepath.Join(fs.path, name.String()))
 	if os.IsNotExist(err) {
 		return nil, ErrNotFound
@@ -81,7 +81,7 @@ func (w *rawFilesystemWriter) Cancel() {
 	os.Remove(w.file.Name())
 }
 
-func (fs *rawFileSystem) openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
+func (fs *rawFileSystem) openWriteStream(ctx context.Context, name *common.BlobName) (WriteCloseCanceller, error) {
 	tempNum := atomic.AddUint64(&fs.tempFileNum, 1)
 
 	tempFileName := filepath.Join(fs.path, fmt.Sprintf("tempfile_%d", tempNum))
@@ -97,7 +97,7 @@ func (fs *rawFileSystem) openWriteStream(ctx context.Context, name common.BlobNa
 	}, nil
 }
 
-func (fs *rawFileSystem) exists(ctx context.Context, name common.BlobName) (bool, error) {
+func (fs *rawFileSystem) exists(ctx context.Context, name *common.BlobName) (bool, error) {
 	_, err := os.Stat(filepath.Join(fs.path, name.String()))
 	if os.IsNotExist(err) {
 		return false, nil
@@ -108,7 +108,7 @@ func (fs *rawFileSystem) exists(ctx context.Context, name common.BlobName) (bool
 	return true, nil
 }
 
-func (fs *rawFileSystem) delete(ctx context.Context, name common.BlobName) error {
+func (fs *rawFileSystem) delete(ctx context.Context, name *common.BlobName) error {
 	err := os.Remove(filepath.Join(fs.path, name.String()))
 	if os.IsNotExist(err) {
 		return ErrNotFound

@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -75,25 +75,25 @@ func (m *multiSourceDatastore) Address() string {
 	return "multi-source://"
 }
 
-func (m *multiSourceDatastore) Open(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+func (m *multiSourceDatastore) Open(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 	m.fetch(ctx, name)
 	return m.main.Open(ctx, name)
 }
 
-func (m *multiSourceDatastore) Update(ctx context.Context, name common.BlobName, r io.Reader) error {
+func (m *multiSourceDatastore) Update(ctx context.Context, name *common.BlobName, r io.Reader) error {
 	return m.main.Update(ctx, name, r)
 }
 
-func (m *multiSourceDatastore) Exists(ctx context.Context, name common.BlobName) (bool, error) {
+func (m *multiSourceDatastore) Exists(ctx context.Context, name *common.BlobName) (bool, error) {
 	m.fetch(ctx, name)
 	return m.main.Exists(ctx, name)
 }
 
-func (m *multiSourceDatastore) Delete(ctx context.Context, name common.BlobName) error {
+func (m *multiSourceDatastore) Delete(ctx context.Context, name *common.BlobName) error {
 	return m.main.Delete(ctx, name)
 }
 
-func (m *multiSourceDatastore) fetch(ctx context.Context, name common.BlobName) {
+func (m *multiSourceDatastore) fetch(ctx context.Context, name *common.BlobName) {
 	// TODO:
 	// if not found locally, go over all additional sources and check if exists,
 	// for dynamic content, perform merge operation if found in more than one,

@@ -32,7 +32,7 @@ var (
 	ErrCanNotUpdateStaticBlob = errors.New("blob update is not supported for static blobs")
 )
 
-func (be *beDatastore) openStatic(ctx context.Context, name common.BlobName, key common.BlobKey) (io.ReadCloser, error) {
+func (be *beDatastore) openStatic(ctx context.Context, name *common.BlobName, key *common.BlobKey) (io.ReadCloser, error) {
 
 	rc, err := be.ds.Open(ctx, name)
 	if err != nil {
@@ -67,27 +67,27 @@ func (be *beDatastore) createStatic(
 	ctx context.Context,
 	r io.Reader,
 ) (
-	common.BlobName,
-	common.BlobKey,
+	*common.BlobName,
+	*common.BlobKey,
 	AuthInfo,
 	error,
 ) {
 	tempWriteBufferPlain, err := be.newSecureFifo()
 	if err != nil {
-		return common.BlobName{}, common.BlobKey{}, nil, err
+		return nil, nil, nil, err
 	}
 	defer tempWriteBufferPlain.Close()
 
 	tempWriteBufferEncrypted, err := be.newSecureFifo()
 	if err != nil {
-		return common.BlobName{}, common.BlobKey{}, nil, err
+		return nil, nil, nil, err
 	}
 	defer tempWriteBufferEncrypted.Close()
 
 	keyGenerator := cipherfactory.NewKeyGenerator(blobtypes.Static)
 	_, err = io.Copy(tempWriteBufferPlain, io.TeeReader(r, keyGenerator))
 	if err != nil {
-		return common.BlobName{}, common.BlobKey{}, nil, err
+		return nil, nil, nil, err
 	}
 
 	key := keyGenerator.Generate()
@@ -95,7 +95,7 @@ func (be *beDatastore) createStatic(
 
 	rClone, err := tempWriteBufferPlain.Done() // rClone will allow re-reading the source data
 	if err != nil {
-		return common.BlobName{}, common.BlobKey{}, nil, err
+		return nil, nil, nil, err
 	}
 	defer rClone.Close()
 
@@ -109,30 +109,30 @@ func (be *beDatastore) createStatic(
 		),
 	)
 	if err != nil {
-		return common.BlobName{}, common.BlobKey{}, nil, err
+		return nil, nil, nil, err
 	}
 
 	_, err = io.Copy(encWriter, rClone)
 	if err != nil {
-		return common.BlobName{}, common.BlobKey{}, nil, err
+		return nil, nil, nil, err
 	}
 
 	encReader, err := tempWriteBufferEncrypted.Done()
 	if err != nil {
-		return common.BlobName{}, common.BlobKey{}, nil, err
+		return nil, nil, nil, err
 	}
 	defer encReader.Close()
 
 	// Generate blob name from the encrypted data
 	name, err := common.BlobNameFromHashAndType(blobNameHasher.Sum(nil), blobtypes.Static)
 	if err != nil {
-		return common.BlobName{}, common.BlobKey{}, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Send encrypted blob into the datastore
 	err = be.ds.Update(ctx, name, encReader)
 	if err != nil {
-		return common.BlobName{}, common.BlobKey{}, nil, err
+		return nil, nil, nil, err
 	}
 
 	return name, key, nil, nil
@@ -140,9 +140,9 @@ func (be *beDatastore) createStatic(
 
 func (be *beDatastore) updateStatic(
 	ctx context.Context,
-	name common.BlobName,
+	name *common.BlobName,
 	authInfo AuthInfo,
-	key common.BlobKey,
+	key *common.BlobKey,
 	r io.Reader,
 ) error {
 	return ErrCanNotUpdateStaticBlob

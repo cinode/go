@@ -69,7 +69,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 
 	t.Run("handle error while opening blob", func(t *testing.T) {
 		injectedErr := errors.New("test")
-		dsw.openFn = func(ctx context.Context, name common.BlobName) (io.ReadCloser, error) { return nil, injectedErr }
+		dsw.openFn = func(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) { return nil, injectedErr }
 
 		rc, err := be.Open(context.Background(), bn, key)
 		require.ErrorIs(t, err, injectedErr)
@@ -80,7 +80,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 
 	t.Run("handle error while opening blob", func(t *testing.T) {
 		injectedErr := errors.New("test")
-		dsw.openFn = func(ctx context.Context, name common.BlobName) (io.ReadCloser, error) { return nil, injectedErr }
+		dsw.openFn = func(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) { return nil, injectedErr }
 
 		rc, err := be.Open(context.Background(), bn, key)
 		require.ErrorIs(t, err, injectedErr)
@@ -267,7 +267,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 			}, nil
 		}
 
-		dsw.updateFn = func(ctx context.Context, name common.BlobName, r io.Reader) error { return injectedErr }
+		dsw.updateFn = func(ctx context.Context, name *common.BlobName, r io.Reader) error { return injectedErr }
 
 		bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(nil))
 		require.ErrorIs(t, err, injectedErr)

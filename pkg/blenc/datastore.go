@@ -50,7 +50,7 @@ type beDatastore struct {
 	newSecureFifo   secureFifoGenerator
 }
 
-func (be *beDatastore) Open(ctx context.Context, name common.BlobName, key common.BlobKey) (io.ReadCloser, error) {
+func (be *beDatastore) Open(ctx context.Context, name *common.BlobName, key *common.BlobKey) (io.ReadCloser, error) {
 	switch name.Type() {
 	case blobtypes.Static:
 		return be.openStatic(ctx, name, key)
@@ -65,8 +65,8 @@ func (be *beDatastore) Create(
 	blobType common.BlobType,
 	r io.Reader,
 ) (
-	common.BlobName,
-	common.BlobKey,
+	*common.BlobName,
+	*common.BlobKey,
 	AuthInfo,
 	error,
 ) {
@@ -76,10 +76,10 @@ func (be *beDatastore) Create(
 	case blobtypes.DynamicLink:
 		return be.createDynamicLink(ctx, r)
 	}
-	return common.BlobName{}, common.BlobKey{}, nil, blobtypes.ErrUnknownBlobType
+	return nil, nil, nil, blobtypes.ErrUnknownBlobType
 }
 
-func (be *beDatastore) Update(ctx context.Context, name common.BlobName, authInfo AuthInfo, key common.BlobKey, r io.Reader) error {
+func (be *beDatastore) Update(ctx context.Context, name *common.BlobName, authInfo AuthInfo, key *common.BlobKey, r io.Reader) error {
 	switch name.Type() {
 	case blobtypes.Static:
 		return be.updateStatic(ctx, name, authInfo, key, r)
@@ -89,10 +89,10 @@ func (be *beDatastore) Update(ctx context.Context, name common.BlobName, authInf
 	return blobtypes.ErrUnknownBlobType
 }
 
-func (be *beDatastore) Exists(ctx context.Context, name common.BlobName) (bool, error) {
+func (be *beDatastore) Exists(ctx context.Context, name *common.BlobName) (bool, error) {
 	return be.ds.Exists(ctx, name)
 }
 
-func (be *beDatastore) Delete(ctx context.Context, name common.BlobName) error {
+func (be *beDatastore) Delete(ctx context.Context, name *common.BlobName) error {
 	return be.ds.Delete(ctx, name)
 }

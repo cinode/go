@@ -25,13 +25,12 @@ import (
 
 	"github.com/cinode/go/pkg/cinodefs"
 	"github.com/cinode/go/pkg/common"
-	"github.com/jbenet/go-base58"
 )
 
 type TestBlob struct {
 	UpdateDataset    []byte
-	BlobName         common.BlobName
-	EncryptionKey    common.BlobKey
+	BlobName         *common.BlobName
+	EncryptionKey    *common.BlobKey
 	DecryptedDataset []byte
 }
 
@@ -40,7 +39,7 @@ func (s *TestBlob) Put(baseUrl string) error {
 }
 
 func (s *TestBlob) PutWithAuth(baseUrl, username, password string) error {
-	finalUrl, err := url.JoinPath(baseUrl, base58.Encode(s.BlobName))
+	finalUrl, err := url.JoinPath(baseUrl, s.BlobName.String())
 	if err != nil {
 		return err
 	}
@@ -76,7 +75,7 @@ func (s *TestBlob) PutWithAuth(baseUrl, username, password string) error {
 }
 
 func (s *TestBlob) Get(baseUrl string) ([]byte, error) {
-	finalUrl, err := url.JoinPath(baseUrl, base58.Encode(s.BlobName))
+	finalUrl, err := url.JoinPath(baseUrl, s.BlobName.String())
 	if err != nil {
 		return nil, err
 	}

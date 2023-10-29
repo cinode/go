@@ -265,7 +265,7 @@ func (s *BlencTestSuite) TestInvalidBlobTypes() {
 		rc, err := s.be.Open(
 			context.Background(),
 			invalidBlobName,
-			common.BlobKey{},
+			nil,
 		)
 		s.Require().ErrorIs(err, blobtypes.ErrUnknownBlobType)
 		s.Require().Nil(rc)
@@ -276,7 +276,7 @@ func (s *BlencTestSuite) TestInvalidBlobTypes() {
 			context.Background(),
 			invalidBlobName,
 			AuthInfo{},
-			common.BlobKey{},
+			nil,
 			bytes.NewReader(nil),
 		)
 		s.Require().ErrorIs(err, blobtypes.ErrUnknownBlobType)

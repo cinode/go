@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import (
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
 )
 
-func (ds *datastore) openDynamicLink(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+func (ds *datastore) openDynamicLink(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 	rc, err := ds.s.openReadStream(ctx, name)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func (ds *datastore) openDynamicLink(ctx context.Context, name common.BlobName) 
 // read from - only for comparison
 func (ds *datastore) newLinkGreaterThanCurrent(
 	ctx context.Context,
-	name common.BlobName,
+	name *common.BlobName,
 	newLink *dynamiclink.PublicReader,
 ) (
 	bool, error,
@@ -72,7 +72,7 @@ func (ds *datastore) newLinkGreaterThanCurrent(
 	return newLink.GreaterThan(dl), nil
 }
 
-func (ds *datastore) updateDynamicLink(ctx context.Context, name common.BlobName, updateStream io.Reader) error {
+func (ds *datastore) updateDynamicLink(ctx context.Context, name *common.BlobName, updateStream io.Reader) error {
 	ws, err := ds.s.openWriteStream(ctx, name)
 	if err != nil {
 		return err

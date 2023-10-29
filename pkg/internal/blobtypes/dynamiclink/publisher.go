@@ -107,7 +107,7 @@ func (dl *Publisher) AuthInfo() []byte {
 	return ret[:]
 }
 
-func (dl *Publisher) calculateEncryptionKey() (common.BlobKey, []byte) {
+func (dl *Publisher) calculateEncryptionKey() (*common.BlobKey, []byte) {
 	dataSeed := append(
 		[]byte{signatureForEncryptionKeyGeneration},
 		dl.BlobName().Bytes()...,
@@ -123,12 +123,12 @@ func (dl *Publisher) calculateEncryptionKey() (common.BlobKey, []byte) {
 	return key, signature
 }
 
-func (dl *Publisher) EncryptionKey() common.BlobKey {
+func (dl *Publisher) EncryptionKey() *common.BlobKey {
 	key, _ := dl.calculateEncryptionKey()
 	return key
 }
 
-func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader, common.BlobKey, error) {
+func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader, *common.BlobKey, error) {
 	encryptionKey, kvb := dl.calculateEncryptionKey()
 
 	// key validation block precedes the link data
@@ -138,7 +138,7 @@ func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader,
 
 	_, err := io.Copy(unencryptedLinkBuff, r)
 	if err != nil {
-		return nil, common.BlobKey{}, err
+		return nil, nil, err
 	}
 
 	unencryptedLink := unencryptedLinkBuff.Bytes()
@@ -156,12 +156,12 @@ func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader,
 	encryptedLinkBuff := bytes.NewBuffer(nil)
 	w, err := cipherfactory.StreamCipherWriter(encryptionKey, pr.iv, encryptedLinkBuff)
 	if err != nil {
-		return nil, common.BlobKey{}, err
+		return nil, nil, err
 	}
 
 	_, err = w.Write(unencryptedLink)
 	if err != nil {
-		return nil, common.BlobKey{}, err
+		return nil, nil, err
 	}
 
 	signatureHasher := pr.toSignDataHasherPrefilled()

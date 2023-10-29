@@ -50,10 +50,10 @@ type graphContext struct {
 func (c *graphContext) keyFromEntrypoint(
 	ctx context.Context,
 	ep *Entrypoint,
-) (common.BlobKey, error) {
+) (*common.BlobKey, error) {
 	if ep.ep.KeyInfo == nil ||
 		ep.ep.KeyInfo.Key == nil {
-		return common.BlobKey{}, ErrMissingKeyInfo
+		return nil, ErrMissingKeyInfo
 	}
 	return common.BlobKeyFromBytes(ep.ep.GetKeyInfo().GetKey()), nil
 }

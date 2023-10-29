@@ -74,18 +74,18 @@ func (ep *Entrypoint) Validate(currentTime time.Time) error {
 }
 
 func (ep *Entrypoint) ValidateAndParse(currentTime time.Time) (
-	common.BlobName,
-	common.BlobKey,
+	*common.BlobName,
+	*common.BlobKey,
 	error,
 ) {
 	err := ep.Validate(currentTime)
 	if err != nil {
-		return common.BlobName{}, common.BlobKey{}, err
+		return nil, nil, err
 	}
 
 	bn, err := common.BlobNameFromBytes(ep.BlobName)
 	if err != nil {
-		return common.BlobName{}, common.BlobKey{}, err
+		return nil, nil, err
 	}
 
 	key := common.BlobKeyFromBytes(ep.GetKeyInfo().GetKey())

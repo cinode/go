@@ -35,8 +35,8 @@ var (
 
 func (be *beDatastore) openDynamicLink(
 	ctx context.Context,
-	name common.BlobName,
-	key common.BlobKey,
+	name *common.BlobName,
+	key *common.BlobKey,
 ) (
 	io.ReadCloser,
 	error,
@@ -75,8 +75,8 @@ func (be *beDatastore) createDynamicLink(
 	ctx context.Context,
 	r io.Reader,
 ) (
-	common.BlobName,
-	common.BlobKey,
+	*common.BlobName,
+	*common.BlobKey,
 	AuthInfo,
 	error,
 ) {
@@ -84,19 +84,19 @@ func (be *beDatastore) createDynamicLink(
 
 	dl, err := dynamiclink.Create(be.rand)
 	if err != nil {
-		return common.BlobName{}, common.BlobKey{}, nil, err
+		return nil, nil, nil, err
 	}
 
 	pr, encryptionKey, err := dl.UpdateLinkData(r, version)
 	if err != nil {
-		return common.BlobName{}, common.BlobKey{}, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Send update packet
 	bn := dl.BlobName()
 	err = be.ds.Update(ctx, bn, pr.GetPublicDataReader())
 	if err != nil {
-		return common.BlobName{}, common.BlobKey{}, nil, err
+		return nil, nil, nil, err
 	}
 
 	return bn,
@@ -107,9 +107,9 @@ func (be *beDatastore) createDynamicLink(
 
 func (be *beDatastore) updateDynamicLink(
 	ctx context.Context,
-	name common.BlobName,
+	name *common.BlobName,
 	authInfo AuthInfo,
-	key common.BlobKey,
+	key *common.BlobKey,
 	r io.Reader,
 ) error {
 	newVersion := be.generateVersion()

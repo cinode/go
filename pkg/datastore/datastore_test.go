@@ -32,10 +32,10 @@ import (
 type mockStore struct {
 	fKind            func() string
 	fAddress         func() string
-	fOpenReadStream  func(ctx context.Context, name common.BlobName) (io.ReadCloser, error)
-	fOpenWriteStream func(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error)
-	fExists          func(ctx context.Context, name common.BlobName) (bool, error)
-	fDelete          func(ctx context.Context, name common.BlobName) error
+	fOpenReadStream  func(ctx context.Context, name *common.BlobName) (io.ReadCloser, error)
+	fOpenWriteStream func(ctx context.Context, name *common.BlobName) (WriteCloseCanceller, error)
+	fExists          func(ctx context.Context, name *common.BlobName) (bool, error)
+	fDelete          func(ctx context.Context, name *common.BlobName) error
 }
 
 func (s *mockStore) kind() string {
@@ -44,16 +44,16 @@ func (s *mockStore) kind() string {
 func (s *mockStore) address() string {
 	return s.fAddress()
 }
-func (s *mockStore) openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+func (s *mockStore) openReadStream(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 	return s.fOpenReadStream(ctx, name)
 }
-func (s *mockStore) openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
+func (s *mockStore) openWriteStream(ctx context.Context, name *common.BlobName) (WriteCloseCanceller, error) {
 	return s.fOpenWriteStream(ctx, name)
 }
-func (s *mockStore) exists(ctx context.Context, name common.BlobName) (bool, error) {
+func (s *mockStore) exists(ctx context.Context, name *common.BlobName) (bool, error) {
 	return s.fExists(ctx, name)
 }
-func (s *mockStore) delete(ctx context.Context, name common.BlobName) error {
+func (s *mockStore) delete(ctx context.Context, name *common.BlobName) error {
 	return s.fDelete(ctx, name)
 }
 
@@ -77,7 +77,7 @@ func TestDatastoreWriteFailure(t *testing.T) {
 	t.Run("error on opening write stream", func(t *testing.T) {
 		errRet := errors.New("error")
 		ds := &datastore{s: &mockStore{
-			fOpenWriteStream: func(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
+			fOpenWriteStream: func(ctx context.Context, name *common.BlobName) (WriteCloseCanceller, error) {
 				return nil, errRet
 			},
 		}}
@@ -92,7 +92,7 @@ func TestDatastoreWriteFailure(t *testing.T) {
 		closeCalled := false
 		cancelCalled := false
 		ds := &datastore{s: &mockStore{
-			fOpenWriteStream: func(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
+			fOpenWriteStream: func(ctx context.Context, name *common.BlobName) (WriteCloseCanceller, error) {
 				return &mockWriteCloseCanceller{
 					fWrite: func(b []byte) (int, error) {
 						require.False(t, closeCalled)
@@ -111,7 +111,7 @@ func TestDatastoreWriteFailure(t *testing.T) {
 					},
 				}, nil
 			},
-			fOpenReadStream: func(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+			fOpenReadStream: func(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 				return nil, ErrNotFound
 			},
 		}}

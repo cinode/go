@@ -43,7 +43,7 @@ func TestBlobName(t *testing.T) {
 				bn, err := BlobNameFromHashAndType(h, bt)
 				assert.NoError(t, err)
 				assert.NotEmpty(t, bn)
-				assert.Greater(t, len(bn), len(h))
+				assert.Greater(t, len(bn.bn), len(h))
 				assert.Equal(t, h, bn.Hash())
 				assert.Equal(t, bt, bn.Type())
 

@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ func (fs *fileSystem) address() string {
 	return filePrefix + fs.path
 }
 
-func (fs *fileSystem) openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+func (fs *fileSystem) openReadStream(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 	rc, err := os.Open(fs.getFileName(name, fsSuffixCurrent))
 	if os.IsNotExist(err) {
 		return nil, ErrNotFound
@@ -60,7 +60,7 @@ func (fs *fileSystem) openReadStream(ctx context.Context, name common.BlobName) 
 	return rc, err
 }
 
-func (fs *fileSystem) createTemporaryWriteStream(name common.BlobName) (*os.File, error) {
+func (fs *fileSystem) createTemporaryWriteStream(name *common.BlobName) (*os.File, error) {
 	tempName := fs.getFileName(name, fsSuffixUpload)
 
 	// Ensure dir exists
@@ -121,7 +121,7 @@ func (w *fileSystemWriteCloser) Close() error {
 	return nil
 }
 
-func (fs *fileSystem) openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
+func (fs *fileSystem) openWriteStream(ctx context.Context, name *common.BlobName) (WriteCloseCanceller, error) {
 
 	fl, err := fs.createTemporaryWriteStream(name)
 	if err != nil {
@@ -134,7 +134,7 @@ func (fs *fileSystem) openWriteStream(ctx context.Context, name common.BlobName)
 	}, nil
 }
 
-func (fs *fileSystem) exists(ctx context.Context, name common.BlobName) (bool, error) {
+func (fs *fileSystem) exists(ctx context.Context, name *common.BlobName) (bool, error) {
 	_, err := os.Stat(fs.getFileName(name, fsSuffixCurrent))
 	if os.IsNotExist(err) {
 		return false, nil
@@ -145,7 +145,7 @@ func (fs *fileSystem) exists(ctx context.Context, name common.BlobName) (bool, e
 	return true, nil
 }
 
-func (fs *fileSystem) delete(ctx context.Context, name common.BlobName) error {
+func (fs *fileSystem) delete(ctx context.Context, name *common.BlobName) error {
 	err := os.Remove(fs.getFileName(name, fsSuffixCurrent))
 	if os.IsNotExist(err) {
 		return ErrNotFound
@@ -153,7 +153,7 @@ func (fs *fileSystem) delete(ctx context.Context, name common.BlobName) error {
 	return err
 }
 
-func (fs *fileSystem) getFileName(name common.BlobName, suffix string) string {
+func (fs *fileSystem) getFileName(name *common.BlobName, suffix string) string {
 	fNameParts := []string{fs.path}
 
 	nameStr := name.String()

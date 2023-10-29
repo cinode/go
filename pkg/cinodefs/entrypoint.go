@@ -41,7 +41,7 @@ var (
 
 type Entrypoint struct {
 	ep protobuf.Entrypoint
-	bn common.BlobName
+	bn *common.BlobName
 }
 
 func EntrypointFromString(s string) (*Entrypoint, error) {
@@ -103,11 +103,11 @@ func expandEntrypointProto(ep *Entrypoint) error {
 	return nil
 }
 
-func EntrypointFromBlobNameAndKey(bn common.BlobName, key common.BlobKey) *Entrypoint {
+func EntrypointFromBlobNameAndKey(bn *common.BlobName, key *common.BlobKey) *Entrypoint {
 	return setEntrypointBlobNameAndKey(bn, key, &Entrypoint{})
 }
 
-func setEntrypointBlobNameAndKey(bn common.BlobName, key common.BlobKey, ep *Entrypoint) *Entrypoint {
+func setEntrypointBlobNameAndKey(bn *common.BlobName, key *common.BlobKey, ep *Entrypoint) *Entrypoint {
 	ep.bn = bn
 	ep.ep.BlobName = bn.Bytes()
 	ep.ep.KeyInfo = &protobuf.KeyInfo{Key: key.Bytes()}
@@ -122,7 +122,7 @@ func (e *Entrypoint) Bytes() []byte {
 	return golang.Must(proto.Marshal(&e.ep))
 }
 
-func (e *Entrypoint) BlobName() common.BlobName {
+func (e *Entrypoint) BlobName() *common.BlobName {
 	return e.bn
 }
 

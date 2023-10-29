@@ -68,7 +68,7 @@ func WriterInfoFromBytes(b []byte) (*WriterInfo, error) {
 	return &wi, nil
 }
 
-func writerInfoFromBlobNameKeyAndAuthInfo(bn common.BlobName, key common.BlobKey, ai []byte) *WriterInfo {
+func writerInfoFromBlobNameKeyAndAuthInfo(bn *common.BlobName, key *common.BlobKey, ai []byte) *WriterInfo {
 	return &WriterInfo{
 		wi: protobuf.WriterInfo{
 			BlobName: bn.Bytes(),

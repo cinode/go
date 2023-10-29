@@ -121,7 +121,7 @@ func TestStorageSaveOpenCancelSuccess(t *testing.T) {
 func TestStorageDelete(t *testing.T) {
 	for _, st := range allTestStorages(t) {
 		t.Run(st.kind(), func(t *testing.T) {
-			blobNames := []common.BlobName{}
+			blobNames := []*common.BlobName{}
 			blobDatas := [][]byte{}
 
 			t.Run("generate test data", func(t *testing.T) {

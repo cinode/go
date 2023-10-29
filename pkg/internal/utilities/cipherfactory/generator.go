@@ -33,7 +33,7 @@ const (
 
 type KeyGenerator interface {
 	io.Writer
-	Generate() common.BlobKey
+	Generate() *common.BlobKey
 }
 
 type keyGenerator struct {
@@ -42,7 +42,7 @@ type keyGenerator struct {
 
 func (g keyGenerator) Write(b []byte) (int, error) { return g.h.Write(b) }
 
-func (g keyGenerator) Generate() common.BlobKey {
+func (g keyGenerator) Generate() *common.BlobKey {
 	return common.BlobKeyFromBytes(append(
 		[]byte{reservedByteForKeyType},
 		g.h.Sum(nil)[:chacha20.KeySize]...,
@@ -51,7 +51,7 @@ func (g keyGenerator) Generate() common.BlobKey {
 
 type IVGenerator interface {
 	io.Writer
-	Generate() common.BlobIV
+	Generate() *common.BlobIV
 }
 
 type ivGenerator struct {
@@ -60,7 +60,7 @@ type ivGenerator struct {
 
 func (g ivGenerator) Write(b []byte) (int, error) { return g.h.Write(b) }
 
-func (g ivGenerator) Generate() common.BlobIV {
+func (g ivGenerator) Generate() *common.BlobIV {
 	return common.BlobIVFromBytes(g.h.Sum(nil)[:chacha20.NonceSizeX])
 }
 
@@ -68,7 +68,6 @@ func NewKeyGenerator(t common.BlobType) KeyGenerator {
 	h := sha256.New()
 	h.Write([]byte{preambleHashKey, reservedByteForKeyType, t.IDByte()})
 	return keyGenerator{h: h}
-
 }
 
 func NewIVGenerator(t common.BlobType) IVGenerator {
@@ -77,12 +76,12 @@ func NewIVGenerator(t common.BlobType) IVGenerator {
 	return ivGenerator{h: h}
 }
 
-var defaultXChaCha20IV = func() common.BlobIV {
+var defaultXChaCha20IV = func() *common.BlobIV {
 	h := sha256.New()
 	h.Write([]byte{preambleHashDefaultIV, reservedByteForKeyType})
 	return common.BlobIVFromBytes(h.Sum(nil)[:chacha20.NonceSizeX])
 }()
 
-func DefaultIV(k common.BlobKey) common.BlobIV {
+func DefaultIV(k *common.BlobKey) *common.BlobIV {
 	return defaultXChaCha20IV
 }

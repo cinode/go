@@ -34,18 +34,18 @@ import (
 
 type dsWrapper struct {
 	datastore.DS
-	openFn   func(ctx context.Context, name common.BlobName) (io.ReadCloser, error)
-	updateFn func(ctx context.Context, name common.BlobName, r io.Reader) error
+	openFn   func(ctx context.Context, name *common.BlobName) (io.ReadCloser, error)
+	updateFn func(ctx context.Context, name *common.BlobName, r io.Reader) error
 }
 
-func (w *dsWrapper) Open(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+func (w *dsWrapper) Open(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 	if w.openFn != nil {
 		return w.openFn(ctx, name)
 	}
 	return w.DS.Open(ctx, name)
 }
 
-func (w *dsWrapper) Update(ctx context.Context, name common.BlobName, r io.Reader) error {
+func (w *dsWrapper) Update(ctx context.Context, name *common.BlobName, r io.Reader) error {
 	if w.updateFn != nil {
 		return w.updateFn(ctx, name, r)
 	}
@@ -68,7 +68,7 @@ func TestDynamicLinkErrors(t *testing.T) {
 
 	t.Run("handle error while opening blob", func(t *testing.T) {
 		injectedErr := errors.New("test")
-		dsw.openFn = func(ctx context.Context, name common.BlobName) (io.ReadCloser, error) { return nil, injectedErr }
+		dsw.openFn = func(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) { return nil, injectedErr }
 
 		rc, err := be.Open(context.Background(), bn, key)
 		require.ErrorIs(t, err, injectedErr)
@@ -84,7 +84,7 @@ func TestDynamicLinkErrors(t *testing.T) {
 
 			t.Run(fmt.Sprintf("error at byte %d", i), func(t *testing.T) {
 
-				dsw.openFn = func(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+				dsw.openFn = func(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 					origRC, err := dsw.DS.Open(ctx, name)
 					require.NoError(t, err)
 
@@ -135,7 +135,7 @@ func TestDynamicLinkErrors(t *testing.T) {
 	t.Run("fail to store new dynamic link blob", func(t *testing.T) {
 		injectedErr := errors.New("test")
 
-		dsw.updateFn = func(ctx context.Context, name common.BlobName, r io.Reader) error { return injectedErr }
+		dsw.updateFn = func(ctx context.Context, name *common.BlobName, r io.Reader) error { return injectedErr }
 
 		bn, key, ai, err := be.Create(context.Background(), blobtypes.DynamicLink, bytes.NewReader(nil))
 		require.ErrorIs(t, err, injectedErr)
@@ -152,7 +152,7 @@ func TestDynamicLinkErrors(t *testing.T) {
 		bn, key, ai, err := be.Create(context.Background(), blobtypes.DynamicLink, bytes.NewReader(nil))
 		require.NoError(t, err)
 
-		dsw.updateFn = func(ctx context.Context, name common.BlobName, r io.Reader) error { return injectedErr }
+		dsw.updateFn = func(ctx context.Context, name *common.BlobName, r io.Reader) error { return injectedErr }
 
 		err = be.Update(context.Background(), bn, ai, key, bytes.NewReader(nil))
 		require.ErrorIs(t, err, injectedErr)

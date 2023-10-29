@@ -76,21 +76,21 @@ func (i *webInterface) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (i *webInterface) getName(w http.ResponseWriter, r *http.Request) (common.BlobName, error) {
+func (i *webInterface) getName(w http.ResponseWriter, r *http.Request) (*common.BlobName, error) {
 	// Don't allow url queries and require path to start with '/'
 	if r.URL.Path[0] != '/' || r.URL.RawQuery != "" {
-		return common.BlobName{}, common.ErrInvalidBlobName
+		return nil, common.ErrInvalidBlobName
 	}
 
 	bn, err := common.BlobNameFromString(r.URL.Path[1:])
 	if err != nil {
-		return common.BlobName{}, err
+		return nil, err
 	}
 
 	return bn, nil
 }
 
-func (i *webInterface) sendName(name common.BlobName, w http.ResponseWriter, r *http.Request) {
+func (i *webInterface) sendName(name *common.BlobName, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-type", "application/json")
 	json.NewEncoder(w).Encode(&webNameResponse{
 		Name: name.String(),
