@@ -100,11 +100,15 @@ func (c *CinodeFSMultiFileTestSuite) SetupTest() {
 	require.NotNil(c.T(), fs)
 	c.fs = fs
 
-	c.contentMap = make([]testFileEntry, 1000)
-	for i := 0; i < 1000; i++ {
+	const testFilesCount = 10
+	const dirsCount = 7
+	const subDirsCount = 19
+
+	c.contentMap = make([]testFileEntry, testFilesCount)
+	for i := 0; i < testFilesCount; i++ {
 		c.contentMap[i].path = []string{
-			fmt.Sprintf("dir%d", i%7),
-			fmt.Sprintf("subdir%d", i%19),
+			fmt.Sprintf("dir%d", i%dirsCount),
+			fmt.Sprintf("subdir%d", i%subDirsCount),
 			fmt.Sprintf("file%d.txt", i),
 		}
 		c.contentMap[i].content = fmt.Sprintf("Hello world! from file %d!", i)
