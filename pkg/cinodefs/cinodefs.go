@@ -30,6 +30,7 @@ import (
 	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
+	"github.com/cinode/go/pkg/internal/utilities/headwriter"
 )
 
 var (
@@ -199,11 +200,11 @@ func (fs *cinodeFS) createFileEntrypoint(
 	data io.Reader,
 	ep *Entrypoint,
 ) (*Entrypoint, error) {
-	var hw headWriter
+	var hw headwriter.Writer
 
 	if ep.ep.MimeType == "" {
 		// detect mimetype from the content
-		hw = newHeadWriter(512)
+		hw = headwriter.New(512)
 		data = io.TeeReader(data, &hw)
 	}
 
@@ -213,7 +214,7 @@ func (fs *cinodeFS) createFileEntrypoint(
 	}
 
 	if ep.ep.MimeType == "" {
-		ep.ep.MimeType = http.DetectContentType(hw.data)
+		ep.ep.MimeType = http.DetectContentType(hw.Head())
 	}
 
 	return setEntrypointBlobNameAndKey(bn, key, ep), nil

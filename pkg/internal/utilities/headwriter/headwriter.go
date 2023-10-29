@@ -14,21 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cinodefs
+package headwriter
 
-type headWriter struct {
+type Writer struct {
 	limit int
 	data  []byte
 }
 
-func newHeadWriter(limit int) headWriter {
-	return headWriter{
+func New(limit int) Writer {
+	return Writer{
 		limit: limit,
-		data:  make([]byte, limit),
+		data:  make([]byte, 0, limit),
 	}
 }
 
-func (h *headWriter) Write(b []byte) (int, error) {
+func (h *Writer) Write(b []byte) (int, error) {
 	if len(h.data) >= h.limit {
 		return len(b), nil
 	}
@@ -41,3 +41,5 @@ func (h *headWriter) Write(b []byte) (int, error) {
 	h.data = append(h.data, b...)
 	return len(b), nil
 }
+
+func (h *Writer) Head() []byte { return h.data }
