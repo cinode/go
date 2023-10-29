@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/cinode/go/pkg/cinodefs"
@@ -41,34 +40,24 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		slog.String("Method", r.Method),
 	)
 
-	if r.Method != "GET" {
+	switch r.Method {
+	case "GET":
+		h.serveGet(w, r, log)
+		return
+	default:
 		log.Error("Method not allowed")
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+}
 
+func (h *Handler) serveGet(w http.ResponseWriter, r *http.Request, log *slog.Logger) {
 	path := r.URL.Path
 	if strings.HasSuffix(path, "/") {
 		path += h.IndexFile
 	}
 
 	pathList := strings.Split(strings.TrimPrefix(path, "/"), "/")
-	for i := range pathList {
-		p, err := url.PathUnescape(pathList[i])
-		if err != nil {
-			log.WarnCtx(r.Context(),
-				"Incorrect request path",
-				"err", err,
-			)
-			http.Error(w,
-				fmt.Sprintf("Could not unescape URL path segment: %s", err.Error()),
-				http.StatusBadRequest,
-			)
-			return
-		}
-		pathList[i] = p
-	}
-
 	fileEP, err := h.FS.FindEntry(r.Context(), pathList)
 	switch {
 	case errors.Is(err, cinodefs.ErrEntryNotFound),
@@ -76,31 +65,40 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Warn("Not found")
 		http.NotFound(w, r)
 		return
-	case err != nil:
-		log.Error("Error serving request", "err", err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	case errors.Is(err, cinodefs.ErrModifiedDirectory):
+		// Can't get the entrypoint, but since it's a directory
+		// (only with unsaved changes), redirect to the directory itself
+		// that will in the end load the index file if present.
+		http.Redirect(w, r, r.URL.Path+"/", http.StatusTemporaryRedirect)
+		return
+	case h.handleHttpError(err, w, log, "Error finding entrypoint"):
 		return
 	}
 
 	if fileEP.IsDir() {
-		http.Redirect(w, r, r.URL.Path+"/", http.StatusPermanentRedirect)
+		http.Redirect(w, r, r.URL.Path+"/", http.StatusTemporaryRedirect)
 		return
 	}
 
-	w.Header().Set("Content-Type", fileEP.MimeType())
 	rc, err := h.FS.OpenEntrypointData(r.Context(), fileEP)
-	if err != nil {
-		http.Error(w,
-			fmt.Sprintf("%s: %v", http.StatusText(http.StatusInternalServerError), err),
-			http.StatusInternalServerError,
-		)
-		h.Log.Error("Error opening file", "err", err)
+	if h.handleHttpError(err, w, log, "Error opening file") {
 		return
 	}
 	defer rc.Close()
 
+	w.Header().Set("Content-Type", fileEP.MimeType())
 	_, err = io.Copy(w, rc)
+	h.handleHttpError(err, w, log, "Error sending file")
+}
+
+func (h *Handler) handleHttpError(err error, w http.ResponseWriter, log *slog.Logger, logMsg string) bool {
 	if err != nil {
-		h.Log.Error("Error sending file", "err", err)
+		log.Error(logMsg, "err", err)
+		http.Error(w,
+			fmt.Sprintf("%s: %v", http.StatusText(http.StatusInternalServerError), err),
+			http.StatusInternalServerError,
+		)
+		return true
 	}
+	return false
 }
