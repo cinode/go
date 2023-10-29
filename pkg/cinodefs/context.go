@@ -39,7 +39,7 @@ type graphContext struct {
 	be blenc.BE
 
 	// known writer info data
-	writerInfos map[string][]byte
+	authInfos map[string]*common.AuthInfo
 }
 
 // Get symmetric encryption key for given entrypoint.
@@ -121,7 +121,7 @@ func (c *graphContext) createProtobufMessage(
 	}
 
 	if wi != nil {
-		c.writerInfos[bn.String()] = wi
+		c.authInfos[bn.String()] = wi
 	}
 
 	return &Entrypoint{
@@ -140,7 +140,7 @@ func (c *graphContext) updateProtobufMessage(
 	ep *Entrypoint,
 	msg proto.Message,
 ) error {
-	wi, found := c.writerInfos[ep.BlobName().String()]
+	wi, found := c.authInfos[ep.BlobName().String()]
 	if !found {
 		return ErrMissingWriterInfo
 	}

@@ -24,6 +24,7 @@ import (
 	"testing"
 	"testing/iotest"
 
+	"github.com/cinode/go/pkg/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -71,8 +72,10 @@ func TestFromAuthInfo(t *testing.T) {
 	})
 
 	t.Run("Invalid auth info", func(t *testing.T) {
-		for i := 0; i < len(authInfo)-1; i++ {
-			dl2, err := FromAuthInfo(authInfo[:i])
+		authInfoBytes := authInfo.Bytes()
+		for i := 0; i < len(authInfoBytes)-1; i++ {
+			brokenAuthInfo := common.AuthInfoFromBytes(authInfoBytes[:i])
+			dl2, err := FromAuthInfo(brokenAuthInfo)
 			require.ErrorIs(t, err, ErrInvalidDynamicLinkAuthInfo)
 			require.Nil(t, dl2)
 		}

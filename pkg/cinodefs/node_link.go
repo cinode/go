@@ -82,7 +82,7 @@ func (c *nodeLink) traverse(
 
 	// crossing link border, whether sub-graph is writeable is determined
 	// by availability of corresponding writer info
-	_, hasWriterInfo := gc.writerInfos[c.ep.bn.String()]
+	_, hasAuthInfo := gc.authInfos[c.ep.bn.String()]
 
 	newTarget, targetState, err := c.target.traverse(
 		ctx,
@@ -90,7 +90,7 @@ func (c *nodeLink) traverse(
 		path,
 		pathPosition,
 		linkDepth+1,
-		hasWriterInfo,
+		hasAuthInfo,
 		opts,
 		whenReached,
 	)

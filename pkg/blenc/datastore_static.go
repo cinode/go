@@ -69,7 +69,7 @@ func (be *beDatastore) createStatic(
 ) (
 	*common.BlobName,
 	*common.BlobKey,
-	AuthInfo,
+	*common.AuthInfo,
 	error,
 ) {
 	tempWriteBufferPlain, err := be.newSecureFifo()
@@ -141,7 +141,7 @@ func (be *beDatastore) createStatic(
 func (be *beDatastore) updateStatic(
 	ctx context.Context,
 	name *common.BlobName,
-	authInfo AuthInfo,
+	authInfo *common.AuthInfo,
 	key *common.BlobKey,
 	r io.Reader,
 ) error {

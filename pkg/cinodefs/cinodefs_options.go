@@ -75,7 +75,7 @@ func RootWriterInfo(wi *WriterInfo) Option {
 
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
 		fs.rootEP = &nodeUnloaded{ep: ep}
-		fs.c.writerInfos[bn.String()] = wi.wi.AuthInfo
+		fs.c.authInfos[bn.String()] = common.AuthInfoFromBytes(wi.wi.AuthInfo)
 		return nil
 	})
 }

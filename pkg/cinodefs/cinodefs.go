@@ -28,6 +28,7 @@ import (
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/blobtypes"
+	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
 )
 
@@ -137,8 +138,8 @@ func New(
 		timeFunc:         time.Now,
 		randSource:       rand.Reader,
 		c: graphContext{
-			be:          be,
-			writerInfos: map[string][]byte{},
+			be:        be,
+			authInfos: map[string]*common.AuthInfo{},
 		},
 	}
 
@@ -341,7 +342,7 @@ func (fs *cinodeFS) GenerateNewDynamicLinkEntrypoint() (*Entrypoint, error) {
 	bn := link.BlobName()
 	key := link.EncryptionKey()
 
-	fs.c.writerInfos[bn.String()] = link.AuthInfo()
+	fs.c.authInfos[bn.String()] = link.AuthInfo()
 
 	return EntrypointFromBlobNameAndKey(bn, key), nil
 }
@@ -374,7 +375,7 @@ func (fs *cinodeFS) EntrypointWriterInfo(ctx context.Context, ep *Entrypoint) (*
 		return nil, err
 	}
 
-	authInfo, found := fs.c.writerInfos[bn.String()]
+	authInfo, found := fs.c.authInfos[bn.String()]
 	if !found {
 		return nil, ErrMissingWriterInfo
 	}

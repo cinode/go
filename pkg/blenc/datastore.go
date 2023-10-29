@@ -67,7 +67,7 @@ func (be *beDatastore) Create(
 ) (
 	*common.BlobName,
 	*common.BlobKey,
-	AuthInfo,
+	*common.AuthInfo,
 	error,
 ) {
 	switch blobType {
@@ -79,7 +79,7 @@ func (be *beDatastore) Create(
 	return nil, nil, nil, blobtypes.ErrUnknownBlobType
 }
 
-func (be *beDatastore) Update(ctx context.Context, name *common.BlobName, authInfo AuthInfo, key *common.BlobKey, r io.Reader) error {
+func (be *beDatastore) Update(ctx context.Context, name *common.BlobName, authInfo *common.AuthInfo, key *common.BlobKey, r io.Reader) error {
 	switch name.Type() {
 	case blobtypes.Static:
 		return be.updateStatic(ctx, name, authInfo, key, r)

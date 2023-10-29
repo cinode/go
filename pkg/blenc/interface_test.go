@@ -225,7 +225,8 @@ func (s *BlencTestSuite) TestDynamicLinkSuccessPath() {
 		})
 
 		s.Run("must fail to update if auth info is invalid", func() {
-			err := s.be.Update(context.Background(), bn, ai2[1:], key2, bytes.NewReader(nil))
+			brokenAI2 := common.AuthInfoFromBytes(ai2.Bytes()[1:])
+			err := s.be.Update(context.Background(), bn, brokenAI2, key2, bytes.NewReader(nil))
 			s.Require().ErrorIs(err, dynamiclink.ErrInvalidDynamicLinkAuthInfo)
 		})
 
@@ -275,7 +276,7 @@ func (s *BlencTestSuite) TestInvalidBlobTypes() {
 		err = s.be.Update(
 			context.Background(),
 			invalidBlobName,
-			AuthInfo{},
+			nil,
 			nil,
 			bytes.NewReader(nil),
 		)

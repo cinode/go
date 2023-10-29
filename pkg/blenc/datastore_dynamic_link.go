@@ -77,7 +77,7 @@ func (be *beDatastore) createDynamicLink(
 ) (
 	*common.BlobName,
 	*common.BlobKey,
-	AuthInfo,
+	*common.AuthInfo,
 	error,
 ) {
 	version := be.generateVersion()
@@ -108,7 +108,7 @@ func (be *beDatastore) createDynamicLink(
 func (be *beDatastore) updateDynamicLink(
 	ctx context.Context,
 	name *common.BlobName,
-	authInfo AuthInfo,
+	authInfo *common.AuthInfo,
 	key *common.BlobKey,
 	r io.Reader,
 ) error {
