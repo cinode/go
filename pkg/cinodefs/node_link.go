@@ -73,7 +73,7 @@ func (c *nodeLink) traverse(
 	dirtyState,
 	error,
 ) {
-	if linkDepth > opts.maxLinkDepth {
+	if linkDepth >= opts.maxLinkRedirects {
 		return nil, 0, ErrTooManyRedirects
 	}
 

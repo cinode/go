@@ -115,13 +115,13 @@ func (c *graphContext) createProtobufMessage(
 		return nil, fmt.Errorf("serialization failed: %w", err)
 	}
 
-	bn, key, wi, err := c.be.Create(ctx, blobType, bytes.NewReader(data))
+	bn, key, ai, err := c.be.Create(ctx, blobType, bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("write failed: %w", err)
 	}
 
-	if wi != nil {
-		c.authInfos[bn.String()] = wi
+	if ai != nil {
+		c.authInfos[bn.String()] = ai
 	}
 
 	return &Entrypoint{

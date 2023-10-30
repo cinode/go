@@ -31,9 +31,9 @@ type traverseGoalFunc func(
 )
 
 type traverseOptions struct {
-	createNodes  bool
-	doNotCache   bool
-	maxLinkDepth int
+	createNodes      bool
+	doNotCache       bool
+	maxLinkRedirects int
 }
 
 // Generic graph traversal function, it follows given path, once the endpoint
@@ -49,6 +49,8 @@ func (fs *cinodeFS) traverseGraph(
 			return ErrEmptyName
 		}
 	}
+
+	opts.maxLinkRedirects = fs.maxLinkRedirects
 
 	changedEntrypoint, _, err := fs.rootEP.traverse(
 		ctx,         // context

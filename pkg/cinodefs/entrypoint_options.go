@@ -22,15 +22,12 @@ import (
 )
 
 type EntrypointOption interface {
-	apply(ctx context.Context, ep *Entrypoint) error
+	apply(ctx context.Context, ep *Entrypoint)
 }
 
 type entrypointOptionBasicFunc func(ep *Entrypoint)
 
-func (f entrypointOptionBasicFunc) apply(ctx context.Context, ep *Entrypoint) error {
-	f(ep)
-	return nil
-}
+func (f entrypointOptionBasicFunc) apply(ctx context.Context, ep *Entrypoint) { f(ep) }
 
 func SetMimeType(mimeType string) EntrypointOption {
 	return entrypointOptionBasicFunc(func(ep *Entrypoint) {
@@ -50,12 +47,10 @@ func SetNotValidAfter(t time.Time) EntrypointOption {
 	})
 }
 
-func entrypointFromOptions(ctx context.Context, opts ...EntrypointOption) (*Entrypoint, error) {
+func entrypointFromOptions(ctx context.Context, opts ...EntrypointOption) *Entrypoint {
 	ep := &Entrypoint{}
 	for _, o := range opts {
-		if err := o.apply(ctx, ep); err != nil {
-			return nil, err
-		}
+		o.apply(ctx, ep)
 	}
-	return ep, nil
+	return ep
 }

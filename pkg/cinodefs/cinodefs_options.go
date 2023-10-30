@@ -18,6 +18,8 @@ package cinodefs
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -28,9 +30,19 @@ const (
 	DefaultMaxLinksRedirects = 10
 )
 
+var (
+	ErrNegativeMaxLinksRedirects = errors.New("negative value of maximum links redirects")
+	ErrInvalidNilTimeFunc        = errors.New("nil time function")
+	ErrInvalidNilRandSource      = errors.New("nil random source")
+)
+
 type Option interface {
 	apply(ctx context.Context, fs *cinodeFS) error
 }
+
+type errOption struct{ err error }
+
+func (e errOption) apply(ctx context.Context, fs *cinodeFS) error { return e.err }
 
 type optionFunc func(ctx context.Context, fs *cinodeFS) error
 
@@ -39,6 +51,9 @@ func (f optionFunc) apply(ctx context.Context, fs *cinodeFS) error {
 }
 
 func MaxLinkRedirects(maxLinkRedirects int) Option {
+	if maxLinkRedirects < 0 {
+		return errOption{ErrNegativeMaxLinksRedirects}
+	}
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
 		fs.maxLinkRedirects = maxLinkRedirects
 		return nil
@@ -52,22 +67,28 @@ func RootEntrypoint(ep *Entrypoint) Option {
 	})
 }
 
-func errOption(err error) Option {
-	return optionFunc(func(ctx context.Context, fs *cinodeFS) error { return err })
-}
-
 func RootEntrypointString(eps string) Option {
 	ep, err := EntrypointFromString(eps)
 	if err != nil {
-		return errOption(err)
+		return errOption{err}
 	}
 	return RootEntrypoint(ep)
 }
 
 func RootWriterInfo(wi *WriterInfo) Option {
+	if wi == nil {
+		return errOption{fmt.Errorf(
+			"%w: nil",
+			ErrInvalidWriterInfoData,
+		)}
+	}
 	bn, err := common.BlobNameFromBytes(wi.wi.BlobName)
 	if err != nil {
-		return errOption(err)
+		return errOption{fmt.Errorf(
+			"%w: %w",
+			ErrInvalidWriterInfoData,
+			err,
+		)}
 	}
 
 	key := common.BlobKeyFromBytes(wi.wi.Key)
@@ -83,13 +104,16 @@ func RootWriterInfo(wi *WriterInfo) Option {
 func RootWriterInfoString(wis string) Option {
 	wi, err := WriterInfoFromString(wis)
 	if err != nil {
-		return errOption(err)
+		return errOption{err}
 	}
 
 	return RootWriterInfo(wi)
 }
 
 func TimeFunc(f func() time.Time) Option {
+	if f == nil {
+		return errOption{ErrInvalidNilTimeFunc}
+	}
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
 		fs.timeFunc = f
 		return nil
@@ -97,6 +121,9 @@ func TimeFunc(f func() time.Time) Option {
 }
 
 func RandSource(r io.Reader) Option {
+	if r == nil {
+		return errOption{ErrInvalidNilRandSource}
+	}
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
 		fs.randSource = r
 		return nil
@@ -107,7 +134,7 @@ func RandSource(r io.Reader) Option {
 // dynamic link as the root
 func NewRootDynamicLink() Option {
 	return optionFunc(func(ctx context.Context, fs *cinodeFS) error {
-		newLinkEntrypoint, err := fs.GenerateNewDynamicLinkEntrypoint()
+		newLinkEntrypoint, _, err := fs.generateNewDynamicLinkEntrypoint()
 		if err != nil {
 			return err
 		}

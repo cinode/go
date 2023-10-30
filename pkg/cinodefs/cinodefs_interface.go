@@ -47,7 +47,7 @@ var (
 	ErrEmptyName            = errors.New("entry name can not be empty")
 	ErrDuplicateEntry       = errors.New("duplicate entry")
 	ErrEntryNotFound        = errors.New("entry not found")
-	ErrCantReadDirectory    = errors.New("can not read directory")
+	ErrIsADirectory         = errors.New("entry is a directory")
 	ErrInvalidDirectoryData = errors.New("invalid directory data")
 	ErrCantWriteDirectory   = errors.New("can not write directory")
 	ErrMissingRootInfo      = errors.New("root info not specified")
@@ -96,8 +96,11 @@ type FS interface {
 		path []string,
 	) error
 
-	GenerateNewDynamicLinkEntrypoint() (
-		*Entrypoint,
+	InjectDynamicLink(
+		ctx context.Context,
+		path []string,
+	) (
+		*WriterInfo,
 		error,
 	)
 
@@ -171,16 +174,13 @@ func (fs *cinodeFS) SetEntryFile(
 	data io.Reader,
 	opts ...EntrypointOption,
 ) (*Entrypoint, error) {
-	ep, err := entrypointFromOptions(ctx, opts...)
-	if err != nil {
-		return nil, err
-	}
+	ep := entrypointFromOptions(ctx, opts...)
 	if ep.ep.MimeType == "" && len(path) > 0 {
 		// Try detecting mime type from filename extension
 		ep.ep.MimeType = mime.TypeByExtension(filepath.Ext(path[len(path)-1]))
 	}
 
-	ep, err = fs.createFileEntrypoint(ctx, data, ep)
+	ep, err := fs.createFileEntrypoint(ctx, data, ep)
 	if err != nil {
 		return nil, err
 	}
@@ -198,11 +198,7 @@ func (fs *cinodeFS) CreateFileEntrypoint(
 	data io.Reader,
 	opts ...EntrypointOption,
 ) (*Entrypoint, error) {
-	ep, err := entrypointFromOptions(ctx, opts...)
-	if err != nil {
-		return nil, err
-	}
-
+	ep := entrypointFromOptions(ctx, opts...)
 	return fs.createFileEntrypoint(ctx, data, ep)
 }
 
@@ -251,8 +247,8 @@ func (fs *cinodeFS) SetEntry(
 		ctx,
 		path,
 		traverseOptions{
-			createNodes:  true,
-			maxLinkDepth: fs.maxLinkRedirects,
+			createNodes:      true,
+			maxLinkRedirects: fs.maxLinkRedirects,
 		},
 		whenReached,
 	)
@@ -277,8 +273,8 @@ func (fs *cinodeFS) ResetDir(ctx context.Context, path []string) error {
 		ctx,
 		path,
 		traverseOptions{
-			createNodes:  true,
-			maxLinkDepth: fs.maxLinkRedirects,
+			createNodes:      true,
+			maxLinkRedirects: fs.maxLinkRedirects,
 		},
 		whenReached,
 	)
@@ -344,24 +340,78 @@ func (fs *cinodeFS) DeleteEntry(ctx context.Context, path []string) error {
 	)
 }
 
-func (fs *cinodeFS) GenerateNewDynamicLinkEntrypoint() (*Entrypoint, error) {
-	// Generate new entrypoint link data but do not yet store it in datastore
-	link, err := dynamiclink.Create(fs.randSource)
+func (fs *cinodeFS) InjectDynamicLink(
+	ctx context.Context,
+	path []string,
+) (
+	*WriterInfo,
+	error,
+) {
+	var retWi *WriterInfo
+
+	whenReached := func(
+		ctx context.Context,
+		current node,
+		isWriteable bool,
+	) (node, dirtyState, error) {
+		if !isWriteable {
+			return nil, 0, ErrMissingWriterInfo
+		}
+
+		ep, ai, err := fs.generateNewDynamicLinkEntrypoint()
+		if err != nil {
+			return nil, 0, err
+		}
+
+		key, err := fs.c.keyFromEntrypoint(ctx, ep)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		retWi = writerInfoFromBlobNameKeyAndAuthInfo(ep.BlobName(), key, ai)
+		return &nodeLink{
+				ep:     ep,
+				target: current,
+				// Link itself must be marked as dirty - even if the content is clean,
+				// the link itself must be persisted
+				dState: dsSubDirty,
+			},
+			// Parent node becomes dirty - new link is a new blob
+			dsDirty,
+			nil
+	}
+
+	err := fs.traverseGraph(
+		ctx,
+		path,
+		traverseOptions{
+			createNodes:      true,
+			maxLinkRedirects: fs.maxLinkRedirects,
+		},
+		whenReached,
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	bn := link.BlobName()
-	key := link.EncryptionKey()
-
-	fs.c.authInfos[bn.String()] = link.AuthInfo()
-
-	return EntrypointFromBlobNameAndKey(bn, key), nil
+	return retWi, nil
 }
 
-// func (fs *cinodeFS) ReplacePathWithLink(ctx context.Context, path []string) (WriterInfo, error) {
+func (fs *cinodeFS) generateNewDynamicLinkEntrypoint() (*Entrypoint, *common.AuthInfo, error) {
+	// Generate new entrypoint link data but do not yet store it in datastore
+	link, err := dynamiclink.Create(fs.randSource)
+	if err != nil {
+		return nil, nil, err
+	}
 
-// }
+	bn := link.BlobName()
+	key := link.EncryptionKey()
+	ai := link.AuthInfo()
+
+	fs.c.authInfos[bn.String()] = ai
+
+	return EntrypointFromBlobNameAndKey(bn, key), ai, nil
+}
 
 func (fs *cinodeFS) OpenEntryData(ctx context.Context, path []string) (io.ReadCloser, error) {
 	ep, err := fs.FindEntry(ctx, path)
@@ -369,7 +419,7 @@ func (fs *cinodeFS) OpenEntryData(ctx context.Context, path []string) (io.ReadCl
 		return nil, err
 	}
 	if ep.IsDir() {
-		return nil, ErrCantReadDirectory
+		return nil, ErrIsADirectory
 	}
 	golang.Assert(
 		!ep.IsLink(),
