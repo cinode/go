@@ -171,6 +171,9 @@ func TestWebProxyHandlerSimplePage(t *testing.T) {
 		)
 		require.NoError(t, err)
 
+		err = fs.Flush(context.Background())
+		require.NoError(t, err)
+
 		ep, err := fs.RootEntrypoint()
 		require.NoError(t, err)
 		return ep

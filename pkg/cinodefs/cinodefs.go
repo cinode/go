@@ -31,6 +31,7 @@ import (
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
 	"github.com/cinode/go/pkg/internal/utilities/headwriter"
+	"github.com/cinode/go/pkg/utilities/golang"
 )
 
 var (
@@ -49,6 +50,7 @@ var (
 	ErrCantReadDirectory    = errors.New("can not read directory")
 	ErrInvalidDirectoryData = errors.New("invalid directory data")
 	ErrCantWriteDirectory   = errors.New("can not write directory")
+	ErrMissingRootInfo      = errors.New("root info not specified")
 )
 
 const (
@@ -98,6 +100,11 @@ type FS interface {
 		*Entrypoint,
 		error,
 	)
+
+	OpenEntryData(
+		ctx context.Context,
+		path []string,
+	) (io.ReadCloser, error)
 
 	OpenEntrypointData(
 		ctx context.Context,
@@ -149,6 +156,10 @@ func New(
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if ret.rootEP == nil {
+		return nil, ErrMissingRootInfo
 	}
 
 	return &ret, nil
@@ -351,6 +362,22 @@ func (fs *cinodeFS) GenerateNewDynamicLinkEntrypoint() (*Entrypoint, error) {
 // func (fs *cinodeFS) ReplacePathWithLink(ctx context.Context, path []string) (WriterInfo, error) {
 
 // }
+
+func (fs *cinodeFS) OpenEntryData(ctx context.Context, path []string) (io.ReadCloser, error) {
+	ep, err := fs.FindEntry(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	if ep.IsDir() {
+		return nil, ErrCantReadDirectory
+	}
+	golang.Assert(
+		!ep.IsLink(),
+		"assumed that fs.FindEntry does not return a link",
+	)
+
+	return fs.OpenEntrypointData(ctx, ep)
+}
 
 func (fs *cinodeFS) OpenEntrypointData(ctx context.Context, ep *Entrypoint) (io.ReadCloser, error) {
 	if ep == nil {

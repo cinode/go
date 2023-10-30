@@ -38,9 +38,10 @@ const (
 )
 
 var (
-	ErrNotFound      = blenc.ErrNotFound
-	ErrNotADirectory = errors.New("entry is not a directory")
-	ErrNotAFile      = errors.New("entry is not a file")
+	ErrNotFound             = blenc.ErrNotFound
+	ErrNotADirectory        = errors.New("entry is not a directory")
+	ErrNotAFile             = errors.New("entry is not a file")
+	ErrNotADirectoryOrAFile = errors.New("entry is neither a directory nor a regular file")
 )
 
 func UploadStaticDirectory(
@@ -56,9 +57,7 @@ func UploadStaticDirectory(
 		log:  slog.Default(),
 	}
 	for _, opt := range opts {
-		if err := opt(&c); err != nil {
-			return err
-		}
+		opt(&c)
 	}
 
 	_, err := c.compilePath(ctx, ".", c.basePath)
@@ -66,28 +65,21 @@ func UploadStaticDirectory(
 		return err
 	}
 
-	err = cfs.Flush(ctx)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
-type Option func(d *dirCompiler) error
+type Option func(d *dirCompiler)
 
-func BasePath(path []string) Option {
-	return Option(func(d *dirCompiler) error {
+func BasePath(path ...string) Option {
+	return Option(func(d *dirCompiler) {
 		d.basePath = path
-		return nil
 	})
 }
 
 func CreateIndexFile(indexFile string) Option {
-	return Option(func(d *dirCompiler) error {
+	return Option(func(d *dirCompiler) {
 		d.createIndexFile = true
 		d.indexFileName = indexFile
-		return nil
 	})
 }
 
@@ -151,7 +143,7 @@ func (d *dirCompiler) compilePath(
 	}
 
 	d.log.ErrorContext(ctx, "path is neither dir nor a regular file", "path", srcPath)
-	return nil, fmt.Errorf("neither dir nor a regular file: %v", srcPath)
+	return nil, fmt.Errorf("%w: %v", ErrNotADirectoryOrAFile, srcPath)
 }
 
 func (d *dirCompiler) compileFile(ctx context.Context, srcPath string, dstPath []string) (string, error) {
@@ -177,9 +169,6 @@ func (d *dirCompiler) compileDir(ctx context.Context, srcPath string, dstPath []
 		d.log.ErrorContext(ctx, "couldn't read contents of dir", "path", srcPath, "err", err)
 		return 0, fmt.Errorf("couldn't read contents of dir %v: %w", srcPath, err)
 	}
-
-	// TODO: Reset directory content
-	// TODO: Build index file
 
 	entries := make([]*dirEntry, 0, len(fileList))
 	hasIndex := false
@@ -207,9 +196,7 @@ func (d *dirCompiler) compileDir(ctx context.Context, srcPath string, dstPath []
 			"entries":   entries,
 			"indexName": d.indexFileName,
 		})
-		if err != nil {
-			return 0, err
-		}
+		golang.Assert(err == nil, "template execution must not fail")
 
 		_, err = d.cfs.SetEntryFile(ctx,
 			append(dstPath, d.indexFileName),
@@ -226,5 +213,7 @@ func (d *dirCompiler) compileDir(ctx context.Context, srcPath string, dstPath []
 //go:embed templates/dir.html
 var _dirIndexTemplateStr string
 var dirIndexTemplate = golang.Must(
-	template.New("dir").Parse(_dirIndexTemplateStr),
+	template.
+		New("dir").
+		Parse(_dirIndexTemplateStr),
 )

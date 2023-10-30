@@ -219,6 +219,11 @@ func compileFS(
 		return nil, nil, fmt.Errorf("couldn't upload directory content: %w", err)
 	}
 
+	err = fs.Flush(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("couldn't flush after directory upload: %w", err)
+	}
+
 	ep, err := fs.RootEntrypoint()
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't get root entrypoint from cinodefs instance: %w", err)
