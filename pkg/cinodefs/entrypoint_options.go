@@ -18,7 +18,6 @@ package cinodefs
 
 import (
 	"context"
-	"time"
 )
 
 type EntrypointOption interface {
@@ -32,18 +31,6 @@ func (f entrypointOptionBasicFunc) apply(ctx context.Context, ep *Entrypoint) { 
 func SetMimeType(mimeType string) EntrypointOption {
 	return entrypointOptionBasicFunc(func(ep *Entrypoint) {
 		ep.ep.MimeType = mimeType
-	})
-}
-
-func SetNotValidBefore(t time.Time) EntrypointOption {
-	return entrypointOptionBasicFunc(func(ep *Entrypoint) {
-		ep.ep.NotValidBeforeUnixMicro = t.UnixMicro()
-	})
-}
-
-func SetNotValidAfter(t time.Time) EntrypointOption {
-	return entrypointOptionBasicFunc(func(ep *Entrypoint) {
-		ep.ep.NotValidAfterUnixMicro = t.UnixMicro()
 	})
 }
 

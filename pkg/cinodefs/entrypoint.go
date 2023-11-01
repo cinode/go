@@ -19,7 +19,6 @@ package cinodefs
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/cinodefs/internal/protobuf"
@@ -136,19 +135,4 @@ func (e *Entrypoint) IsDir() bool {
 
 func (e *Entrypoint) MimeType() string {
 	return e.ep.MimeType
-}
-
-func (e *Entrypoint) IsValid(now time.Time) error {
-	nowMicro := now.UnixMicro()
-	if e.ep.NotValidBeforeUnixMicro != 0 {
-		if e.ep.NotValidBeforeUnixMicro > nowMicro {
-			return ErrNotYetValid
-		}
-	}
-	if e.ep.NotValidAfterUnixMicro != 0 {
-		if e.ep.NotValidAfterUnixMicro < nowMicro {
-			return ErrExpired
-		}
-	}
-	return nil
 }

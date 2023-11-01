@@ -541,27 +541,6 @@ func (c *CinodeFSMultiFileTestSuite) TestExplicitMimeType() {
 	require.Equal(t, newMimeType, entry.MimeType())
 }
 
-func (c *CinodeFSMultiFileTestSuite) TestExpiration() {
-	t := c.T()
-	ctx := context.Background()
-	entryPath := c.contentMap[0].path
-
-	now := time.Now()
-	c.timeFunc = func() time.Time { return now }
-
-	t.Run("not yet valid", func(t *testing.T) {
-		_, err := c.fs.SetEntryFile(ctx,
-			entryPath,
-			strings.NewReader("modified content"),
-			cinodefs.SetNotValidBefore(now.Add(time.Second)),
-		)
-		require.NoError(t, err)
-
-		_, err = c.fs.FindEntry(ctx, entryPath)
-		require.ErrorIs(t, err, cinodefs.ErrNotYetValid)
-	})
-}
-
 func TestFetchingWriterInfo(t *testing.T) {
 	t.Run("not a dynamic link", func(t *testing.T) {
 		fs, err := cinodefs.New(
