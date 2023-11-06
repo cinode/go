@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -35,22 +36,23 @@ import (
 )
 
 var (
-	ErrInvalidBE            = errors.New("invalid BE argument")
-	ErrCantOpenDir          = errors.New("can not open directory")
-	ErrTooManyRedirects     = errors.New("too many link redirects")
-	ErrCantComputeBlobKey   = errors.New("can not compute blob keys")
-	ErrModifiedDirectory    = errors.New("can not get entrypoint for a directory, unsaved content")
-	ErrCantDeleteRoot       = errors.New("can not delete root object")
-	ErrNotADirectory        = errors.New("entry is not a directory")
-	ErrNotALink             = errors.New("entry is not a link")
-	ErrNilEntrypoint        = errors.New("nil entrypoint")
-	ErrEmptyName            = errors.New("entry name can not be empty")
-	ErrDuplicateEntry       = errors.New("duplicate entry")
-	ErrEntryNotFound        = errors.New("entry not found")
-	ErrIsADirectory         = errors.New("entry is a directory")
-	ErrInvalidDirectoryData = errors.New("invalid directory data")
-	ErrCantWriteDirectory   = errors.New("can not write directory")
-	ErrMissingRootInfo      = errors.New("root info not specified")
+	ErrInvalidBE                 = errors.New("invalid BE argument")
+	ErrCantOpenDir               = errors.New("can not open directory")
+	ErrCantOpenDirDuplicateEntry = fmt.Errorf("%w: duplicate entry", ErrCantOpenDir)
+	ErrCantOpenLink              = errors.New("can not open link")
+	ErrTooManyRedirects          = errors.New("too many link redirects")
+	ErrCantComputeBlobKey        = errors.New("can not compute blob keys")
+	ErrModifiedDirectory         = errors.New("can not get entrypoint for a directory, unsaved content")
+	ErrCantDeleteRoot            = errors.New("can not delete root object")
+	ErrNotADirectory             = errors.New("entry is not a directory")
+	ErrNotALink                  = errors.New("entry is not a link")
+	ErrNilEntrypoint             = errors.New("nil entrypoint")
+	ErrEmptyName                 = errors.New("entry name can not be empty")
+	ErrEntryNotFound             = errors.New("entry not found")
+	ErrIsADirectory              = errors.New("entry is a directory")
+	ErrInvalidDirectoryData      = errors.New("invalid directory data")
+	ErrCantWriteDirectory        = errors.New("can not write directory")
+	ErrMissingRootInfo           = errors.New("root info not specified")
 )
 
 const (

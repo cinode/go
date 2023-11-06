@@ -24,6 +24,6 @@ import "crypto/subtle"
 // to update the content of the blob. The representation is specific to the blob type
 type AuthInfo struct{ data []byte }
 
-func AuthInfoFromBytes(iv []byte) *AuthInfo { return &AuthInfo{data: copyBytes(iv)} }
+func AuthInfoFromBytes(ai []byte) *AuthInfo { return &AuthInfo{data: copyBytes(ai)} }
 func (a *AuthInfo) Bytes() []byte           { return copyBytes(a.data) }
 func (a *AuthInfo) Equal(a2 *AuthInfo) bool { return subtle.ConstantTimeCompare(a.data, a2.data) == 1 }

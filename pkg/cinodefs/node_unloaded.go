@@ -83,12 +83,12 @@ func (c *nodeUnloaded) loadEntrypointLink(ctx context.Context, gc *graphContext)
 	targetEP := &Entrypoint{}
 	err := gc.readProtobufMessage(ctx, c.ep, &targetEP.ep)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrCantOpenLink, err)
 	}
 
 	err = expandEntrypointProto(targetEP)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrCantOpenLink, err)
 	}
 
 	return &nodeLink{
@@ -102,22 +102,22 @@ func (c *nodeUnloaded) loadEntrypointDir(ctx context.Context, gc *graphContext) 
 	msg := &protobuf.Directory{}
 	err := gc.readProtobufMessage(ctx, c.ep, msg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrCantOpenDir, err)
 	}
 
 	dir := make(map[string]node, len(msg.Entries))
 
 	for _, entry := range msg.Entries {
 		if entry.Name == "" {
-			return nil, ErrEmptyName
+			return nil, fmt.Errorf("%w: %w", ErrCantOpenDir, ErrEmptyName)
 		}
 		if _, exists := dir[entry.Name]; exists {
-			return nil, fmt.Errorf("%w: %s", ErrDuplicateEntry, entry.Name)
+			return nil, fmt.Errorf("%w: %s", ErrCantOpenDirDuplicateEntry, entry.Name)
 		}
 
 		ep, err := entrypointFromProtobuf(entry.Ep)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: %w", ErrCantOpenDir, err)
 		}
 
 		dir[entry.Name] = &nodeUnloaded{ep: ep}

@@ -90,7 +90,7 @@ func expandEntrypointProto(ep *Entrypoint) error {
 	// Extract blob name from entrypoint
 	bn, err := common.BlobNameFromBytes(ep.ep.BlobName)
 	if err != nil {
-		return fmt.Errorf("%w: %s", ErrInvalidEntrypointData, err)
+		return fmt.Errorf("%w: %w", ErrInvalidEntrypointData, err)
 	}
 	ep.bn = bn
 
