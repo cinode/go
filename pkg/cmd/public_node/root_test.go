@@ -189,6 +189,8 @@ func TestExecuteWithConfig(t *testing.T) {
 
 func TestExecute(t *testing.T) {
 	t.Run("valid configuration", func(t *testing.T) {
+		t.Setenv("CINODE_LISTEN_PORT", "0")
+
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
 			time.Sleep(10 * time.Millisecond)

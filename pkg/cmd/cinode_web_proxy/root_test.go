@@ -289,6 +289,7 @@ func TestExecute(t *testing.T) {
 		ep := testblobs.DynamicLink.Entrypoint()
 
 		t.Setenv("CINODE_ENTRYPOINT", ep.String())
+		t.Setenv("CINODE_LISTEN_PORT", "0")
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
 			time.Sleep(10 * time.Millisecond)

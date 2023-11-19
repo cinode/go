@@ -174,8 +174,8 @@ func getConfig() (*config, error) {
 		cfg.port = 8080
 	} else {
 		portNum, err := strconv.Atoi(port)
-		if err == nil && (portNum < 1 || portNum > 65535) {
-			err = fmt.Errorf("not in range 1..65535")
+		if err == nil && (portNum < 0 || portNum > 65535) {
+			err = fmt.Errorf("not in range 0..65535")
 		}
 		if err != nil {
 			return nil, fmt.Errorf("invalid listen port %s: %w", port, err)
