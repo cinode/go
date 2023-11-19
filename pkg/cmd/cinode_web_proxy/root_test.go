@@ -103,6 +103,25 @@ func TestGetConfig(t *testing.T) {
 			"additional3",
 		})
 	})
+
+	t.Run("set listen port", func(t *testing.T) {
+		t.Setenv("CINODE_LISTEN_PORT", "12345")
+		cfg, err := getConfig()
+		require.NoError(t, err)
+		require.Equal(t, 12345, cfg.port)
+	})
+
+	t.Run("invalid port - not a number", func(t *testing.T) {
+		t.Setenv("CINODE_LISTEN_PORT", "123-45")
+		_, err := getConfig()
+		require.ErrorContains(t, err, "invalid listen port")
+	})
+
+	t.Run("invalid port - outside range", func(t *testing.T) {
+		t.Setenv("CINODE_LISTEN_PORT", "-1")
+		_, err := getConfig()
+		require.ErrorContains(t, err, "invalid listen port")
+	})
 }
 
 func TestWebProxyHandlerInvalidEntrypoint(t *testing.T) {
@@ -114,13 +133,12 @@ func TestWebProxyHandlerInvalidEntrypoint(t *testing.T) {
 
 	key := cipherfactory.NewKeyGenerator(blobtypes.Static).Generate()
 
-	handler, err := setupCinodeProxy(
+	handler := setupCinodeProxy(
 		context.Background(),
 		datastore.InMemory(),
 		[]datastore.DS{},
 		cinodefs.EntrypointFromBlobNameAndKey(n, key),
 	)
-	require.NoError(t, err)
 
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -179,8 +197,7 @@ func TestWebProxyHandlerSimplePage(t *testing.T) {
 		return ep
 	}()
 
-	handler, err := setupCinodeProxy(context.Background(), ds, []datastore.DS{}, ep)
-	require.NoError(t, err)
+	handler := setupCinodeProxy(context.Background(), ds, []datastore.DS{}, ep)
 
 	server := httptest.NewServer(handler)
 	defer server.Close()

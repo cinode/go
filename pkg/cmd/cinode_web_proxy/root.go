@@ -25,6 +25,7 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/cinode/go/pkg/cinodefs"
 	"github.com/cinode/go/pkg/cinodefs/httphandler"
 	"github.com/cinode/go/pkg/datastore"
+	"github.com/cinode/go/pkg/utilities/golang"
 	"github.com/cinode/go/pkg/utilities/httpserver"
 	"golang.org/x/exp/slog"
 )
@@ -79,10 +81,7 @@ func executeWithConfig(ctx context.Context, cfg *config) error {
 		"cpus", runtime.NumCPU(),
 	)
 
-	handler, err := setupCinodeProxy(ctx, mainDS, additionalDSs, entrypoint)
-	if err != nil {
-		return err
-	}
+	handler := setupCinodeProxy(ctx, mainDS, additionalDSs, entrypoint)
 
 	return httpserver.RunGracefully(ctx,
 		handler,
@@ -96,8 +95,8 @@ func setupCinodeProxy(
 	mainDS datastore.DS,
 	additionalDSs []datastore.DS,
 	entrypoint *cinodefs.Entrypoint,
-) (http.Handler, error) {
-	fs, err := cinodefs.New(
+) http.Handler {
+	fs := golang.Must(cinodefs.New(
 		ctx,
 		blenc.FromDatastore(
 			datastore.NewMultiSource(
@@ -108,16 +107,13 @@ func setupCinodeProxy(
 		),
 		cinodefs.RootEntrypoint(entrypoint),
 		cinodefs.MaxLinkRedirects(10),
-	)
-	if err != nil {
-		return nil, err
-	}
+	))
 
 	return &httphandler.Handler{
 		FS:        fs,
 		IndexFile: "index.html",
 		Log:       slog.Default(),
-	}, nil
+	}
 }
 
 type config struct {
@@ -163,7 +159,19 @@ func getConfig() (*config, error) {
 		cfg.additionalDSLocations = append(cfg.additionalDSLocations, location)
 	}
 
-	cfg.port = 8080
+	port := os.Getenv("CINODE_LISTEN_PORT")
+	if port == "" {
+		cfg.port = 8080
+	} else {
+		portNum, err := strconv.Atoi(port)
+		if err == nil && (portNum < 1 || portNum > 65535) {
+			err = fmt.Errorf("not in range 1..65535")
+		}
+		if err != nil {
+			return nil, fmt.Errorf("invalid listen port %s: %w", port, err)
+		}
+		cfg.port = portNum
+	}
 
 	return &cfg, nil
 }
