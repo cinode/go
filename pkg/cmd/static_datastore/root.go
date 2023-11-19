@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,8 +17,7 @@ limitations under the License.
 package static_datastore
 
 import (
-	"fmt"
-	"os"
+	"context"
 
 	"github.com/spf13/cobra"
 )
@@ -50,9 +49,6 @@ node is stored in a plaintext in a file called 'entrypoint.txt'.
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() {
-	if err := rootCmd().Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+func Execute(ctx context.Context) error {
+	return rootCmd().ExecuteContext(ctx)
 }

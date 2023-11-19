@@ -46,16 +46,15 @@ func compileCmd() *cobra.Command {
 			"a content with static files that can then be used to serve through a",
 			"simple http server.",
 		}, "\n"),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if o.srcDir == "" || o.dstLocation == "" {
-				cmd.Help()
-				return
+				return cmd.Help()
 			}
 
-			enc := json.NewEncoder(os.Stdout)
+			enc := json.NewEncoder(cmd.OutOrStdout())
 			enc.SetIndent("", "  ")
 
-			fatalResult := func(format string, args ...interface{}) {
+			fatalResult := func(format string, args ...interface{}) error {
 				msg := fmt.Sprintf(format, args...)
 
 				enc.Encode(map[string]string{
@@ -63,23 +62,25 @@ func compileCmd() *cobra.Command {
 					"msg":    msg,
 				})
 
-				log.Fatalf(msg)
+				cmd.SilenceUsage = true
+				cmd.SilenceErrors = true
+				return errors.New(msg)
 			}
 
 			if len(rootWriterInfoFile) > 0 {
 				data, err := os.ReadFile(rootWriterInfoFile)
 				if err != nil {
-					fatalResult("Couldn't read data from the writer info file at '%s': %v", rootWriterInfoFile, err)
+					return fatalResult("Couldn't read data from the writer info file at '%s': %v", rootWriterInfoFile, err)
 				}
 				if len(data) == 0 {
-					fatalResult("Writer info file at '%s' is empty", rootWriterInfoFile)
+					return fatalResult("Writer info file at '%s' is empty", rootWriterInfoFile)
 				}
 				rootWriterInfoStr = string(data)
 			}
 			if len(rootWriterInfoStr) > 0 {
 				wi, err := cinodefs.WriterInfoFromString(rootWriterInfoStr)
 				if err != nil {
-					fatalResult("Couldn't parse writer info: %v", err)
+					return fatalResult("Couldn't parse writer info: %v", err)
 				}
 				o.writerInfo = wi
 			}
@@ -91,7 +92,7 @@ func compileCmd() *cobra.Command {
 
 			ep, wi, err := compileFS(cmd.Context(), o)
 			if err != nil {
-				fatalResult("%s", err)
+				return fatalResult("%s", err)
 			}
 
 			result := map[string]string{
@@ -104,6 +105,7 @@ func compileCmd() *cobra.Command {
 			enc.Encode(result)
 
 			log.Println("DONE")
+			return nil
 		},
 	}
 
