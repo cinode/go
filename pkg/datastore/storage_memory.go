@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ func (m *memory) address() string {
 	return memoryPrefix
 }
 
-func (m *memory) openReadStream(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+func (m *memory) openReadStream(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 	m.rw.RLock()
 	defer m.rw.RUnlock()
 
@@ -92,7 +92,7 @@ func (w *memoryWriteCloser) Close() error {
 	return nil
 }
 
-func (m *memory) openWriteStream(ctx context.Context, name common.BlobName) (WriteCloseCanceller, error) {
+func (m *memory) openWriteStream(ctx context.Context, name *common.BlobName) (WriteCloseCanceller, error) {
 	m.rw.Lock()
 	defer m.rw.Unlock()
 
@@ -111,7 +111,7 @@ func (m *memory) openWriteStream(ctx context.Context, name common.BlobName) (Wri
 	}, nil
 }
 
-func (m *memory) exists(ctx context.Context, n common.BlobName) (bool, error) {
+func (m *memory) exists(ctx context.Context, n *common.BlobName) (bool, error) {
 	m.rw.RLock()
 	defer m.rw.RUnlock()
 
@@ -122,7 +122,7 @@ func (m *memory) exists(ctx context.Context, n common.BlobName) (bool, error) {
 	return true, nil
 }
 
-func (m *memory) delete(ctx context.Context, n common.BlobName) error {
+func (m *memory) delete(ctx context.Context, n *common.BlobName) error {
 	m.rw.Lock()
 	defer m.rw.Unlock()
 

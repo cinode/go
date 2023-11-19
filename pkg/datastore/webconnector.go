@@ -83,7 +83,7 @@ func (w *webConnector) Address() string {
 	return w.baseURL
 }
 
-func (w *webConnector) Open(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+func (w *webConnector) Open(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 	switch name.Type() {
 	case blobtypes.Static:
 		return w.openStatic(ctx, name)
@@ -94,7 +94,7 @@ func (w *webConnector) Open(ctx context.Context, name common.BlobName) (io.ReadC
 	}
 }
 
-func (w *webConnector) openStatic(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+func (w *webConnector) openStatic(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
@@ -125,7 +125,7 @@ func (w *webConnector) openStatic(ctx context.Context, name common.BlobName) (io
 	}, nil
 }
 
-func (w *webConnector) openDynamicLink(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+func (w *webConnector) openDynamicLink(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
@@ -156,7 +156,7 @@ func (w *webConnector) openDynamicLink(ctx context.Context, name common.BlobName
 	return io.NopCloser(bytes.NewReader(buff.Bytes())), nil
 }
 
-func (w *webConnector) Update(ctx context.Context, name common.BlobName, r io.Reader) error {
+func (w *webConnector) Update(ctx context.Context, name *common.BlobName, r io.Reader) error {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPut,
@@ -178,7 +178,7 @@ func (w *webConnector) Update(ctx context.Context, name common.BlobName, r io.Re
 	return w.errCheck(res)
 }
 
-func (w *webConnector) Exists(ctx context.Context, name common.BlobName) (bool, error) {
+func (w *webConnector) Exists(ctx context.Context, name *common.BlobName) (bool, error) {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodHead,
@@ -205,7 +205,7 @@ func (w *webConnector) Exists(ctx context.Context, name common.BlobName) (bool, 
 	return false, err
 }
 
-func (w *webConnector) Delete(ctx context.Context, name common.BlobName) error {
+func (w *webConnector) Delete(ctx context.Context, name *common.BlobName) error {
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodDelete,

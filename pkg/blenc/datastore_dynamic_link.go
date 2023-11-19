@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ limitations under the License.
 package blenc
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -25,7 +24,6 @@ import (
 
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
-	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 )
 
 var (
@@ -37,8 +35,8 @@ var (
 
 func (be *beDatastore) openDynamicLink(
 	ctx context.Context,
-	name common.BlobName,
-	key cipherfactory.Key,
+	name *common.BlobName,
+	key *common.BlobKey,
 ) (
 	io.ReadCloser,
 	error,
@@ -77,9 +75,9 @@ func (be *beDatastore) createDynamicLink(
 	ctx context.Context,
 	r io.Reader,
 ) (
-	common.BlobName,
-	cipherfactory.Key,
-	AuthInfo,
+	*common.BlobName,
+	*common.BlobKey,
+	*common.AuthInfo,
 	error,
 ) {
 	version := be.generateVersion()
@@ -109,9 +107,9 @@ func (be *beDatastore) createDynamicLink(
 
 func (be *beDatastore) updateDynamicLink(
 	ctx context.Context,
-	name common.BlobName,
-	authInfo AuthInfo,
-	key cipherfactory.Key,
+	name *common.BlobName,
+	authInfo *common.AuthInfo,
+	key *common.BlobKey,
 	r io.Reader,
 ) error {
 	newVersion := be.generateVersion()
@@ -127,10 +125,10 @@ func (be *beDatastore) updateDynamicLink(
 	}
 
 	// Sanity checks
-	if !bytes.Equal(encryptionKey, key) {
+	if !encryptionKey.Equal(key) {
 		return ErrDynamicLinkUpdateFailedWrongKey
 	}
-	if !bytes.Equal(name, dl.BlobName()) {
+	if !name.Equal(dl.BlobName()) {
 		return ErrDynamicLinkUpdateFailedWrongName
 	}
 

@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ const (
 
 type KeyGenerator interface {
 	io.Writer
-	Generate() Key
+	Generate() *common.BlobKey
 }
 
 type keyGenerator struct {
@@ -42,16 +42,16 @@ type keyGenerator struct {
 
 func (g keyGenerator) Write(b []byte) (int, error) { return g.h.Write(b) }
 
-func (g keyGenerator) Generate() Key {
-	return append(
+func (g keyGenerator) Generate() *common.BlobKey {
+	return common.BlobKeyFromBytes(append(
 		[]byte{reservedByteForKeyType},
 		g.h.Sum(nil)[:chacha20.KeySize]...,
-	)
+	))
 }
 
 type IVGenerator interface {
 	io.Writer
-	Generate() IV
+	Generate() *common.BlobIV
 }
 
 type ivGenerator struct {
@@ -60,15 +60,14 @@ type ivGenerator struct {
 
 func (g ivGenerator) Write(b []byte) (int, error) { return g.h.Write(b) }
 
-func (g ivGenerator) Generate() IV {
-	return g.h.Sum(nil)[:chacha20.NonceSizeX]
+func (g ivGenerator) Generate() *common.BlobIV {
+	return common.BlobIVFromBytes(g.h.Sum(nil)[:chacha20.NonceSizeX])
 }
 
 func NewKeyGenerator(t common.BlobType) KeyGenerator {
 	h := sha256.New()
 	h.Write([]byte{preambleHashKey, reservedByteForKeyType, t.IDByte()})
 	return keyGenerator{h: h}
-
 }
 
 func NewIVGenerator(t common.BlobType) IVGenerator {
@@ -77,12 +76,12 @@ func NewIVGenerator(t common.BlobType) IVGenerator {
 	return ivGenerator{h: h}
 }
 
-var defaultXChaCha20IV = func() IV {
+var defaultXChaCha20IV = func() *common.BlobIV {
 	h := sha256.New()
 	h.Write([]byte{preambleHashDefaultIV, reservedByteForKeyType})
-	return h.Sum(nil)[:chacha20.NonceSizeX]
+	return common.BlobIVFromBytes(h.Sum(nil)[:chacha20.NonceSizeX])
 }()
 
-func (k Key) DefaultIV() IV {
+func DefaultIV(k *common.BlobKey) *common.BlobIV {
 	return defaultXChaCha20IV
 }

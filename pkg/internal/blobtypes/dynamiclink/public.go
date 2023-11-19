@@ -61,7 +61,7 @@ type Public struct {
 	nonce     uint64
 }
 
-func (d *Public) BlobName() common.BlobName {
+func (d *Public) BlobName() *common.BlobName {
 	hasher := sha256.New()
 
 	storeByte(hasher, reservedByteValue)
@@ -80,7 +80,7 @@ type PublicReader struct {
 	Public
 	contentVersion uint64
 	signature      []byte
-	iv             []byte
+	iv             *common.BlobIV
 	r              io.Reader
 }
 
@@ -88,7 +88,7 @@ type PublicReader struct {
 //
 // Invalid links are rejected - i.e. if there's any error while reading the data
 // or when the validation of the link fails for whatever reason
-func FromPublicData(name common.BlobName, r io.Reader) (*PublicReader, error) {
+func FromPublicData(name *common.BlobName, r io.Reader) (*PublicReader, error) {
 	dl := PublicReader{
 		Public: Public{
 			publicKey: make([]byte, ed25519.PublicKeySize),
@@ -119,7 +119,7 @@ func FromPublicData(name common.BlobName, r io.Reader) (*PublicReader, error) {
 		return nil, err
 	}
 
-	if !bytes.Equal(dl.BlobName(), name) {
+	if !dl.BlobName().Equal(name) {
 		return nil, ErrInvalidDynamicLinkDataBlobName
 	}
 
@@ -140,10 +140,11 @@ func FromPublicData(name common.BlobName, r io.Reader) (*PublicReader, error) {
 		return nil, err
 	}
 
-	dl.iv, err = readDynamicSizeBuff(r, "iv")
+	iv, err := readDynamicSizeBuff(r, "iv")
 	if err != nil {
 		return nil, err
 	}
+	dl.iv = common.BlobIVFromBytes(iv)
 
 	// Starting from validations at this point, errors are returned while reading.
 	// This is to prepare for future improvements when real streaming is
@@ -201,7 +202,7 @@ func (d *PublicReader) GetPublicDataReader() io.Reader {
 	// Preamble - dynamic link data
 	storeBuff(w, d.signature)
 	storeUint64(w, d.contentVersion)
-	storeDynamicSizeBuff(w, d.iv)
+	storeDynamicSizeBuff(w, d.iv.Bytes())
 
 	return io.MultiReader(
 		bytes.NewReader(w.Bytes()), // Preamble
@@ -213,7 +214,7 @@ func (d *PublicReader) toSignDataHasherPrefilled() hash.Hash {
 	h := sha256.New()
 
 	storeByte(h, signatureForLinkData)
-	storeDynamicSizeBuff(h, d.BlobName())
+	storeDynamicSizeBuff(h, d.BlobName().Bytes())
 
 	return h
 }
@@ -238,13 +239,13 @@ func (d *PublicReader) GreaterThan(d2 *PublicReader) bool {
 func (d *PublicReader) ivGeneratorPrefilled() cipherfactory.IVGenerator {
 	ivGenerator := cipherfactory.NewIVGenerator(blobtypes.DynamicLink)
 
-	storeDynamicSizeBuff(ivGenerator, d.BlobName())
+	storeDynamicSizeBuff(ivGenerator, d.BlobName().Bytes())
 	storeUint64(ivGenerator, d.contentVersion)
 
 	return ivGenerator
 }
 
-func (d *PublicReader) validateKeyInLinkData(key cipherfactory.Key, r io.Reader) error {
+func (d *PublicReader) validateKeyInLinkData(key *common.BlobKey, r io.Reader) error {
 	// At the beginning of the data there's the key validation block,
 	// that block contains a proof that the encryption key was deterministically derived
 	// from the blob name (thus preventing weak key attack)
@@ -256,7 +257,7 @@ func (d *PublicReader) validateKeyInLinkData(key cipherfactory.Key, r io.Reader)
 
 	dataSeed := append(
 		[]byte{signatureForEncryptionKeyGeneration},
-		d.BlobName()...,
+		d.BlobName().Bytes()...,
 	)
 
 	// Key validation block contains the signature of data seed
@@ -269,14 +270,14 @@ func (d *PublicReader) validateKeyInLinkData(key cipherfactory.Key, r io.Reader)
 	keyGenerator.Write(signature)
 	generatedKey := keyGenerator.Generate()
 
-	if !bytes.Equal(generatedKey, key) {
+	if !generatedKey.Equal(key) {
 		return ErrInvalidDynamicLinkKeyMismatch
 	}
 
 	return nil
 }
 
-func (d *PublicReader) GetLinkDataReader(key cipherfactory.Key) (io.Reader, error) {
+func (d *PublicReader) GetLinkDataReader(key *common.BlobKey) (io.Reader, error) {
 
 	r, err := cipherfactory.StreamCipherReader(key, d.iv, d.GetEncryptedLinkReader())
 	if err != nil {
@@ -305,7 +306,7 @@ func (d *PublicReader) GetLinkDataReader(key cipherfactory.Key) (io.Reader, erro
 	return validatingreader.CheckOnEOF(
 		r,
 		func() error {
-			if !bytes.Equal(ivHasher.Generate(), d.iv) {
+			if !d.iv.Equal(ivHasher.Generate()) {
 				return ErrInvalidDynamicLinkIVMismatch
 			}
 

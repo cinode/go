@@ -1,0 +1,111 @@
+{{/*
+Copyright © 2023 Bartłomiej Święcki (byo)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/}}{{- "" -}}
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>Directory Listing</title>
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+		}
+
+		table {
+			width: 100%;
+			border-collapse: collapse;
+			table-layout: fixed;
+			border: 1px solid #ddd;
+		}
+
+		th,
+		td {
+			padding: 8px;
+			text-align: left;
+			border-right: 1px solid #ddd;
+		}
+
+		tr:nth-child(even) {
+			background-color: #f2f2f2;
+		}
+
+		th {
+			background-color: #4CAF50;
+			color: white;
+		}
+
+		th.is-dir {
+			width: 40px;
+		}
+
+		th.name {
+			width: 60%
+		}
+
+		th.size {
+			width: 100px;
+		}
+
+		th.mimetype {
+			width: 40%;
+		}
+
+		td.empty {
+			text-align: center;
+			font-style: italic;
+		}
+
+		th.size,
+		td.size {
+			text-align: right;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Directory Listing</h1>
+	<table>
+		<tr>
+			<th class="is-dir"></th>
+			<th class="name">Name</th>
+			<th class="size">Size</th>
+			<th class="mimetype">MimeType</th>
+		</tr>
+		{{- if eq (len .entries) 0 }}
+		<tr>
+			<td colspan="4" class="empty">&mdash; Empty &mdash;</td>
+		</tr>
+		{{- else }}
+		{{- range .entries }}{{- if .IsDir }}
+		<tr>
+			<td class="is-dir">[DIR]</td>
+			<td class="name"><a href="./{{.Name}}/">{{ .Name }}</a></td>
+			<td class="size">{{ .Size }} entries</td>
+			<td class="mimetype">{{ .MimeType }}</td>
+		</tr>
+		{{- end }}{{- end }}
+		{{- range .entries }}{{- if not .IsDir }}
+		<tr>
+			<td class="is-dir"></td>
+			<td class="name"><a href="{{.Name}}">{{ .Name }}</a></td>
+			<td class="size">{{ .Size }} bytes</td>
+			<td class="mimetype">{{ .MimeType }}</td>
+		</tr>
+		{{- end }}{{- end }}
+		{{- end }}
+	</table>
+</body>
+
+</html>

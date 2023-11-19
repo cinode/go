@@ -19,45 +19,42 @@ package static_datastore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/cinode/go/pkg/blenc"
+	"github.com/cinode/go/pkg/cinodefs"
+	"github.com/cinode/go/pkg/cinodefs/uploader"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/protobuf"
-	"github.com/cinode/go/pkg/structure"
-	"github.com/jbenet/go-base58"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/slog"
 )
 
 func compileCmd() *cobra.Command {
-
-	var srcDir, dstDir string
-	var useStaticBlobs bool
-	var useRawFilesystem bool
+	var o compileFSOptions
 	var rootWriterInfoStr string
 	var rootWriterInfoFile string
+	var useRawFilesystem bool
 
 	cmd := &cobra.Command{
-		Use:   "compile --source <src_dir> --destination <dst_dir>",
+		Use:   "compile --source <src_dir> --destination <dst_location>",
 		Short: "Compile datastore from static files",
-		Long: `
-The compile command can be used to create an encrypted datastore from
-a content with static files that can then be used to serve through a
-simple http server.
-`,
-		Run: func(cmd *cobra.Command, args []string) {
-			if srcDir == "" || dstDir == "" {
-				cmd.Help()
-				return
+		Long: strings.Join([]string{
+			"The compile command can be used to create an encrypted datastore from",
+			"a content with static files that can then be used to serve through a",
+			"simple http server.",
+		}, "\n"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if o.srcDir == "" || o.dstLocation == "" {
+				return cmd.Help()
 			}
 
-			enc := json.NewEncoder(os.Stdout)
+			enc := json.NewEncoder(cmd.OutOrStdout())
 			enc.SetIndent("", "  ")
 
-			fatalResult := func(format string, args ...interface{}) {
+			fatalResult := func(format string, args ...interface{}) error {
 				msg := fmt.Sprintf(format, args...)
 
 				enc.Encode(map[string]string{
@@ -65,114 +62,182 @@ simple http server.
 					"msg":    msg,
 				})
 
-				log.Fatalf(msg)
+				cmd.SilenceUsage = true
+				cmd.SilenceErrors = true
+				return errors.New(msg)
 			}
 
-			var wi *protobuf.WriterInfo
 			if len(rootWriterInfoFile) > 0 {
 				data, err := os.ReadFile(rootWriterInfoFile)
 				if err != nil {
-					fatalResult("Couldn't read data from the writer info file at '%s': %v", rootWriterInfoFile, err)
+					return fatalResult("Couldn't read data from the writer info file at '%s': %v", rootWriterInfoFile, err)
 				}
 				if len(data) == 0 {
-					fatalResult("Writer info file at '%s' is empty", rootWriterInfoFile)
+					return fatalResult("Writer info file at '%s' is empty", rootWriterInfoFile)
 				}
 				rootWriterInfoStr = string(data)
 			}
 			if len(rootWriterInfoStr) > 0 {
-				_wi, err := protobuf.WriterInfoFromBytes(base58.Decode(rootWriterInfoStr))
+				wi, err := cinodefs.WriterInfoFromString(rootWriterInfoStr)
 				if err != nil {
-					fatalResult("Couldn't parse writer info: %v", err)
+					return fatalResult("Couldn't parse writer info: %v", err)
 				}
-				wi = _wi
+				o.writerInfo = wi
 			}
 
-			ep, wi, err := compileFS(srcDir, dstDir, useStaticBlobs, wi, useRawFilesystem)
-			if err != nil {
-				fatalResult("%s", err)
+			if useRawFilesystem {
+				// For backwards compatibility
+				o.dstLocation = "file-raw://" + o.dstLocation
 			}
 
-			epBytes, err := ep.ToBytes()
+			ep, wi, err := compileFS(cmd.Context(), o)
 			if err != nil {
-				fatalResult("Couldn't serialize entrypoint: %v", err)
+				return fatalResult("%s", err)
 			}
 
 			result := map[string]string{
 				"result":     "OK",
-				"entrypoint": base58.Encode(epBytes),
+				"entrypoint": ep.String(),
 			}
 			if wi != nil {
-				wiBytes, err := wi.ToBytes()
-				if err != nil {
-					fatalResult("Couldn't serialize writer info: %v", err)
-				}
-
-				result["writer-info"] = base58.Encode(wiBytes)
+				result["writer-info"] = wi.String()
 			}
 			enc.Encode(result)
 
 			log.Println("DONE")
-
+			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&srcDir, "source", "s", "", "Source directory with content to compile")
-	cmd.Flags().StringVarP(&dstDir, "destination", "d", "", "Destination directory for blobs")
-	cmd.Flags().BoolVarP(&useStaticBlobs, "static", "t", false, "If set to true, compile only the static dataset, do not create or update dynamic link")
-	cmd.Flags().BoolVarP(&useRawFilesystem, "raw-filesystem", "r", false, "If set to true, use raw filesystem instead of the optimized one, can be used to create dataset for a standard http server")
-	cmd.Flags().StringVarP(&rootWriterInfoStr, "writer-info", "w", "", "Writer info for the root dynamic link, if neither writer info nor writer info file is specified, a random writer info will be generated and printed out")
-	cmd.Flags().StringVarP(&rootWriterInfoFile, "writer-info-file", "f", "", "Name of the file containing writer info for the root dynamic link, if neither writer info nor writer info file is specified, a random writer info will be generated and printed out")
+	cmd.Flags().StringVarP(
+		&o.srcDir, "source", "s", "",
+		"Source directory with content to compile",
+	)
+	cmd.Flags().StringVarP(
+		&o.dstLocation, "destination", "d", "",
+		"location of destination datastore for blobs, can be a directory "+
+			"or an url prefixed with file://, file-raw://, http://, https://",
+	)
+	cmd.Flags().BoolVarP(
+		&o.static, "static", "t", false,
+		"if set to true, compile only the static dataset, do not create or update dynamic link",
+	)
+	cmd.Flags().BoolVarP(
+		&useRawFilesystem, "raw-filesystem", "r", false,
+		"if set to true, use raw filesystem instead of the optimized one, "+
+			"can be used to create dataset for a standard http server",
+	)
+	cmd.Flags().MarkDeprecated(
+		"raw-filesystem",
+		"use file-raw:// destination prefix instead",
+	)
+	cmd.Flags().StringVarP(
+		&rootWriterInfoStr, "writer-info", "w", "",
+		"writer info for the root dynamic link, if neither writer info nor writer info file is specified, "+
+			"a random writer info will be generated and printed out",
+	)
+	cmd.Flags().StringVarP(
+		&rootWriterInfoFile, "writer-info-file", "f", "",
+		"name of the file containing writer info for the root dynamic link, "+
+			"if neither writer info nor writer info file is specified, "+
+			"a random writer info will be generated and printed out",
+	)
+	cmd.Flags().StringVar(
+		&o.indexFile, "index-file", "index.html",
+		"name of the index file",
+	)
+	cmd.Flags().BoolVar(
+		&o.generateIndexFiles, "generate-index-files", false,
+		"automatically generate index html files with directory listing if index file is not present",
+	)
+	cmd.Flags().BoolVar(
+		&o.append, "append", false,
+		"append file in existing datastore leaving existing unchanged files as is",
+	)
 
 	return cmd
 }
 
+type compileFSOptions struct {
+	srcDir             string
+	dstLocation        string
+	static             bool
+	writerInfo         *cinodefs.WriterInfo
+	generateIndexFiles bool
+	indexFile          string
+	append             bool
+}
+
 func compileFS(
-	srcDir, dstDir string,
-	static bool,
-	writerInfo *protobuf.WriterInfo,
-	useRawFS bool,
+	ctx context.Context,
+	o compileFSOptions,
 ) (
-	*protobuf.Entrypoint,
-	*protobuf.WriterInfo,
+	*cinodefs.Entrypoint,
+	*cinodefs.WriterInfo,
 	error,
 ) {
-	var retWi *protobuf.WriterInfo
-
-	ds, err := func() (datastore.DS, error) {
-		if useRawFS {
-			return datastore.InRawFileSystem(dstDir)
-		}
-		return datastore.InFileSystem(dstDir)
-	}()
+	ds, err := datastore.FromLocation(o.dstLocation)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not open datastore: %w", err)
 	}
 
-	be := blenc.FromDatastore(ds)
+	opts := []cinodefs.Option{}
+	if o.static {
+		opts = append(opts, cinodefs.NewRootStaticDirectory())
+	} else if o.writerInfo == nil {
+		opts = append(opts, cinodefs.NewRootDynamicLink())
+	} else {
+		opts = append(opts, cinodefs.RootWriterInfo(o.writerInfo))
+	}
 
-	ep, err := structure.UploadStaticDirectory(
-		context.Background(),
-		slog.Default(),
-		os.DirFS(srcDir),
-		be,
+	fs, err := cinodefs.New(
+		ctx,
+		blenc.FromDatastore(ds),
+		opts...,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("couldn't create cinode filesystem instance: %w", err)
+	}
+
+	if !o.append {
+		err = fs.ResetDir(ctx, []string{})
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to reset the root directory: %w", err)
+		}
+	}
+
+	var genOpts []uploader.Option
+	if o.generateIndexFiles {
+		genOpts = append(genOpts, uploader.CreateIndexFile(o.indexFile))
+	}
+
+	err = uploader.UploadStaticDirectory(
+		ctx,
+		os.DirFS(o.srcDir),
+		fs,
+		genOpts...,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("couldn't upload directory content: %w", err)
 	}
 
-	if !static {
-		if writerInfo == nil {
-			ep, retWi, err = structure.CreateLink(context.Background(), be, ep)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to update root link: %w", err)
-			}
-		} else {
-			ep, err = structure.UpdateLink(context.Background(), be, writerInfo, ep)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to update root link: %w", err)
-			}
-		}
+	err = fs.Flush(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("couldn't flush after directory upload: %w", err)
 	}
 
-	return ep, retWi, nil
+	ep, err := fs.RootEntrypoint()
+	if err != nil {
+		return nil, nil, fmt.Errorf("couldn't get root entrypoint from cinodefs instance: %w", err)
+	}
+
+	wi, err := fs.RootWriterInfo(ctx)
+	if errors.Is(err, cinodefs.ErrNotALink) {
+		return ep, nil, nil
+	}
+	if err != nil {
+		return nil, nil, fmt.Errorf("couldn't get root writer info from cinodefs instance: %w", err)
+	}
+
+	return ep, wi, nil
 }

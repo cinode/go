@@ -30,18 +30,19 @@ import (
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/blobtypes"
+	"github.com/cinode/go/pkg/cinodefs"
+	"github.com/cinode/go/pkg/cinodefs/uploader"
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
-	"github.com/cinode/go/pkg/protobuf"
-	"github.com/cinode/go/pkg/structure"
 	"github.com/cinode/go/testvectors/testblobs"
 	"github.com/jbenet/go-base58"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
 )
 
 func TestGetConfig(t *testing.T) {
+	os.Clearenv()
+
 	t.Run("default config", func(t *testing.T) {
 		cfg, err := getConfig()
 		require.ErrorContains(t, err, "ENTRYPOINT")
@@ -102,6 +103,25 @@ func TestGetConfig(t *testing.T) {
 			"additional3",
 		})
 	})
+
+	t.Run("set listen port", func(t *testing.T) {
+		t.Setenv("CINODE_LISTEN_PORT", "12345")
+		cfg, err := getConfig()
+		require.NoError(t, err)
+		require.Equal(t, 12345, cfg.port)
+	})
+
+	t.Run("invalid port - not a number", func(t *testing.T) {
+		t.Setenv("CINODE_LISTEN_PORT", "123-45")
+		_, err := getConfig()
+		require.ErrorContains(t, err, "invalid listen port")
+	})
+
+	t.Run("invalid port - outside range", func(t *testing.T) {
+		t.Setenv("CINODE_LISTEN_PORT", "-1")
+		_, err := getConfig()
+		require.ErrorContains(t, err, "invalid listen port")
+	})
 }
 
 func TestWebProxyHandlerInvalidEntrypoint(t *testing.T) {
@@ -111,16 +131,13 @@ func TestWebProxyHandlerInvalidEntrypoint(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	key := cipherfactory.NewKeyGenerator(blobtypes.Static).Generate()
+
 	handler := setupCinodeProxy(
+		context.Background(),
 		datastore.InMemory(),
 		[]datastore.DS{},
-		&protobuf.Entrypoint{
-			BlobName: n,
-			MimeType: structure.CinodeDirMimeType,
-			KeyInfo: &protobuf.KeyInfo{
-				Key: cipherfactory.NewKeyGenerator(blobtypes.Static).Generate(),
-			},
-		},
+		cinodefs.EntrypointFromBlobNameAndKey(n, key),
 	)
 
 	server := httptest.NewServer(handler)
@@ -148,7 +165,7 @@ func TestWebProxyHandlerSimplePage(t *testing.T) {
 	ds := datastore.InMemory()
 	be := blenc.FromDatastore(ds)
 
-	ep := func() *protobuf.Entrypoint {
+	ep := func() *cinodefs.Entrypoint {
 		dir := t.TempDir()
 
 		for name, content := range map[string]string{
@@ -162,12 +179,25 @@ func TestWebProxyHandlerSimplePage(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		ep, err := structure.UploadStaticDirectory(context.Background(), slog.Default(), os.DirFS(dir), be)
+		fs, err := cinodefs.New(context.Background(), be, cinodefs.NewRootDynamicLink())
+		require.NoError(t, err)
+
+		err = uploader.UploadStaticDirectory(
+			context.Background(),
+			os.DirFS(dir),
+			fs,
+		)
+		require.NoError(t, err)
+
+		err = fs.Flush(context.Background())
+		require.NoError(t, err)
+
+		ep, err := fs.RootEntrypoint()
 		require.NoError(t, err)
 		return ep
 	}()
 
-	handler := setupCinodeProxy(ds, []datastore.DS{}, ep)
+	handler := setupCinodeProxy(context.Background(), ds, []datastore.DS{}, ep)
 
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -224,7 +254,7 @@ func TestExecuteWithConfig(t *testing.T) {
 			mainDSLocation: "memory://",
 			entrypoint:     "!@#$",
 		})
-		require.ErrorContains(t, err, "decode")
+		require.ErrorContains(t, err, "could not parse")
 	})
 
 	t.Run("invalid entrypoint bytes", func(t *testing.T) {
@@ -232,12 +262,11 @@ func TestExecuteWithConfig(t *testing.T) {
 			mainDSLocation: "memory://",
 			entrypoint:     base58.Encode([]byte("1234567890")),
 		})
-		require.ErrorContains(t, err, "unmarshal")
+		require.ErrorContains(t, err, "could not parse")
 	})
 
 	t.Run("successful run", func(t *testing.T) {
-		epBytes, err := testblobs.DynamicLink.Entrypoint().ToBytes()
-		require.NoError(t, err)
+		ep := testblobs.DynamicLink.Entrypoint()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
@@ -245,31 +274,38 @@ func TestExecuteWithConfig(t *testing.T) {
 			cancel()
 		}()
 
-		err = executeWithConfig(ctx, &config{
+		err := executeWithConfig(ctx, &config{
 			mainDSLocation: "memory://",
-			entrypoint:     base58.Encode(epBytes),
+			entrypoint:     ep.String(),
 		})
 		require.NoError(t, err)
 	})
 }
 
 func TestExecute(t *testing.T) {
-	t.Run("valid configuration", func(t *testing.T) {
-		epBytes, err := testblobs.DynamicLink.Entrypoint().ToBytes()
-		require.NoError(t, err)
+	os.Clearenv()
 
-		t.Setenv("CINODE_ENTRYPOINT", base58.Encode(epBytes))
+	t.Run("valid configuration", func(t *testing.T) {
+		ep := testblobs.DynamicLink.Entrypoint()
+
+		t.Setenv("CINODE_ENTRYPOINT", ep.String())
+		t.Setenv("CINODE_LISTEN_PORT", "0")
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
 			time.Sleep(10 * time.Millisecond)
 			cancel()
 		}()
-		err = Execute(ctx)
+		err := Execute(ctx)
 		require.NoError(t, err)
 	})
 
 	t.Run("invalid configuration", func(t *testing.T) {
-		err := Execute(context.Background())
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			cancel()
+		}()
+		err := Execute(ctx)
 		require.ErrorContains(t, err, "CINODE_ENTRYPOINT")
 	})
 }

@@ -25,7 +25,7 @@ import (
 	"github.com/cinode/go/pkg/common"
 )
 
-var emptyBlobNameStatic = func() common.BlobName {
+var emptyBlobNameStatic = func() *common.BlobName {
 	bn, err := common.BlobNameFromHashAndType(sha256.New().Sum(nil), blobtypes.Static)
 	if err != nil {
 		panic(err)
@@ -33,7 +33,7 @@ var emptyBlobNameStatic = func() common.BlobName {
 	return bn
 }()
 
-var emptyBlobNameDynamicLink = func() common.BlobName {
+var emptyBlobNameDynamicLink = func() *common.BlobName {
 	bn, err := common.BlobNameFromHashAndType(sha256.New().Sum(nil), blobtypes.DynamicLink)
 	if err != nil {
 		panic(err)
@@ -41,7 +41,7 @@ var emptyBlobNameDynamicLink = func() common.BlobName {
 	return bn
 }()
 
-var emptyBlobNamesOfAllTypes = []common.BlobName{
+var emptyBlobNamesOfAllTypes = []*common.BlobName{
 	emptyBlobNameStatic,
 	emptyBlobNameDynamicLink,
 }

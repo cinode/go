@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2023 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,8 +16,15 @@ limitations under the License.
 
 package main
 
-import "github.com/cinode/go/pkg/cmd/static_datastore"
+import (
+	"context"
+	"log"
+
+	"github.com/cinode/go/pkg/cmd/static_datastore"
+)
 
 func main() {
-	static_datastore.Execute()
+	if err := static_datastore.Execute(context.Background()); err != nil {
+		log.Fatal(err.Error())
+	}
 }

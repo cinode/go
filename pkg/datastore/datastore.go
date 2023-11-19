@@ -38,7 +38,7 @@ func (ds *datastore) Address() string {
 	return ds.s.address()
 }
 
-func (ds *datastore) Open(ctx context.Context, name common.BlobName) (io.ReadCloser, error) {
+func (ds *datastore) Open(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 	switch name.Type() {
 	case blobtypes.Static:
 		return ds.openStatic(ctx, name)
@@ -49,7 +49,7 @@ func (ds *datastore) Open(ctx context.Context, name common.BlobName) (io.ReadClo
 	}
 }
 
-func (ds *datastore) Update(ctx context.Context, name common.BlobName, updateStream io.Reader) error {
+func (ds *datastore) Update(ctx context.Context, name *common.BlobName, updateStream io.Reader) error {
 	switch name.Type() {
 	case blobtypes.Static:
 		return ds.updateStatic(ctx, name, updateStream)
@@ -60,11 +60,11 @@ func (ds *datastore) Update(ctx context.Context, name common.BlobName, updateStr
 	}
 }
 
-func (ds *datastore) Exists(ctx context.Context, name common.BlobName) (bool, error) {
+func (ds *datastore) Exists(ctx context.Context, name *common.BlobName) (bool, error) {
 	return ds.s.exists(ctx, name)
 }
 
-func (ds *datastore) Delete(ctx context.Context, name common.BlobName) error {
+func (ds *datastore) Delete(ctx context.Context, name *common.BlobName) error {
 	return ds.s.delete(ctx, name)
 }
 

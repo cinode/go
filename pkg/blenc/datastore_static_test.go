@@ -69,7 +69,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 
 	t.Run("handle error while opening blob", func(t *testing.T) {
 		injectedErr := errors.New("test")
-		dsw.openFn = func(ctx context.Context, name common.BlobName) (io.ReadCloser, error) { return nil, injectedErr }
+		dsw.openFn = func(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) { return nil, injectedErr }
 
 		rc, err := be.Open(context.Background(), bn, key)
 		require.ErrorIs(t, err, injectedErr)
@@ -80,7 +80,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 
 	t.Run("handle error while opening blob", func(t *testing.T) {
 		injectedErr := errors.New("test")
-		dsw.openFn = func(ctx context.Context, name common.BlobName) (io.ReadCloser, error) { return nil, injectedErr }
+		dsw.openFn = func(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) { return nil, injectedErr }
 
 		rc, err := be.Open(context.Background(), bn, key)
 		require.ErrorIs(t, err, injectedErr)
@@ -97,9 +97,9 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 
 			bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(nil))
 			require.ErrorIs(t, err, injectedErr)
-			require.Nil(t, bn)
-			require.Nil(t, key)
-			require.Nil(t, ai)
+			require.Empty(t, bn)
+			require.Empty(t, key)
+			require.Empty(t, ai)
 		})
 
 		t.Run("second securefifo", func(t *testing.T) {
@@ -127,9 +127,9 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 
 			bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(nil))
 			require.ErrorIs(t, err, injectedErr)
-			require.Nil(t, bn)
-			require.Nil(t, key)
-			require.Nil(t, ai)
+			require.Empty(t, bn)
+			require.Empty(t, key)
+			require.Empty(t, ai)
 			require.True(t, firstSecureFifoCreated)
 			require.True(t, firstSecureFifoClosed)
 		})
@@ -165,9 +165,9 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 
 				bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(nil))
 				require.ErrorIs(t, err, injectedErr)
-				require.Nil(t, bn)
-				require.Nil(t, key)
-				require.Nil(t, ai)
+				require.Empty(t, bn)
+				require.Empty(t, key)
+				require.Empty(t, ai)
 				require.Equal(t, 2, secureFifosCreated)
 				require.Equal(t, secureFifosCreated, secureFifosClosed)
 			})
@@ -204,9 +204,9 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 
 				bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader([]byte("Hello world")))
 				require.ErrorIs(t, err, injectedErr)
-				require.Nil(t, bn)
-				require.Nil(t, key)
-				require.Nil(t, ai)
+				require.Empty(t, bn)
+				require.Empty(t, key)
+				require.Empty(t, ai)
 				require.Equal(t, 2, secureFifosCreated)
 				require.Equal(t, secureFifosCreated, secureFifosClosed)
 			})
@@ -236,9 +236,9 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 
 		bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, iotest.ErrReader(injectedErr))
 		require.ErrorIs(t, err, injectedErr)
-		require.Nil(t, bn)
-		require.Nil(t, key)
-		require.Nil(t, ai)
+		require.Empty(t, bn)
+		require.Empty(t, key)
+		require.Empty(t, ai)
 		require.Equal(t, 2, secureFifosCreated)
 		require.Equal(t, secureFifosCreated, secureFifosClosed)
 	})
@@ -267,13 +267,13 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 			}, nil
 		}
 
-		dsw.updateFn = func(ctx context.Context, name common.BlobName, r io.Reader) error { return injectedErr }
+		dsw.updateFn = func(ctx context.Context, name *common.BlobName, r io.Reader) error { return injectedErr }
 
 		bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(nil))
 		require.ErrorIs(t, err, injectedErr)
-		require.Nil(t, bn)
-		require.Nil(t, key)
-		require.Nil(t, ai)
+		require.Empty(t, bn)
+		require.Empty(t, key)
+		require.Empty(t, ai)
 
 		require.Equal(t, 2, secureFifosCreated)
 		require.Equal(t, secureFifosCreated, secureFifosClosed)

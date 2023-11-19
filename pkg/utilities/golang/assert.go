@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cipherfactory
+package golang
 
-// Key with cipher type
-type Key []byte
-
-// IV
-type IV []byte
+func Assert(b bool, message string) {
+	if !b {
+		panic("Assertion failed: " + message)
+	}
+}

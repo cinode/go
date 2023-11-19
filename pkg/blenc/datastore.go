@@ -25,7 +25,6 @@ import (
 	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 	"github.com/cinode/go/pkg/internal/utilities/securefifo"
 )
 
@@ -51,7 +50,7 @@ type beDatastore struct {
 	newSecureFifo   secureFifoGenerator
 }
 
-func (be *beDatastore) Open(ctx context.Context, name common.BlobName, key cipherfactory.Key) (io.ReadCloser, error) {
+func (be *beDatastore) Open(ctx context.Context, name *common.BlobName, key *common.BlobKey) (io.ReadCloser, error) {
 	switch name.Type() {
 	case blobtypes.Static:
 		return be.openStatic(ctx, name, key)
@@ -66,9 +65,9 @@ func (be *beDatastore) Create(
 	blobType common.BlobType,
 	r io.Reader,
 ) (
-	common.BlobName,
-	cipherfactory.Key,
-	AuthInfo,
+	*common.BlobName,
+	*common.BlobKey,
+	*common.AuthInfo,
 	error,
 ) {
 	switch blobType {
@@ -80,7 +79,7 @@ func (be *beDatastore) Create(
 	return nil, nil, nil, blobtypes.ErrUnknownBlobType
 }
 
-func (be *beDatastore) Update(ctx context.Context, name common.BlobName, authInfo AuthInfo, key cipherfactory.Key, r io.Reader) error {
+func (be *beDatastore) Update(ctx context.Context, name *common.BlobName, authInfo *common.AuthInfo, key *common.BlobKey, r io.Reader) error {
 	switch name.Type() {
 	case blobtypes.Static:
 		return be.updateStatic(ctx, name, authInfo, key, r)
@@ -90,10 +89,10 @@ func (be *beDatastore) Update(ctx context.Context, name common.BlobName, authInf
 	return blobtypes.ErrUnknownBlobType
 }
 
-func (be *beDatastore) Exists(ctx context.Context, name common.BlobName) (bool, error) {
+func (be *beDatastore) Exists(ctx context.Context, name *common.BlobName) (bool, error) {
 	return be.ds.Exists(ctx, name)
 }
 
-func (be *beDatastore) Delete(ctx context.Context, name common.BlobName) error {
+func (be *beDatastore) Delete(ctx context.Context, name *common.BlobName) error {
 	return be.ds.Delete(ctx, name)
 }

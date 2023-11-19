@@ -29,17 +29,17 @@ import (
 	"time"
 
 	"github.com/cinode/go/pkg/blenc"
+	"github.com/cinode/go/pkg/cinodefs"
+	"github.com/cinode/go/pkg/cinodefs/uploader"
 	"github.com/cinode/go/pkg/cmd/cinode_web_proxy"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/structure"
-	"github.com/jbenet/go-base58"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
 )
 
 func TestIntegration(t *testing.T) {
-	// Prepare test filesystem
+	os.Clearenv()
 
+	// Prepare test filesystem
 	testFS := fstest.MapFS{
 		"index.html": &fstest.MapFile{
 			Data: []byte("Hello world!"),
@@ -64,18 +64,27 @@ func TestIntegration(t *testing.T) {
 	ds, err := datastore.InRawFileSystem(dir)
 	require.NoError(t, err)
 
-	ep, err := structure.UploadStaticDirectory(
+	cfs, err := cinodefs.New(
 		context.Background(),
-		slog.Default(),
-		testFS,
 		blenc.FromDatastore(ds),
+		cinodefs.NewRootStaticDirectory(),
 	)
 	require.NoError(t, err)
 
-	epBytes, err := ep.ToBytes()
+	err = uploader.UploadStaticDirectory(
+		context.Background(),
+		testFS,
+		cfs,
+	)
 	require.NoError(t, err)
 
-	t.Setenv("CINODE_ENTRYPOINT", base58.Encode(epBytes))
+	err = cfs.Flush(context.Background())
+	require.NoError(t, err)
+
+	ep, err := cfs.RootEntrypoint()
+	require.NoError(t, err)
+
+	t.Setenv("CINODE_ENTRYPOINT", ep.String())
 
 	runAndValidateCinodeProxy := func() {
 		ctx, cancel := context.WithCancel(context.Background())

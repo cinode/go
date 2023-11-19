@@ -25,15 +25,16 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/cinode/go/pkg/blenc"
+	"github.com/cinode/go/pkg/cinodefs"
+	"github.com/cinode/go/pkg/cinodefs/httphandler"
 	"github.com/cinode/go/pkg/datastore"
-	"github.com/cinode/go/pkg/protobuf"
-	"github.com/cinode/go/pkg/structure"
+	"github.com/cinode/go/pkg/utilities/golang"
 	"github.com/cinode/go/pkg/utilities/httpserver"
-	"github.com/jbenet/go-base58"
 	"golang.org/x/exp/slog"
 )
 
@@ -60,13 +61,9 @@ func executeWithConfig(ctx context.Context, cfg *config) error {
 		additionalDSs = append(additionalDSs, ds)
 	}
 
-	entrypointRaw := base58.Decode(cfg.entrypoint)
-	if len(entrypointRaw) == 0 {
-		return errors.New("could not decode base58 entrypoint data")
-	}
-	entrypoint, err := protobuf.EntryPointFromBytes(entrypointRaw)
+	entrypoint, err := cinodefs.EntrypointFromString(cfg.entrypoint)
 	if err != nil {
-		return fmt.Errorf("could not unmarshal entrypoint data: %w", err)
+		return fmt.Errorf("could not parse entrypoint data: %w", err)
 	}
 
 	log := slog.Default()
@@ -74,6 +71,8 @@ func executeWithConfig(ctx context.Context, cfg *config) error {
 	log.Info("Server listening for connections",
 		"address", fmt.Sprintf("http://localhost:%d", cfg.port),
 	)
+	log.Info("Main datastore", "addr", cfg.mainDSLocation)
+	log.Info("Additional datastores", "addrs", cfg.additionalDSLocations)
 
 	log.Info("System info",
 		"goos", runtime.GOOS,
@@ -82,7 +81,8 @@ func executeWithConfig(ctx context.Context, cfg *config) error {
 		"cpus", runtime.NumCPU(),
 	)
 
-	handler := setupCinodeProxy(mainDS, additionalDSs, entrypoint)
+	handler := setupCinodeProxy(ctx, mainDS, additionalDSs, entrypoint)
+
 	return httpserver.RunGracefully(ctx,
 		handler,
 		httpserver.ListenPort(cfg.port),
@@ -91,21 +91,28 @@ func executeWithConfig(ctx context.Context, cfg *config) error {
 }
 
 func setupCinodeProxy(
+	ctx context.Context,
 	mainDS datastore.DS,
 	additionalDSs []datastore.DS,
-	entrypoint *protobuf.Entrypoint,
+	entrypoint *cinodefs.Entrypoint,
 ) http.Handler {
-	fs := structure.CinodeFS{
-		BE: blenc.FromDatastore(
-			datastore.NewMultiSource(mainDS, time.Hour, additionalDSs...),
+	fs := golang.Must(cinodefs.New(
+		ctx,
+		blenc.FromDatastore(
+			datastore.NewMultiSource(
+				mainDS,
+				time.Hour,
+				additionalDSs...,
+			),
 		),
-		RootEntrypoint:   entrypoint,
-		MaxLinkRedirects: 10,
-	}
+		cinodefs.RootEntrypoint(entrypoint),
+		cinodefs.MaxLinkRedirects(10),
+	))
 
-	return &structure.HTTPHandler{
-		FS:        &fs,
+	return &httphandler.Handler{
+		FS:        fs,
 		IndexFile: "index.html",
+		Log:       slog.Default(),
 	}
 }
 
@@ -152,7 +159,19 @@ func getConfig() (*config, error) {
 		cfg.additionalDSLocations = append(cfg.additionalDSLocations, location)
 	}
 
-	cfg.port = 8080
+	port := os.Getenv("CINODE_LISTEN_PORT")
+	if port == "" {
+		cfg.port = 8080
+	} else {
+		portNum, err := strconv.Atoi(port)
+		if err == nil && (portNum < 0 || portNum > 65535) {
+			err = fmt.Errorf("not in range 0..65535")
+		}
+		if err != nil {
+			return nil, fmt.Errorf("invalid listen port %s: %w", port, err)
+		}
+		cfg.port = portNum
+	}
 
 	return &cfg, nil
 }

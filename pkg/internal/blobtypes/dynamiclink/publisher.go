@@ -24,6 +24,7 @@ import (
 	"io"
 
 	"github.com/cinode/go/pkg/blobtypes"
+	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
 )
 
@@ -65,14 +66,15 @@ func Create(randSource io.Reader) (*Publisher, error) {
 	}, nil
 }
 
-func FromAuthInfo(authInfo []byte) (*Publisher, error) {
-	if len(authInfo) != 1+ed25519.SeedSize+8 || authInfo[0] != 0 {
+func FromAuthInfo(authInfo *common.AuthInfo) (*Publisher, error) {
+	authInfoBytes := authInfo.Bytes()
+	if len(authInfoBytes) != 1+ed25519.SeedSize+8 || authInfoBytes[0] != 0 {
 		return nil, ErrInvalidDynamicLinkAuthInfo
 	}
 
-	privKey := ed25519.NewKeyFromSeed(authInfo[1 : 1+ed25519.SeedSize])
+	privKey := ed25519.NewKeyFromSeed(authInfoBytes[1 : 1+ed25519.SeedSize])
 	pubKey := privKey.Public().(ed25519.PublicKey)
-	nonce := binary.BigEndian.Uint64(authInfo[1+ed25519.SeedSize:])
+	nonce := binary.BigEndian.Uint64(authInfoBytes[1+ed25519.SeedSize:])
 
 	return &Publisher{
 		Public: Public{
@@ -98,18 +100,18 @@ func ReNonce(p *Publisher, randSource io.Reader) (*Publisher, error) {
 	}, nil
 }
 
-func (dl *Publisher) AuthInfo() []byte {
+func (dl *Publisher) AuthInfo() *common.AuthInfo {
 	var ret [1 + ed25519.SeedSize + 8]byte
 	ret[0] = reservedByteValue
 	copy(ret[1:], dl.privKey.Seed())
 	binary.BigEndian.PutUint64(ret[1+ed25519.SeedSize:], dl.nonce)
-	return ret[:]
+	return common.AuthInfoFromBytes(ret[:])
 }
 
-func (dl *Publisher) calculateEncryptionKey() ([]byte, []byte) {
+func (dl *Publisher) calculateEncryptionKey() (*common.BlobKey, []byte) {
 	dataSeed := append(
 		[]byte{signatureForEncryptionKeyGeneration},
-		dl.BlobName()...,
+		dl.BlobName().Bytes()...,
 	)
 
 	signature := ed25519.Sign(dl.privKey, dataSeed)
@@ -122,7 +124,12 @@ func (dl *Publisher) calculateEncryptionKey() ([]byte, []byte) {
 	return key, signature
 }
 
-func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader, []byte, error) {
+func (dl *Publisher) EncryptionKey() *common.BlobKey {
+	key, _ := dl.calculateEncryptionKey()
+	return key
+}
+
+func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader, *common.BlobKey, error) {
 	encryptionKey, kvb := dl.calculateEncryptionKey()
 
 	// key validation block precedes the link data
@@ -160,7 +167,7 @@ func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader,
 
 	signatureHasher := pr.toSignDataHasherPrefilled()
 	storeUint64(signatureHasher, pr.contentVersion)
-	storeDynamicSizeBuff(signatureHasher, pr.iv)
+	storeDynamicSizeBuff(signatureHasher, pr.iv.Bytes())
 	signatureHasher.Write(encryptedLinkBuff.Bytes())
 
 	pr.signature = ed25519.Sign(dl.privKey, signatureHasher.Sum(nil))

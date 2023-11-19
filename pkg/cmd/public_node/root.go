@@ -25,6 +25,7 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,10 +35,14 @@ import (
 )
 
 func Execute(ctx context.Context) error {
-	return executeWithConfig(ctx, getConfig())
+	cfg, err := getConfig()
+	if err != nil {
+		return err
+	}
+	return executeWithConfig(ctx, cfg)
 }
 
-func executeWithConfig(ctx context.Context, cfg config) error {
+func executeWithConfig(ctx context.Context, cfg *config) error {
 	handler, err := buildHttpHandler(cfg)
 	if err != nil {
 		return err
@@ -60,7 +65,7 @@ func executeWithConfig(ctx context.Context, cfg config) error {
 	)
 }
 
-func buildHttpHandler(cfg config) (http.Handler, error) {
+func buildHttpHandler(cfg *config) (http.Handler, error) {
 	mainDS, err := datastore.FromLocation(cfg.mainDSLocation)
 	if err != nil {
 		return nil, fmt.Errorf("could not create main datastore: %w", err)
@@ -140,7 +145,7 @@ type config struct {
 	uploadPassword string
 }
 
-func getConfig() config {
+func getConfig() (*config, error) {
 	cfg := config{
 		log: slog.Default(),
 	}
@@ -164,9 +169,22 @@ func getConfig() config {
 		cfg.additionalDSLocations = append(cfg.additionalDSLocations, location)
 	}
 
-	cfg.port = 8080
+	port := os.Getenv("CINODE_LISTEN_PORT")
+	if port == "" {
+		cfg.port = 8080
+	} else {
+		portNum, err := strconv.Atoi(port)
+		if err == nil && (portNum < 0 || portNum > 65535) {
+			err = fmt.Errorf("not in range 0..65535")
+		}
+		if err != nil {
+			return nil, fmt.Errorf("invalid listen port %s: %w", port, err)
+		}
+		cfg.port = portNum
+	}
+
 	cfg.uploadUsername = os.Getenv("CINODE_UPLOAD_USERNAME")
 	cfg.uploadPassword = os.Getenv("CINODE_UPLOAD_PASSWORD")
 
-	return cfg
+	return &cfg, nil
 }

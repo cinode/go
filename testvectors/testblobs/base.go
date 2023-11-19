@@ -23,14 +23,14 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/cinode/go/pkg/protobuf"
-	"github.com/jbenet/go-base58"
+	"github.com/cinode/go/pkg/cinodefs"
+	"github.com/cinode/go/pkg/common"
 )
 
 type TestBlob struct {
 	UpdateDataset    []byte
-	BlobName         []byte
-	EncryptionKey    []byte
+	BlobName         *common.BlobName
+	EncryptionKey    *common.BlobKey
 	DecryptedDataset []byte
 }
 
@@ -39,7 +39,7 @@ func (s *TestBlob) Put(baseUrl string) error {
 }
 
 func (s *TestBlob) PutWithAuth(baseUrl, username, password string) error {
-	finalUrl, err := url.JoinPath(baseUrl, base58.Encode(s.BlobName))
+	finalUrl, err := url.JoinPath(baseUrl, s.BlobName.String())
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func (s *TestBlob) PutWithAuth(baseUrl, username, password string) error {
 }
 
 func (s *TestBlob) Get(baseUrl string) ([]byte, error) {
-	finalUrl, err := url.JoinPath(baseUrl, base58.Encode(s.BlobName))
+	finalUrl, err := url.JoinPath(baseUrl, s.BlobName.String())
 	if err != nil {
 		return nil, err
 	}
@@ -98,11 +98,9 @@ func (s *TestBlob) Get(baseUrl string) ([]byte, error) {
 	return body, nil
 }
 
-func (s *TestBlob) Entrypoint() *protobuf.Entrypoint {
-	return &protobuf.Entrypoint{
-		BlobName: s.BlobName,
-		KeyInfo: &protobuf.KeyInfo{
-			Key: s.EncryptionKey,
-		},
-	}
+func (s *TestBlob) Entrypoint() *cinodefs.Entrypoint {
+	return cinodefs.EntrypointFromBlobNameAndKey(
+		s.BlobName,
+		s.EncryptionKey,
+	)
 }

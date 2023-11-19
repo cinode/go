@@ -37,7 +37,7 @@ func TestFromPublicData(t *testing.T) {
 	t.Run("Ensure we don't crash on truncated data", func(t *testing.T) {
 		for i := 0; i < 1000; i++ {
 			data := make([]byte, i)
-			dl, err := FromPublicData(common.BlobName{}, bytes.NewReader(data))
+			dl, err := FromPublicData(&common.BlobName{}, bytes.NewReader(data))
 			require.ErrorIs(t, err, ErrInvalidDynamicLinkData)
 			require.Nil(t, dl)
 		}
@@ -45,7 +45,7 @@ func TestFromPublicData(t *testing.T) {
 
 	t.Run("Do not accept the link if reserved byte is not zero", func(t *testing.T) {
 		data := []byte{0xFF, 0, 0, 0}
-		dl, err := FromPublicData(common.BlobName{}, bytes.NewReader(data))
+		dl, err := FromPublicData(&common.BlobName{}, bytes.NewReader(data))
 		require.ErrorIs(t, err, ErrInvalidDynamicLinkData)
 		require.ErrorIs(t, err, ErrInvalidDynamicLinkDataReservedByte)
 		require.Nil(t, dl)
@@ -307,7 +307,9 @@ func TestPublicReaderGetLinkDataReader(t *testing.T) {
 		require.NoError(t, err)
 
 		// Flip a single bit in IV
-		pr.iv[len(pr.iv)/2] ^= 0x80
+		ivBytes := pr.iv.Bytes()
+		ivBytes[len(ivBytes)/2] ^= 0x80
+		pr.iv = common.BlobIVFromBytes(ivBytes)
 
 		// Because the IV is incorrect, key validation block that is encrypted will be invalid
 		// thus the method will complain about key, not the IV that will fail first
@@ -322,7 +324,7 @@ func TestPublicReaderGetLinkDataReader(t *testing.T) {
 		pr, _, err := link.UpdateLinkData(bytes.NewReader([]byte("Hello world")), 0)
 		require.NoError(t, err)
 
-		_, err = pr.GetLinkDataReader(nil)
+		_, err = pr.GetLinkDataReader(&common.BlobKey{})
 		require.ErrorIs(t, err, cipherfactory.ErrInvalidEncryptionConfigKeyType)
 	})
 }
