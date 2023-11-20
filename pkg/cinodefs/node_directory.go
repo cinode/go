@@ -21,7 +21,7 @@ import (
 	"sort"
 
 	"github.com/cinode/go/pkg/blobtypes"
-	"github.com/cinode/go/pkg/cinodefs/internal/protobuf"
+	"github.com/cinode/go/pkg/cinodefs/protobuf"
 	"github.com/cinode/go/pkg/utilities/golang"
 )
 

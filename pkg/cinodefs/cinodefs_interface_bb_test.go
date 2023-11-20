@@ -30,7 +30,7 @@ import (
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/cinodefs"
-	"github.com/cinode/go/pkg/cinodefs/internal/protobuf"
+	"github.com/cinode/go/pkg/cinodefs/protobuf"
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
