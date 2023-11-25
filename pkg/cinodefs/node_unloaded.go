@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cinode/go/pkg/cinodefs/internal/protobuf"
+	"github.com/cinode/go/pkg/cinodefs/protobuf"
 )
 
 type nodeUnloaded struct {

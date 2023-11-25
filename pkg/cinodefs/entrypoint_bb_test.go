@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/cinode/go/pkg/cinodefs"
-	"github.com/cinode/go/pkg/cinodefs/internal/protobuf"
+	"github.com/cinode/go/pkg/cinodefs/protobuf"
 	"github.com/cinode/go/testvectors/testblobs"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"

@@ -20,7 +20,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cinode/go/pkg/cinodefs/internal/protobuf"
+	"github.com/cinode/go/pkg/cinodefs/protobuf"
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/utilities/golang"
 	"github.com/jbenet/go-base58"
