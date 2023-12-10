@@ -17,6 +17,7 @@ limitations under the License.
 package httphandler
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -80,6 +81,11 @@ func (h *Handler) serveGet(w http.ResponseWriter, r *http.Request, log *slog.Log
 		return
 	}
 
+	if h.handleEtag(w, r, fileEP, log) {
+		// Client ETag matches, can optimize out the data
+		return
+	}
+
 	rc, err := h.FS.OpenEntrypointData(r.Context(), fileEP)
 	if h.handleHttpError(err, w, log, "Error opening file") {
 		return
@@ -100,5 +106,18 @@ func (h *Handler) handleHttpError(err error, w http.ResponseWriter, log *slog.Lo
 		)
 		return true
 	}
+	return false
+}
+
+func (h *Handler) handleEtag(w http.ResponseWriter, r *http.Request, ep *cinodefs.Entrypoint, log *slog.Logger) bool {
+	currentEtag := fmt.Sprintf("\"%X\"", sha256.Sum256(ep.Bytes()))
+
+	if strings.Contains(r.Header.Get("If-None-Match"), currentEtag) {
+		log.Debug("Valid ETag found, sending 304 Not Modified")
+		w.WriteHeader(http.StatusNotModified)
+		return true
+	}
+
+	w.Header().Set("ETag", currentEtag)
 	return false
 }
