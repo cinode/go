@@ -96,15 +96,27 @@ func (s *HandlerTestSuite) setEntry(t *testing.T, data string, path ...string) {
 	require.NoError(t, err)
 }
 
-func (s *HandlerTestSuite) getEntry(t *testing.T, path string) (string, string, int) {
-	resp, err := http.Get(s.server.URL + path)
+func (s *HandlerTestSuite) getEntryETag(t *testing.T, path, etag string) (string, string, string, int) {
+	req, err := http.NewRequest(http.MethodGet, s.server.URL+path, nil)
+	require.NoError(t, err)
+
+	if etag != "" {
+		req.Header.Set("If-None-Match", etag)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	return string(data), resp.Header.Get("content-type"), resp.StatusCode
+	return string(data), resp.Header.Get("content-type"), resp.Header.Get("ETag"), resp.StatusCode
+}
+
+func (s *HandlerTestSuite) getEntry(t *testing.T, path string) (string, string, int) {
+	data, contentType, _, code := s.getEntryETag(t, path, "")
+	return data, contentType, code
 }
 
 func (s *HandlerTestSuite) getData(t *testing.T, path string) string {
@@ -117,6 +129,28 @@ func (s *HandlerTestSuite) TestSuccessfulFileDownload() {
 	s.setEntry(s.T(), "hello", "file.txt")
 	readBack := s.getData(s.T(), "/file.txt")
 	require.Equal(s.T(), "hello", readBack)
+}
+
+func (s *HandlerTestSuite) TestEtag() {
+	s.setEntry(s.T(), "hello", "file.txt")
+
+	readBack, _, etag, code := s.getEntryETag(s.T(), "/file.txt", "")
+	require.NotEmpty(s.T(), etag)
+	require.Greater(s.T(), len(etag), 10)
+	require.Equal(s.T(), http.StatusOK, code)
+	require.Equal(s.T(), "hello", readBack)
+
+	readBack, _, _, code = s.getEntryETag(s.T(), "/file.txt", etag)
+	require.Equal(s.T(), http.StatusNotModified, code)
+	require.Empty(s.T(), readBack)
+
+	s.setEntry(s.T(), "updated", "file.txt")
+
+	readBack, _, etag2, code := s.getEntryETag(s.T(), "/file.txt", etag)
+	require.Equal(s.T(), http.StatusOK, code)
+	require.Greater(s.T(), len(etag2), 10)
+	require.NotEqual(s.T(), etag, etag2)
+	require.Equal(s.T(), "updated", readBack)
 }
 
 func (s *HandlerTestSuite) TestNonGetRequest() {
