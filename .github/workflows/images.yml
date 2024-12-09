@@ -83,7 +83,7 @@ jobs:
           EOF
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: image_${{ matrix.app.name }}
           path: ${{ env.OUTPUTS_DIR }}/image
@@ -97,7 +97,7 @@ jobs:
       images: ${{ steps.images.outputs.images }}
 
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           path: /tmp/outputs
       - run: ls /tmp/outputs || true
