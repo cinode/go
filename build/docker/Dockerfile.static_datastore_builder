@@ -2,7 +2,7 @@
 ARG GO_VERSION=1.24
 
 # Base image with go compiler and tested source code
-FROM --platform=$BUILDPLATFORM docker.io/library/golang:${GO_VERSION} as build
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:${GO_VERSION} AS build
 
 # Compile and test with non-root user
 RUN useradd -ms /bin/bash go
@@ -30,10 +30,10 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT#v} \
         -o "/home/go/static_datastore_builder" \
         "./cmd/static_datastore_builder"
 
-FROM alpine as base-amd64
-FROM alpine as base-arm
+FROM alpine AS base-amd64
+FROM alpine AS base-arm
 FROM alpine AS base-arm64
-FROM riscv64/alpine:edge as base-riscv64
+FROM riscv64/alpine:edge AS base-riscv64
 
 FROM base-${TARGETARCH}
 RUN adduser --disabled-password --gecos "" --home="/cinode" cinode
