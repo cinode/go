@@ -33,7 +33,7 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT#v} \
 FROM alpine AS base-amd64
 FROM alpine AS base-arm
 FROM alpine AS base-arm64
-FROM riscv64/alpine:edge AS base-riscv64
+FROM riscv64/alpine AS base-riscv64
 
 FROM base-${TARGETARCH}
 RUN adduser --disabled-password --gecos "" --home="/cinode" cinode
