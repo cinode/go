@@ -2,7 +2,7 @@
 ARG GO_VERSION=1.24
 
 # Base image with go compiler and tested source code
-FROM --platform=$BUILDPLATFORM docker.io/library/golang:${GO_VERSION} as build
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:${GO_VERSION} AS build
 
 # Compile and test with non-root user
 RUN useradd -ms /bin/bash go
@@ -32,7 +32,7 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT#v} \
 
 # Force distroless base to use current platform (most likely linux/amd64)
 # which is needed since distroless/static is not available for linux/arm/v6
-FROM --platform=$BUILDPLATFORM gcr.io/distroless/static as distroless
+FROM --platform=$BUILDPLATFORM gcr.io/distroless/static AS distroless
 
 FROM scratch
 COPY --from=distroless / /

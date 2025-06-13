@@ -12,14 +12,12 @@ jobs:
             continue-on-error: true
     runs-on: ${{ matrix.env.os }}
     steps:
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v5
         with:
           go-version: "1.24"
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: go vet ./...
       - run: |
-          set -x
-
           PREFIX="github.com/${GITHUB_REPOSITORY}"
 
           go test -v \
@@ -35,7 +33,7 @@ jobs:
         if: ${{ matrix.env.coverage }}
         with:
           path-to-profile: profile.cov
-      - uses: codecov/codecov-action@v3
+      - uses: codecov/codecov-action@v5
         if: ${{ matrix.env.coverage }}
         with:
           files: profile.cov
