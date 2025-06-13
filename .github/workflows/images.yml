@@ -51,7 +51,7 @@ jobs:
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: |
             "${{ env.REGISTRY }}/${{ env.IMAGE_BASE_NAME }}/${{ matrix.app.name }}"
@@ -62,7 +62,7 @@ jobs:
 
       - name: Build and push
         id: build_and_push
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: build/docker/Dockerfile.${{ matrix.app.name }}
@@ -100,6 +100,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: /tmp/outputs
+          pattern: image_*
       - run: ls /tmp/outputs || true
       - run: cat /tmp/outputs/*/image || true
       - id: images
