@@ -19,6 +19,7 @@ package multisource
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"io"
 	"sync"
@@ -29,6 +30,7 @@ import (
 	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
+	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -48,7 +50,7 @@ func TestMultiSourceDatastore(t *testing.T) {
 	suite.Run(t, &MultiSourceDatastoreTestSuite{})
 }
 
-func (s *MultiSourceDatastoreTestSuite) addBlob(ds datastore.DS, c string) *common.BlobName {
+func (s *MultiSourceDatastoreTestSuite) addStaticBlob(ds datastore.DS, c string) *common.BlobName {
 	hash := sha256.Sum256([]byte(c))
 	name, err := common.BlobNameFromHashAndType(hash[:], blobtypes.Static)
 	s.Require().NoError(err)
@@ -75,7 +77,7 @@ func (s *MultiSourceDatastoreTestSuite) ensureNotFound(ds datastore.DS, n *commo
 	s.Require().ErrorIs(err, datastore.ErrNotFound)
 }
 
-func (s *MultiSourceDatastoreTestSuite) TestStaticLinkPropagation() {
+func (s *MultiSourceDatastoreTestSuite) TestStaticBlobPropagation() {
 	main := datastore.InMemory()
 	add1 := datastore.InMemory()
 	add2 := datastore.InMemory()
@@ -86,8 +88,8 @@ func (s *MultiSourceDatastoreTestSuite) TestStaticLinkPropagation() {
 		WithAdditionalDatastores(add1, add2),
 	).(*multiSourceDatastore)
 
-	bn1 := s.addBlob(add1, "Hello world 1")
-	bn2 := s.addBlob(add2, "Hello world 2")
+	bn1 := s.addStaticBlob(add1, "Hello world 1")
+	bn2 := s.addStaticBlob(add2, "Hello world 2")
 
 	s.Require().EqualValues("Hello world 1", s.fetchBlob(ds, bn1))
 	s.Require().EqualValues("Hello world 2", s.fetchBlob(ds, bn2))
@@ -103,11 +105,11 @@ func (s *MultiSourceDatastoreTestSuite) TestNotFoundRecheck() {
 	main := datastore.InMemory()
 	add := datastore.InMemory()
 
-	bn := s.addBlob(datastore.InMemory(), "Hello world")
+	bn := s.addStaticBlob(datastore.InMemory(), "Hello world")
 
 	ds := New(
 		main,
-		WithDynamicDataRefreshTime(time.Millisecond*10),
+		WithDynamicDataRefreshTime(time.Hour),
 		WithNotFoundRecheckTime(time.Millisecond*10),
 		WithAdditionalDatastores(add),
 	).(*multiSourceDatastore)
@@ -116,7 +118,7 @@ func (s *MultiSourceDatastoreTestSuite) TestNotFoundRecheck() {
 	s.ensureNotFound(ds, bn)
 
 	// Add the blob to the additional datastore
-	s.addBlob(add, "Hello world")
+	s.addStaticBlob(add, "Hello world")
 
 	// The not found state should be cached for a while
 	for i := 0; i < 10; i++ {
@@ -128,6 +130,81 @@ func (s *MultiSourceDatastoreTestSuite) TestNotFoundRecheck() {
 
 	// Should refresh by now
 	s.Require().EqualValues("Hello world", s.fetchBlob(ds, bn))
+}
+
+func (s *MultiSourceDatastoreTestSuite) TestDynamicLinkRefresh() {
+	main := datastore.InMemory()
+	add := datastore.InMemory()
+
+	ds := New(
+		main,
+		WithDynamicDataRefreshTime(time.Millisecond*10),
+		WithNotFoundRecheckTime(time.Hour),
+		WithAdditionalDatastores(add),
+	).(*multiSourceDatastore)
+
+	// Create a new dynamic link
+	dlp, err := dynamiclink.Create(rand.Reader)
+	s.Require().NoError(err)
+
+	bn := dlp.BlobName()
+
+	// Upload the data to the additional datastore
+	key := s.updateLink(dlp, 1, add, "Hello world")
+
+	// The data should be available in the main datastore
+	s.Require().EqualValues("Hello world", s.fetchLink(ds, bn, key))
+
+	// Update the data in the additional datastore
+	s.updateLink(dlp, 2, add, "Hello world 2")
+
+	// Old link data should be cached
+	for range 10 {
+		s.Require().EqualValues("Hello world", s.fetchLink(ds, bn, key))
+	}
+
+	time.Sleep(time.Millisecond * 20)
+
+	// The updated data should be available in the main datastore by now
+	s.Require().EqualValues("Hello world 2", s.fetchLink(ds, bn, key))
+
+}
+
+func (s *MultiSourceDatastoreTestSuite) updateLink(
+	dlp *dynamiclink.Publisher,
+	version uint64,
+	ds datastore.DS,
+	content string,
+) *common.BlobKey {
+	pr, key, err := dlp.UpdateLinkData(bytes.NewReader([]byte(content)), version)
+	s.Require().NoError(err)
+
+	err = ds.Update(context.Background(), dlp.BlobName(), pr.GetPublicDataReader())
+	s.Require().NoError(err)
+
+	return key
+}
+
+func (s *MultiSourceDatastoreTestSuite) fetchLink(
+	ds datastore.DS,
+	bn *common.BlobName,
+	key *common.BlobKey,
+) string {
+	rdr, err := ds.Open(context.Background(), bn)
+	s.Require().NoError(err)
+
+	defer rdr.Close()
+
+	pr, err := dynamiclink.FromPublicData(bn, rdr)
+	s.Require().NoError(err)
+
+	lrdr, err := pr.GetLinkDataReader(key)
+	s.Require().NoError(err)
+
+	data, err := io.ReadAll(lrdr)
+	s.Require().NoError(err)
+
+	return string(data)
 }
 
 type testSyncReaderDS struct {
@@ -152,7 +229,7 @@ func (s *MultiSourceDatastoreTestSuite) TestParallelDownloads() {
 		WithAdditionalDatastores(addSync),
 		WithDynamicDataRefreshTime(time.Hour),
 	).(*multiSourceDatastore)
-	bn := s.addBlob(add, "Hello world")
+	bn := s.addStaticBlob(add, "Hello world")
 
 	startWg := sync.WaitGroup{}
 	finishWg := sync.WaitGroup{}
