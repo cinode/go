@@ -27,7 +27,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/datastore/multisource"
@@ -81,7 +80,10 @@ func buildHttpHandler(cfg *config) (http.Handler, error) {
 		additionalDSs = append(additionalDSs, ds)
 	}
 
-	ds := multisource.New(mainDS, time.Hour, additionalDSs...)
+	ds := multisource.New(
+		mainDS,
+		multisource.WithAdditionalDatastores(additionalDSs...),
+	)
 	handler := datastore.WebInterface(
 		ds,
 		datastore.WebInterfaceOptionLogger(cfg.log),

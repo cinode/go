@@ -35,7 +35,7 @@ import (
 func TestInterface(t *testing.T) {
 	suite.Run(t, &datastore.DatastoreTestSuite{
 		CreateDS: func() (datastore.DS, error) {
-			return New(datastore.InMemory(), time.Hour), nil
+			return New(datastore.InMemory()), nil
 		},
 	})
 }
@@ -80,7 +80,11 @@ func (s *MultiSourceDatastoreTestSuite) TestStaticLinkPropagation() {
 	add1 := datastore.InMemory()
 	add2 := datastore.InMemory()
 
-	ds := New(main, time.Hour, add1, add2).(*multiSourceDatastore)
+	ds := New(
+		main,
+		WithDynamicDataRefreshTime(time.Hour),
+		WithAdditionalDatastores(add1, add2),
+	).(*multiSourceDatastore)
 
 	bn1 := s.addBlob(add1, "Hello world 1")
 	bn2 := s.addBlob(add2, "Hello world 2")
@@ -101,7 +105,11 @@ func (s *MultiSourceDatastoreTestSuite) TestLinkRefresh() {
 
 	bn := s.addBlob(datastore.InMemory(), "Hello world")
 
-	ds := New(main, time.Millisecond*10, add).(*multiSourceDatastore)
+	ds := New(
+		main,
+		WithDynamicDataRefreshTime(time.Millisecond*10),
+		WithAdditionalDatastores(add),
+	).(*multiSourceDatastore)
 	s.ensureNotFound(ds, bn)
 
 	s.addBlob(add, "Hello world")
@@ -133,7 +141,11 @@ func (s *MultiSourceDatastoreTestSuite) TestParallelDownloads() {
 	add := datastore.InMemory()
 	addSync := &testSyncReaderDS{DS: add, waitChan: make(chan struct{})}
 
-	ds := New(main, time.Hour, addSync).(*multiSourceDatastore)
+	ds := New(
+		main,
+		WithAdditionalDatastores(addSync),
+		WithDynamicDataRefreshTime(time.Hour),
+	).(*multiSourceDatastore)
 	bn := s.addBlob(add, "Hello world")
 
 	startWg := sync.WaitGroup{}

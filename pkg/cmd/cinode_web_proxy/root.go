@@ -27,7 +27,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/cinodefs"
@@ -102,8 +101,7 @@ func setupCinodeProxy(
 		blenc.FromDatastore(
 			multisource.New(
 				mainDS,
-				time.Hour,
-				additionalDSs...,
+				multisource.WithAdditionalDatastores(additionalDSs...),
 			),
 		),
 		cinodefs.RootEntrypoint(entrypoint),
