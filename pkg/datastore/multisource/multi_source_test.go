@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package datastore
+package multisource
 
 import (
 	"bytes"
@@ -28,8 +28,17 @@ import (
 
 	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
+	"github.com/cinode/go/pkg/datastore"
 	"github.com/stretchr/testify/suite"
 )
+
+func TestInterface(t *testing.T) {
+	suite.Run(t, &datastore.DatastoreTestSuite{
+		CreateDS: func() (datastore.DS, error) {
+			return New(datastore.InMemory(), time.Hour), nil
+		},
+	})
+}
 
 type MultiSourceDatastoreTestSuite struct {
 	suite.Suite
@@ -39,7 +48,7 @@ func TestMultiSourceDatastore(t *testing.T) {
 	suite.Run(t, &MultiSourceDatastoreTestSuite{})
 }
 
-func (s *MultiSourceDatastoreTestSuite) addBlob(ds DS, c string) *common.BlobName {
+func (s *MultiSourceDatastoreTestSuite) addBlob(ds datastore.DS, c string) *common.BlobName {
 	hash := sha256.Sum256([]byte(c))
 	name, err := common.BlobNameFromHashAndType(hash[:], blobtypes.Static)
 	s.Require().NoError(err)
@@ -48,7 +57,7 @@ func (s *MultiSourceDatastoreTestSuite) addBlob(ds DS, c string) *common.BlobNam
 	return name
 }
 
-func (s *MultiSourceDatastoreTestSuite) fetchBlob(ds DS, n *common.BlobName) string {
+func (s *MultiSourceDatastoreTestSuite) fetchBlob(ds datastore.DS, n *common.BlobName) string {
 	rc, err := ds.Open(context.Background(), n)
 	s.Require().NoError(err)
 
@@ -61,17 +70,17 @@ func (s *MultiSourceDatastoreTestSuite) fetchBlob(ds DS, n *common.BlobName) str
 	return string(data)
 }
 
-func (s *MultiSourceDatastoreTestSuite) ensureNotFound(ds DS, n *common.BlobName) {
+func (s *MultiSourceDatastoreTestSuite) ensureNotFound(ds datastore.DS, n *common.BlobName) {
 	_, err := ds.Open(context.Background(), n)
-	s.Require().ErrorIs(err, ErrNotFound)
+	s.Require().ErrorIs(err, datastore.ErrNotFound)
 }
 
 func (s *MultiSourceDatastoreTestSuite) TestStaticLinkPropagation() {
-	main := InMemory()
-	add1 := InMemory()
-	add2 := InMemory()
+	main := datastore.InMemory()
+	add1 := datastore.InMemory()
+	add2 := datastore.InMemory()
 
-	ds := NewMultiSource(main, time.Hour, add1, add2).(*multiSourceDatastore)
+	ds := New(main, time.Hour, add1, add2).(*multiSourceDatastore)
 
 	bn1 := s.addBlob(add1, "Hello world 1")
 	bn2 := s.addBlob(add2, "Hello world 2")
@@ -80,19 +89,19 @@ func (s *MultiSourceDatastoreTestSuite) TestStaticLinkPropagation() {
 	s.Require().EqualValues("Hello world 2", s.fetchBlob(ds, bn2))
 
 	// Blobs should already be in the cache
-	ds.additional = []DS{}
+	ds.additional = []datastore.DS{}
 
 	s.Require().EqualValues("Hello world 1", s.fetchBlob(ds, bn1))
 	s.Require().EqualValues("Hello world 2", s.fetchBlob(ds, bn2))
 }
 
 func (s *MultiSourceDatastoreTestSuite) TestLinkRefresh() {
-	main := InMemory()
-	add := InMemory()
+	main := datastore.InMemory()
+	add := datastore.InMemory()
 
-	bn := s.addBlob(InMemory(), "Hello world")
+	bn := s.addBlob(datastore.InMemory(), "Hello world")
 
-	ds := NewMultiSource(main, time.Millisecond*10, add).(*multiSourceDatastore)
+	ds := New(main, time.Millisecond*10, add).(*multiSourceDatastore)
 	s.ensureNotFound(ds, bn)
 
 	s.addBlob(add, "Hello world")
@@ -108,7 +117,7 @@ func (s *MultiSourceDatastoreTestSuite) TestLinkRefresh() {
 }
 
 type testSyncReaderDS struct {
-	DS
+	datastore.DS
 	waitChan  chan struct{}
 	openCount atomic.Int32
 }
@@ -120,11 +129,11 @@ func (s *testSyncReaderDS) Open(ctx context.Context, name *common.BlobName) (io.
 }
 
 func (s *MultiSourceDatastoreTestSuite) TestParallelDownloads() {
-	main := InMemory()
-	add := InMemory()
+	main := datastore.InMemory()
+	add := datastore.InMemory()
 	addSync := &testSyncReaderDS{DS: add, waitChan: make(chan struct{})}
 
-	ds := NewMultiSource(main, time.Hour, addSync).(*multiSourceDatastore)
+	ds := New(main, time.Hour, addSync).(*multiSourceDatastore)
 	bn := s.addBlob(add, "Hello world")
 
 	startWg := sync.WaitGroup{}

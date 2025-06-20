@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package datastore
+package multisource
 
 import (
 	"context"
@@ -25,6 +25,7 @@ import (
 	"golang.org/x/exp/slog"
 
 	"github.com/cinode/go/pkg/common"
+	"github.com/cinode/go/pkg/datastore"
 )
 
 type multiSourceDatastoreBlobState struct {
@@ -35,11 +36,11 @@ type multiSourceDatastoreBlobState struct {
 
 type multiSourceDatastore struct {
 	// Main datastore
-	main DS
+	main datastore.DS
 
 	// Additional sources that will be queried whenever the main source
 	// does not contain the data or contains outdated content
-	additional []DS
+	additional []datastore.DS
 
 	// Average time between dynamic content refreshes
 	dynamicDataRefreshTime time.Duration
@@ -55,7 +56,7 @@ type multiSourceDatastore struct {
 	log *slog.Logger
 }
 
-func NewMultiSource(main DS, refreshTime time.Duration, additional ...DS) DS {
+func New(main datastore.DS, refreshTime time.Duration, additional ...datastore.DS) datastore.DS {
 	return &multiSourceDatastore{
 		main:                   main,
 		additional:             additional,
@@ -65,7 +66,7 @@ func NewMultiSource(main DS, refreshTime time.Duration, additional ...DS) DS {
 	}
 }
 
-var _ DS = (*multiSourceDatastore)(nil)
+var _ datastore.DS = (*multiSourceDatastore)(nil)
 
 func (m *multiSourceDatastore) Kind() string {
 	return "MultiSource"
