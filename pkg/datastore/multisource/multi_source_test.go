@@ -99,7 +99,7 @@ func (s *MultiSourceDatastoreTestSuite) TestStaticLinkPropagation() {
 	s.Require().EqualValues("Hello world 2", s.fetchBlob(ds, bn2))
 }
 
-func (s *MultiSourceDatastoreTestSuite) TestLinkRefresh() {
+func (s *MultiSourceDatastoreTestSuite) TestNotFoundRecheck() {
 	main := datastore.InMemory()
 	add := datastore.InMemory()
 
@@ -108,11 +108,17 @@ func (s *MultiSourceDatastoreTestSuite) TestLinkRefresh() {
 	ds := New(
 		main,
 		WithDynamicDataRefreshTime(time.Millisecond*10),
+		WithNotFoundRecheckTime(time.Millisecond*10),
 		WithAdditionalDatastores(add),
 	).(*multiSourceDatastore)
+
+	// Try to fetch the blob while it is not found in the additional datastore,
 	s.ensureNotFound(ds, bn)
 
+	// Add the blob to the additional datastore
 	s.addBlob(add, "Hello world")
+
+	// The not found state should be cached for a while
 	for i := 0; i < 10; i++ {
 		// Result still cached
 		s.ensureNotFound(ds, bn)

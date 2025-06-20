@@ -42,3 +42,9 @@ func WithAdditionalDatastores(additional ...datastore.DS) Option {
 		m.additional = append(m.additional, additional...)
 	}
 }
+
+func WithNotFoundRecheckTime(notFoundRecheckTime time.Duration) Option {
+	return func(m *multiSourceDatastore) {
+		m.notFoundRecheckTime = notFoundRecheckTime
+	}
+}

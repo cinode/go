@@ -24,17 +24,20 @@ import (
 
 	"golang.org/x/exp/slog"
 
+	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
 )
 
 const (
-	defaultDynamicDataRefreshTime = time.Hour
+	defaultDynamicDataRefreshTime = time.Minute
+	defaultNotFoundRecheckTime    = time.Minute
 )
 
 type multiSourceDatastoreBlobState struct {
 	lastUpdateTime           time.Time
 	downloading              bool
+	notFound                 bool
 	downloadingFinishedCChan chan struct{}
 }
 
@@ -48,6 +51,9 @@ type multiSourceDatastore struct {
 
 	// Average time between dynamic content refreshes
 	dynamicDataRefreshTime time.Duration
+
+	// Time between re-checking blob existence in additional datastores
+	notFoundRecheckTime time.Duration
 
 	// Last update time for blobs, either for dynamic content or last result of not found for
 	// static ones
@@ -65,6 +71,7 @@ func New(main datastore.DS, options ...Option) datastore.DS {
 		main:                   main,
 		additional:             nil,
 		dynamicDataRefreshTime: defaultDynamicDataRefreshTime,
+		notFoundRecheckTime:    defaultNotFoundRecheckTime,
 		blobStates:             map[string]multiSourceDatastoreBlobState{},
 		log:                    slog.Default(),
 	}
@@ -130,7 +137,7 @@ func (m *multiSourceDatastore) fetch(ctx context.Context, name *common.BlobName)
 				// Blob currently being downloaded
 				return state.downloadingFinishedCChan, false
 
-			case time.Since(state.lastUpdateTime) > m.dynamicDataRefreshTime:
+			case m.needsDownload(state, name, time.Now()):
 				// We should update the blob
 				needsDownload = true
 			}
@@ -152,7 +159,7 @@ func (m *multiSourceDatastore) fetch(ctx context.Context, name *common.BlobName)
 			m.log.Info("Starting download",
 				"blob", name.String(),
 			)
-			wasUpdated := false
+			wasFound := false
 			for i, ds := range m.additional {
 				r, err := ds.Open(ctx, name)
 				if err != nil {
@@ -175,9 +182,9 @@ func (m *multiSourceDatastore) fetch(ctx context.Context, name *common.BlobName)
 						"blob", name.String(),
 					)
 				}
-				wasUpdated = true
+				wasFound = true
 			}
-			if !wasUpdated {
+			if !wasFound {
 				m.log.Warn("Did not find blob in any datastore",
 					"blob", name.String(),
 				)
@@ -189,6 +196,7 @@ func (m *multiSourceDatastore) fetch(ctx context.Context, name *common.BlobName)
 
 			m.blobStates[name.String()] = multiSourceDatastoreBlobState{
 				lastUpdateTime: time.Now(),
+				notFound:       !wasFound,
 			}
 			return
 		}
@@ -198,5 +206,23 @@ func (m *multiSourceDatastore) fetch(ctx context.Context, name *common.BlobName)
 		}
 
 		<-waitChan
+	}
+}
+
+// needsDownload checks if the blob needs to be downloaded based on the state and the current time.
+func (m *multiSourceDatastore) needsDownload(
+	state multiSourceDatastoreBlobState,
+	name *common.BlobName,
+	now time.Time,
+) bool {
+	switch {
+	case state.notFound:
+		return now.After(state.lastUpdateTime.Add(m.notFoundRecheckTime))
+
+	case name.Type() == blobtypes.Static:
+		return false
+
+	default:
+		return now.After(state.lastUpdateTime.Add(m.dynamicDataRefreshTime))
 	}
 }
