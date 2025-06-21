@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,9 +27,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/cinode/go/pkg/datastore"
+	"github.com/cinode/go/pkg/datastore/multisource"
 	"github.com/cinode/go/pkg/utilities/httpserver"
 	"golang.org/x/exp/slog"
 )
@@ -80,7 +80,10 @@ func buildHttpHandler(cfg *config) (http.Handler, error) {
 		additionalDSs = append(additionalDSs, ds)
 	}
 
-	ds := datastore.NewMultiSource(mainDS, time.Hour, additionalDSs...)
+	ds := multisource.New(
+		mainDS,
+		multisource.WithAdditionalDatastores(additionalDSs...),
+	)
 	handler := datastore.WebInterface(
 		ds,
 		datastore.WebInterfaceOptionLogger(cfg.log),

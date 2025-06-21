@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,12 +27,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/cinodefs"
 	"github.com/cinode/go/pkg/cinodefs/httphandler"
 	"github.com/cinode/go/pkg/datastore"
+	"github.com/cinode/go/pkg/datastore/multisource"
 	"github.com/cinode/go/pkg/utilities/golang"
 	"github.com/cinode/go/pkg/utilities/httpserver"
 	"golang.org/x/exp/slog"
@@ -99,10 +99,9 @@ func setupCinodeProxy(
 	fs := golang.Must(cinodefs.New(
 		ctx,
 		blenc.FromDatastore(
-			datastore.NewMultiSource(
+			multisource.New(
 				mainDS,
-				time.Hour,
-				additionalDSs...,
+				multisource.WithAdditionalDatastores(additionalDSs...),
 			),
 		),
 		cinodefs.RootEntrypoint(entrypoint),
