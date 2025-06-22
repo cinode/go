@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import (
 
 	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
+	"github.com/cinode/go/pkg/datastore/testutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,7 +39,7 @@ func allTestStorages(t *testing.T) []storage {
 func TestStorageOpenFailureNotFound(t *testing.T) {
 	for _, st := range allTestStorages(t) {
 		t.Run(st.kind(), func(t *testing.T) {
-			r, err := st.openReadStream(context.Background(), emptyBlobNameStatic)
+			r, err := st.openReadStream(context.Background(), testutils.EmptyBlobNameStatic)
 			require.ErrorIs(t, err, ErrNotFound)
 			require.Nil(t, r)
 		})
@@ -48,14 +49,14 @@ func TestStorageOpenFailureNotFound(t *testing.T) {
 func TestStorageSaveOpenSuccess(t *testing.T) {
 	for _, st := range allTestStorages(t) {
 		t.Run(st.kind(), func(t *testing.T) {
-			exists, err := st.exists(context.Background(), emptyBlobNameStatic)
+			exists, err := st.exists(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 			require.False(t, exists)
 
-			w, err := st.openWriteStream(context.Background(), emptyBlobNameStatic)
+			w, err := st.openWriteStream(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 
-			exists, err = st.exists(context.Background(), emptyBlobNameStatic)
+			exists, err = st.exists(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 			require.False(t, exists)
 
@@ -66,11 +67,11 @@ func TestStorageSaveOpenSuccess(t *testing.T) {
 			err = w.Close()
 			require.NoError(t, err)
 
-			exists, err = st.exists(context.Background(), emptyBlobNameStatic)
+			exists, err = st.exists(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 			require.True(t, exists)
 
-			r, err := st.openReadStream(context.Background(), emptyBlobNameStatic)
+			r, err := st.openReadStream(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 
 			b, err := io.ReadAll(r)
@@ -86,14 +87,14 @@ func TestStorageSaveOpenSuccess(t *testing.T) {
 func TestStorageSaveOpenCancelSuccess(t *testing.T) {
 	for _, st := range allTestStorages(t) {
 		t.Run(st.kind(), func(t *testing.T) {
-			exists, err := st.exists(context.Background(), emptyBlobNameStatic)
+			exists, err := st.exists(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 			require.False(t, exists)
 
-			w, err := st.openWriteStream(context.Background(), emptyBlobNameStatic)
+			w, err := st.openWriteStream(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 
-			exists, err = st.exists(context.Background(), emptyBlobNameStatic)
+			exists, err = st.exists(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 			require.False(t, exists)
 
@@ -101,17 +102,17 @@ func TestStorageSaveOpenCancelSuccess(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, 12, n)
 
-			exists, err = st.exists(context.Background(), emptyBlobNameStatic)
+			exists, err = st.exists(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 			require.False(t, exists)
 
 			w.Cancel()
 
-			exists, err = st.exists(context.Background(), emptyBlobNameStatic)
+			exists, err = st.exists(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 			require.False(t, exists)
 
-			r, err := st.openReadStream(context.Background(), emptyBlobNameStatic)
+			r, err := st.openReadStream(context.Background(), testutils.EmptyBlobNameStatic)
 			require.ErrorIs(t, err, ErrNotFound)
 			require.Nil(t, r)
 		})
@@ -186,11 +187,11 @@ func TestStorageTooManySimultaneousSaves(t *testing.T) {
 		t.Run(st.kind(), func(t *testing.T) {
 
 			// Start the first writer
-			w1, err := st.openWriteStream(context.Background(), emptyBlobNameStatic)
+			w1, err := st.openWriteStream(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 
 			// Any attempt to update while the update is in progress should fail now
-			w2, err := st.openWriteStream(context.Background(), emptyBlobNameStatic)
+			w2, err := st.openWriteStream(context.Background(), testutils.EmptyBlobNameStatic)
 			require.ErrorIs(t, err, ErrUploadInProgress)
 			require.Nil(t, w2)
 
@@ -199,7 +200,7 @@ func TestStorageTooManySimultaneousSaves(t *testing.T) {
 			require.NoError(t, err)
 
 			// We should be able to successfully read the ingested data
-			r, err := st.openReadStream(context.Background(), emptyBlobNameStatic)
+			r, err := st.openReadStream(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 
 			b, err := io.ReadAll(r)
@@ -216,30 +217,30 @@ func TestStorageSaveWhileDeleting(t *testing.T) {
 	for _, st := range allTestStorages(t) {
 		t.Run(st.kind(), func(t *testing.T) {
 
-			w, err := st.openWriteStream(context.Background(), emptyBlobNameStatic)
+			w, err := st.openWriteStream(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 
 			err = w.Close()
 			require.NoError(t, err)
 
-			exists, err := st.exists(context.Background(), emptyBlobNameStatic)
+			exists, err := st.exists(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 			require.True(t, exists)
 
-			w, err = st.openWriteStream(context.Background(), emptyBlobNameStatic)
+			w, err = st.openWriteStream(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 
-			err = st.delete(context.Background(), emptyBlobNameStatic)
+			err = st.delete(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 
-			exists, err = st.exists(context.Background(), emptyBlobNameStatic)
+			exists, err = st.exists(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 			require.False(t, exists)
 
 			err = w.Close()
 			require.NoError(t, err)
 
-			exists, err = st.exists(context.Background(), emptyBlobNameStatic)
+			exists, err = st.exists(context.Background(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 			require.True(t, exists)
 		})

@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package public_node
 
 import (
 	"context"
+	"log/slog"
 	"net/http/httptest"
 	"os"
 	"testing"
@@ -25,7 +26,6 @@ import (
 
 	"github.com/cinode/go/testvectors/testblobs"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
 )
 
 func TestGetConfig(t *testing.T) {

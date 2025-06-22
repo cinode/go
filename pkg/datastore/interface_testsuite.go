@@ -27,6 +27,7 @@ import (
 
 	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
+	"github.com/cinode/go/pkg/datastore/testutils"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
 	"github.com/stretchr/testify/suite"
 )
@@ -48,7 +49,7 @@ func (s *DatastoreTestSuite) SetupTest() {
 }
 
 func (s *DatastoreTestSuite) TestOpenNonExisting() {
-	for _, name := range emptyBlobNamesOfAllTypes {
+	for _, name := range testutils.EmptyBlobNamesOfAllTypes {
 		s.Run(fmt.Sprint(name.Type()), func() {
 			r, err := s.DS.Open(context.Background(), name)
 			s.Require().ErrorIs(err, ErrNotFound)
@@ -70,7 +71,7 @@ func (s *DatastoreTestSuite) TestOpenInvalidBlobType() {
 }
 
 func (s *DatastoreTestSuite) TestBlobValidationFailed() {
-	for _, name := range emptyBlobNamesOfAllTypes {
+	for _, name := range testutils.EmptyBlobNamesOfAllTypes {
 		s.Run(fmt.Sprint(name.Type()), func() {
 			err := s.DS.Update(context.Background(), name, bytes.NewReader([]byte("test")))
 			s.Require().ErrorIs(err, blobtypes.ErrValidationFailed)
@@ -79,41 +80,41 @@ func (s *DatastoreTestSuite) TestBlobValidationFailed() {
 }
 
 func (s *DatastoreTestSuite) TestSaveSuccessfulStatic() {
-	for _, b := range testBlobs {
+	for _, b := range testutils.TestBlobs {
 
-		exists, err := s.DS.Exists(context.Background(), b.name)
+		exists, err := s.DS.Exists(context.Background(), b.Name)
 		s.Require().NoError(err)
 		s.Require().False(exists)
 
-		err = s.DS.Update(context.Background(), b.name, bytes.NewReader(b.data))
+		err = s.DS.Update(context.Background(), b.Name, bytes.NewReader(b.Data))
 		s.Require().NoError(err)
 
-		exists, err = s.DS.Exists(context.Background(), b.name)
+		exists, err = s.DS.Exists(context.Background(), b.Name)
 		s.Require().NoError(err)
 		s.Require().True(exists)
 
 		// Overwrite with the same data must be fine
-		err = s.DS.Update(context.Background(), b.name, bytes.NewReader(b.data))
+		err = s.DS.Update(context.Background(), b.Name, bytes.NewReader(b.Data))
 		s.Require().NoError(err)
 
-		exists, err = s.DS.Exists(context.Background(), b.name)
+		exists, err = s.DS.Exists(context.Background(), b.Name)
 		s.Require().NoError(err)
 		s.Require().True(exists)
 
 		// Overwrite with wrong data must fail
-		err = s.DS.Update(context.Background(), b.name, bytes.NewReader(append([]byte{0x00}, b.data...)))
+		err = s.DS.Update(context.Background(), b.Name, bytes.NewReader(append([]byte{0x00}, b.Data...)))
 		s.Require().ErrorIs(err, blobtypes.ErrValidationFailed)
 
-		exists, err = s.DS.Exists(context.Background(), b.name)
+		exists, err = s.DS.Exists(context.Background(), b.Name)
 		s.Require().NoError(err)
 		s.Require().True(exists)
 
-		r, err := s.DS.Open(context.Background(), b.name)
+		r, err := s.DS.Open(context.Background(), b.Name)
 		s.Require().NoError(err)
 
 		data, err := io.ReadAll(r)
 		s.Require().NoError(err)
-		s.Require().Equal(b.data, data)
+		s.Require().Equal(b.Data, data)
 
 		err = r.Close()
 		s.Require().NoError(err)
@@ -121,15 +122,15 @@ func (s *DatastoreTestSuite) TestSaveSuccessfulStatic() {
 }
 
 func (s *DatastoreTestSuite) TestErrorWhileUpdating() {
-	for i, b := range testBlobs {
+	for i, b := range testutils.TestBlobs {
 		s.Run(fmt.Sprint(i), func() {
 			errRet := errors.New("Test error")
-			err := s.DS.Update(context.Background(), b.name, bReader(b.data, func() error {
+			err := s.DS.Update(context.Background(), b.Name, testutils.BReader(b.Data, func() error {
 				return errRet
 			}, nil))
 			s.Require().ErrorIs(err, errRet)
 
-			exists, err := s.DS.Exists(context.Background(), b.name)
+			exists, err := s.DS.Exists(context.Background(), b.Name)
 			s.Require().NoError(err)
 			s.Require().False(exists)
 		})
@@ -137,16 +138,16 @@ func (s *DatastoreTestSuite) TestErrorWhileUpdating() {
 }
 
 func (s *DatastoreTestSuite) TestErrorWhileOverwriting() {
-	for i, b := range testBlobs {
+	for i, b := range testutils.TestBlobs {
 		s.Run(fmt.Sprint(i), func() {
 
-			err := s.DS.Update(context.Background(), b.name, bytes.NewReader(b.data))
+			err := s.DS.Update(context.Background(), b.Name, bytes.NewReader(b.Data))
 			s.Require().NoError(err)
 
 			errRet := errors.New("cancel")
 
-			err = s.DS.Update(context.Background(), b.name, bReader(b.data, func() error {
-				exists, err := s.DS.Exists(context.Background(), b.name)
+			err = s.DS.Update(context.Background(), b.Name, testutils.BReader(b.Data, func() error {
+				exists, err := s.DS.Exists(context.Background(), b.Name)
 				s.Require().NoError(err)
 				s.Require().True(exists)
 
@@ -155,16 +156,16 @@ func (s *DatastoreTestSuite) TestErrorWhileOverwriting() {
 
 			s.Require().ErrorIs(err, errRet)
 
-			exists, err := s.DS.Exists(context.Background(), b.name)
+			exists, err := s.DS.Exists(context.Background(), b.Name)
 			s.Require().NoError(err)
 			s.Require().True(exists)
 
-			r, err := s.DS.Open(context.Background(), b.name)
+			r, err := s.DS.Open(context.Background(), b.Name)
 			s.Require().NoError(err)
 
 			data, err := io.ReadAll(r)
 			s.Require().NoError(err)
-			s.Require().Equal(b.data, data)
+			s.Require().Equal(b.Data, data)
 
 			err = r.Close()
 			s.Require().NoError(err)
@@ -173,37 +174,37 @@ func (s *DatastoreTestSuite) TestErrorWhileOverwriting() {
 }
 
 func (s *DatastoreTestSuite) TestDeleteNonExisting() {
-	b := testBlobs[0]
+	b := testutils.TestBlobs[0]
 
-	err := s.DS.Update(context.Background(), b.name, bytes.NewReader(b.data))
+	err := s.DS.Update(context.Background(), b.Name, bytes.NewReader(b.Data))
 	s.Require().NoError(err)
 
-	err = s.DS.Delete(context.Background(), testBlobs[1].name)
+	err = s.DS.Delete(context.Background(), testutils.TestBlobs[1].Name)
 	s.Require().ErrorIs(err, ErrNotFound)
 
-	exists, err := s.DS.Exists(context.Background(), b.name)
+	exists, err := s.DS.Exists(context.Background(), b.Name)
 	s.Require().NoError(err)
 	s.Require().True(exists)
 }
 
 func (s *DatastoreTestSuite) TestDeleteExisting() {
 
-	b := testBlobs[0]
-	err := s.DS.Update(context.Background(), b.name, bytes.NewReader(b.data))
+	b := testutils.TestBlobs[0]
+	err := s.DS.Update(context.Background(), b.Name, bytes.NewReader(b.Data))
 	s.Require().NoError(err)
 
-	exists, err := s.DS.Exists(context.Background(), b.name)
+	exists, err := s.DS.Exists(context.Background(), b.Name)
 	s.Require().NoError(err)
 	s.Require().True(exists)
 
-	err = s.DS.Delete(context.Background(), b.name)
+	err = s.DS.Delete(context.Background(), b.Name)
 	s.Require().NoError(err)
 
-	exists, err = s.DS.Exists(context.Background(), b.name)
+	exists, err = s.DS.Exists(context.Background(), b.Name)
 	s.Require().NoError(err)
 	s.Require().False(exists)
 
-	r, err := s.DS.Open(context.Background(), b.name)
+	r, err := s.DS.Open(context.Background(), b.Name)
 	s.Require().ErrorIs(err, ErrNotFound)
 	s.Require().Nil(r)
 }
@@ -223,8 +224,8 @@ func (s *DatastoreTestSuite) TestSimultaneousReads() {
 	const readCnt = 200
 
 	// Prepare data
-	for _, b := range testBlobs {
-		err := s.DS.Update(context.Background(), b.name, bytes.NewReader(b.data))
+	for _, b := range testutils.TestBlobs {
+		err := s.DS.Update(context.Background(), b.Name, bytes.NewReader(b.Data))
 		s.Require().NoError(err)
 	}
 
@@ -235,14 +236,14 @@ func (s *DatastoreTestSuite) TestSimultaneousReads() {
 		go func(i int) {
 			defer wg.Done()
 			for n := 0; n < readCnt; n++ {
-				b := testBlobs[(i+n)%len(testBlobs)]
+				b := testutils.TestBlobs[(i+n)%len(testutils.TestBlobs)]
 
-				r, err := s.DS.Open(context.Background(), b.name)
+				r, err := s.DS.Open(context.Background(), b.Name)
 				s.Require().NoError(err)
 
 				data, err := io.ReadAll(r)
 				s.Require().NoError(err)
-				s.Require().Equal(b.data, data)
+				s.Require().Equal(b.Data, data)
 
 				err = r.Close()
 				s.Require().NoError(err)
@@ -256,7 +257,7 @@ func (s *DatastoreTestSuite) TestSimultaneousReads() {
 func (s *DatastoreTestSuite) TestSimultaneousUpdates() {
 	const threadCnt = 3
 
-	b := testBlobs[0]
+	b := testutils.TestBlobs[0]
 
 	wg := sync.WaitGroup{}
 	wg.Add(threadCnt)
@@ -265,7 +266,7 @@ func (s *DatastoreTestSuite) TestSimultaneousUpdates() {
 		go func(i int) {
 			defer wg.Done()
 
-			err := s.DS.Update(context.Background(), b.name, bytes.NewReader(b.data))
+			err := s.DS.Update(context.Background(), b.Name, bytes.NewReader(b.Data))
 			if errors.Is(err, ErrUploadInProgress) {
 				// TODO: We should be able to handle this case
 				return
@@ -273,7 +274,7 @@ func (s *DatastoreTestSuite) TestSimultaneousUpdates() {
 
 			s.Require().NoError(err)
 
-			exists, err := s.DS.Exists(context.Background(), b.name)
+			exists, err := s.DS.Exists(context.Background(), b.Name)
 			s.Require().NoError(err)
 			s.Require().True(exists)
 		}(i)
@@ -281,16 +282,16 @@ func (s *DatastoreTestSuite) TestSimultaneousUpdates() {
 
 	wg.Wait()
 
-	exists, err := s.DS.Exists(context.Background(), b.name)
+	exists, err := s.DS.Exists(context.Background(), b.Name)
 	s.Require().NoError(err)
 	s.Require().True(exists)
 
-	r, err := s.DS.Open(context.Background(), b.name)
+	r, err := s.DS.Open(context.Background(), b.Name)
 	s.Require().NoError(err)
 
 	data, err := io.ReadAll(r)
 	s.Require().NoError(err)
-	s.Require().Equal(b.data, data)
+	s.Require().Equal(b.Data, data)
 
 	err = r.Close()
 	s.Require().NoError(err)
@@ -299,17 +300,17 @@ func (s *DatastoreTestSuite) TestSimultaneousUpdates() {
 func (s *DatastoreTestSuite) updateDynamicLink(num int) {
 	err := s.DS.Update(
 		context.Background(),
-		dynamicLinkPropagationData[num].name,
-		bytes.NewReader(dynamicLinkPropagationData[num].data),
+		testutils.DynamicLinkPropagationData[num].Name,
+		bytes.NewReader(testutils.DynamicLinkPropagationData[num].Data),
 	)
 	s.Require().NoError(err)
 }
 
 func (s *DatastoreTestSuite) readDynamicLinkData() []byte {
-	r, err := s.DS.Open(context.Background(), dynamicLinkPropagationData[0].name)
+	r, err := s.DS.Open(context.Background(), testutils.DynamicLinkPropagationData[0].Name)
 	s.Require().NoError(err)
 
-	dl, err := dynamiclink.FromPublicData(dynamicLinkPropagationData[0].name, r)
+	dl, err := dynamiclink.FromPublicData(testutils.DynamicLinkPropagationData[0].Name, r)
 	s.Require().NoError(err)
 
 	elink, err := io.ReadAll(dl.GetEncryptedLinkReader())
@@ -323,7 +324,7 @@ func (s *DatastoreTestSuite) readDynamicLinkData() []byte {
 
 func (s *DatastoreTestSuite) expectDynamicLinkData(num int) {
 	s.Require().Equal(
-		dynamicLinkPropagationData[num].expected,
+		testutils.DynamicLinkPropagationData[num].Expected,
 		s.readDynamicLinkData(),
 	)
 }
@@ -339,11 +340,11 @@ func (s *DatastoreTestSuite) TestDynamicLinkPropagation() {
 	s.expectDynamicLinkData(1)
 
 	s.updateDynamicLink(2)
-	s.expectDynamicLinkData(1)
+	s.expectDynamicLinkData(2)
 
 	s.updateDynamicLink(1)
-	s.expectDynamicLinkData(1)
+	s.expectDynamicLinkData(2)
 
 	s.updateDynamicLink(0)
-	s.expectDynamicLinkData(1)
+	s.expectDynamicLinkData(2)
 }

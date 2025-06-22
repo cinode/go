@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package datastore
+package testutils
 
 import (
 	"bytes"
@@ -23,28 +23,18 @@ import (
 
 	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
+	"github.com/cinode/go/pkg/utilities/golang"
 )
 
-var emptyBlobNameStatic = func() *common.BlobName {
-	bn, err := common.BlobNameFromHashAndType(sha256.New().Sum(nil), blobtypes.Static)
-	if err != nil {
-		panic(err)
-	}
-	return bn
-}()
+var (
+	EmptyBlobNameStatic      = golang.Must(common.BlobNameFromHashAndType(sha256.New().Sum(nil), blobtypes.Static))
+	EmptyBlobNameDynamicLink = golang.Must(common.BlobNameFromHashAndType(sha256.New().Sum(nil), blobtypes.DynamicLink))
 
-var emptyBlobNameDynamicLink = func() *common.BlobName {
-	bn, err := common.BlobNameFromHashAndType(sha256.New().Sum(nil), blobtypes.DynamicLink)
-	if err != nil {
-		panic(err)
+	EmptyBlobNamesOfAllTypes = []*common.BlobName{
+		EmptyBlobNameStatic,
+		EmptyBlobNameDynamicLink,
 	}
-	return bn
-}()
-
-var emptyBlobNamesOfAllTypes = []*common.BlobName{
-	emptyBlobNameStatic,
-	emptyBlobNameDynamicLink,
-}
+)
 
 type helperReader struct {
 	buf    io.Reader
@@ -52,7 +42,7 @@ type helperReader struct {
 	onEOF  func() error
 }
 
-func bReader(b []byte, onRead func() error, onEOF func() error) *helperReader {
+func BReader(b []byte, onRead func() error, onEOF func() error) *helperReader {
 
 	nop := func() error {
 		return nil
