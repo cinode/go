@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import (
 	"testing"
 
 	"github.com/cinode/go/pkg/blobtypes"
+	"github.com/cinode/go/pkg/datastore/testutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,16 +40,16 @@ func TestWebConnectorInvalidUrl(t *testing.T) {
 	c, err := FromWeb("httpz://bad.url")
 	require.NoError(t, err)
 
-	_, err = c.Open(context.Background(), emptyBlobNameStatic)
+	_, err = c.Open(context.Background(), testutils.EmptyBlobNameStatic)
 	require.IsType(t, &url.Error{}, err)
 
-	_, err = c.Exists(context.Background(), emptyBlobNameStatic)
+	_, err = c.Exists(context.Background(), testutils.EmptyBlobNameStatic)
 	require.IsType(t, &url.Error{}, err)
 
-	err = c.Delete(context.Background(), emptyBlobNameStatic)
+	err = c.Delete(context.Background(), testutils.EmptyBlobNameStatic)
 	require.IsType(t, &url.Error{}, err)
 
-	err = c.Update(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
+	err = c.Update(context.Background(), testutils.EmptyBlobNameStatic, bytes.NewBuffer(nil))
 	require.IsType(t, &url.Error{}, err)
 }
 
@@ -59,7 +60,7 @@ func TestWebConnectorInvalidContext(t *testing.T) {
 	c, err := FromWeb("http://datastore.local")
 	require.NoError(t, err)
 
-	for _, name := range emptyBlobNamesOfAllTypes {
+	for _, name := range testutils.EmptyBlobNamesOfAllTypes {
 		t.Run(fmt.Sprint(name.Type()), func(t *testing.T) {
 			_, err = c.Open(nilCtx, name)
 			require.ErrorContains(t, err, "nil Context")
@@ -85,7 +86,7 @@ func TestWebConnectorServerSideError(t *testing.T) {
 	c, err := FromWeb(server.URL + "/")
 	require.NoError(t, err)
 
-	for _, name := range emptyBlobNamesOfAllTypes {
+	for _, name := range testutils.EmptyBlobNamesOfAllTypes {
 		t.Run(fmt.Sprint(name.Type()), func(t *testing.T) {
 			_, err = c.Open(context.Background(), name)
 			require.ErrorIs(t, err, ErrWebConnectionError)
@@ -113,7 +114,7 @@ func TestWebConnectorDetectInvalidBlobRead(t *testing.T) {
 	ds2, err := FromWeb(server.URL + "/")
 	require.NoError(t, err)
 
-	for _, name := range emptyBlobNamesOfAllTypes {
+	for _, name := range testutils.EmptyBlobNamesOfAllTypes {
 		t.Run(fmt.Sprint(name.Type()), func(t *testing.T) {
 			rc, err := ds2.Open(context.Background(), name)
 			if err != nil {
@@ -145,9 +146,9 @@ func TestWebConnectorInvalidErrorCode(t *testing.T) {
 	ds2, err := FromWeb(server.URL + "/")
 	require.NoError(t, err)
 
-	for _, name := range emptyBlobNamesOfAllTypes {
+	for _, name := range testutils.EmptyBlobNamesOfAllTypes {
 		t.Run(fmt.Sprint(name.Type()), func(t *testing.T) {
-			_, err = ds2.Open(context.Background(), emptyBlobNameStatic)
+			_, err = ds2.Open(context.Background(), testutils.EmptyBlobNameStatic)
 			require.ErrorIs(t, err, ErrWebConnectionError)
 		})
 	}

@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cinode/go/pkg/datastore/testutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,11 +59,11 @@ func TestFilesystemSaveFailureDir(t *testing.T) {
 
 	// Create file at directory location preventing
 	// creation of a directory
-	fName := fs.getFileName(emptyBlobNameStatic, fsSuffixCurrent)
+	fName := fs.getFileName(testutils.EmptyBlobNameStatic, fsSuffixCurrent)
 	fName = filepath.Dir(fName)
 	touchFile(t, fName)
 
-	w, err := fs.openWriteStream(context.Background(), emptyBlobNameStatic)
+	w, err := fs.openWriteStream(context.Background(), testutils.EmptyBlobNameStatic)
 	require.IsType(t, &os.PathError{}, err)
 	require.Nil(t, w)
 }
@@ -72,13 +73,13 @@ func TestFilesystemSaveFailureTempFile(t *testing.T) {
 	fs := temporaryFS(t)
 
 	// Create blob's directory as unmodifiable
-	fName := fs.getFileName(emptyBlobNameStatic, fsSuffixCurrent)
+	fName := fs.getFileName(testutils.EmptyBlobNameStatic, fsSuffixCurrent)
 	dirPath := filepath.Dir(fName)
 	err := os.MkdirAll(dirPath, 0777)
 	require.NoError(t, err)
 	defer protect(t, dirPath)()
 
-	w, err := fs.openWriteStream(context.Background(), emptyBlobNameStatic)
+	w, err := fs.openWriteStream(context.Background(), testutils.EmptyBlobNameStatic)
 	require.IsType(t, &os.PathError{}, err)
 	require.Nil(t, w)
 }
@@ -88,10 +89,10 @@ func TestFilesystemRenameFailure(t *testing.T) {
 	fs := temporaryFS(t)
 
 	// Create directory where blob should be
-	fName := fs.getFileName(emptyBlobNameStatic, fsSuffixCurrent)
+	fName := fs.getFileName(testutils.EmptyBlobNameStatic, fsSuffixCurrent)
 	os.MkdirAll(fName, 0777)
 
-	w, err := fs.openWriteStream(context.Background(), emptyBlobNameStatic)
+	w, err := fs.openWriteStream(context.Background(), testutils.EmptyBlobNameStatic)
 	require.NoError(t, err)
 
 	err = w.Close()
@@ -102,18 +103,18 @@ func TestFilesystemDeleteFailure(t *testing.T) {
 	fs := temporaryFS(t)
 
 	// Create directory where blob should be with some file inside
-	fName := fs.getFileName(emptyBlobNameStatic, fsSuffixCurrent)
+	fName := fs.getFileName(testutils.EmptyBlobNameStatic, fsSuffixCurrent)
 	os.MkdirAll(fName, 0777)
 	touchFile(t, fName+"/keep.me")
 
-	err := fs.delete(context.Background(), emptyBlobNameStatic)
+	err := fs.delete(context.Background(), testutils.EmptyBlobNameStatic)
 	require.IsType(t, &os.PathError{}, err)
 }
 
 func TestFilesystemDeleteNotFound(t *testing.T) {
 	fs := temporaryFS(t)
 
-	err := fs.delete(context.Background(), emptyBlobNameStatic)
+	err := fs.delete(context.Background(), testutils.EmptyBlobNameStatic)
 	require.ErrorIs(t, err, ErrNotFound)
 }
 
@@ -121,12 +122,12 @@ func TestFilesystemExistsFailure(t *testing.T) {
 	fs := temporaryFS(t)
 
 	// Create blob's directory as unmodifiable
-	fName := fs.getFileName(emptyBlobNameStatic, fsSuffixCurrent)
+	fName := fs.getFileName(testutils.EmptyBlobNameStatic, fsSuffixCurrent)
 	dirPath := filepath.Dir(fName)
 	err := os.MkdirAll(dirPath, 0777)
 	require.NoError(t, err)
 	defer protect(t, dirPath)()
 
-	_, err = fs.exists(context.Background(), emptyBlobNameStatic)
+	_, err = fs.exists(context.Background(), testutils.EmptyBlobNameStatic)
 	require.IsType(t, &os.PathError{}, err)
 }

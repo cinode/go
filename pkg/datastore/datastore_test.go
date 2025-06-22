@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import (
 
 	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
+	"github.com/cinode/go/pkg/datastore/testutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -82,7 +83,7 @@ func TestDatastoreWriteFailure(t *testing.T) {
 			},
 		}}
 
-		err := ds.Update(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
+		err := ds.Update(context.Background(), testutils.EmptyBlobNameStatic, bytes.NewBuffer(nil))
 		require.ErrorIs(t, err, errRet)
 	})
 
@@ -116,7 +117,7 @@ func TestDatastoreWriteFailure(t *testing.T) {
 			},
 		}}
 
-		err := ds.Update(context.Background(), emptyBlobNameStatic, bytes.NewBuffer(nil))
+		err := ds.Update(context.Background(), testutils.EmptyBlobNameStatic, bytes.NewBuffer(nil))
 		require.ErrorIs(t, err, errRet)
 
 		// Failed Close call will be followed by a Cancel call
@@ -128,9 +129,9 @@ func TestDatastoreWriteFailure(t *testing.T) {
 func TestDatastoreDetectCorruptedRead(t *testing.T) {
 	ds := InMemory()
 	mem := ds.(*datastore).s.(*memory)
-	mem.bmap[emptyBlobNameStatic.String()] = []byte("I should not be here")
+	mem.bmap[testutils.EmptyBlobNameStatic.String()] = []byte("I should not be here")
 
-	r, err := ds.Open(context.Background(), emptyBlobNameStatic)
+	r, err := ds.Open(context.Background(), testutils.EmptyBlobNameStatic)
 	require.NoError(t, err)
 
 	_, err = io.ReadAll(r)
