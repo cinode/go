@@ -17,13 +17,13 @@ limitations under the License.
 package multisource
 
 import (
+	"log/slog"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
 )
 
 func TestOptions(t *testing.T) {

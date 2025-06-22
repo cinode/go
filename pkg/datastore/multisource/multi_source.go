@@ -19,10 +19,9 @@ package multisource
 import (
 	"context"
 	"io"
+	"log/slog"
 	"sync"
 	"time"
-
-	"golang.org/x/exp/slog"
 
 	"github.com/cinode/go/pkg/blobtypes"
 	"github.com/cinode/go/pkg/common"
@@ -178,8 +177,9 @@ func (m *multiSourceDatastore) fetch(ctx context.Context, name *common.BlobName)
 				err = m.main.Update(ctx, name, r)
 				r.Close()
 				if err != nil {
-					m.log.Error("Failed to store blob in local datastore", err,
-						"blob", name.String(),
+					m.log.Error("Failed to store blob in local datastore",
+						slog.Any("err", err),
+						slog.String("blob", name.String()),
 					)
 				}
 				wasFound = true

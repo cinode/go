@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -29,7 +30,6 @@ import (
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore/testutils"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
 )
 
 func testServer(t *testing.T) string {

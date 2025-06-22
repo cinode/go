@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"runtime"
@@ -31,7 +32,6 @@ import (
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/datastore/multisource"
 	"github.com/cinode/go/pkg/utilities/httpserver"
-	"golang.org/x/exp/slog"
 )
 
 func Execute(ctx context.Context) error {

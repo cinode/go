@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,11 +20,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 
 	"github.com/cinode/go/pkg/common"
-	"golang.org/x/exp/slog"
 )
 
 var (
@@ -122,7 +122,8 @@ func (i *webInterface) checkErr(err error, w http.ResponseWriter, r *http.Reques
 	}
 
 	i.log.Error(
-		"Internal error happened while processing the request", err,
+		"Internal error happened while processing the request",
+		slog.Any("err", err),
 		slog.Group("req",
 			slog.String("remoteAddr", r.RemoteAddr),
 			slog.String("method", r.Method),

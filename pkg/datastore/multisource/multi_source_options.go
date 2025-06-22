@@ -17,10 +17,10 @@ limitations under the License.
 package multisource
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/cinode/go/pkg/datastore"
-	"golang.org/x/exp/slog"
 )
 
 type Option func(*multiSourceDatastore)

@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"log/slog"
 	"path"
 
 	_ "embed"
@@ -30,7 +31,6 @@ import (
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/cinodefs"
 	"github.com/cinode/go/pkg/utilities/golang"
-	"golang.org/x/exp/slog"
 )
 
 const (
@@ -107,7 +107,7 @@ func (d *dirCompiler) compilePath(
 ) (*dirEntry, error) {
 	st, err := fs.Stat(d.fsys, srcPath)
 	if err != nil {
-		d.log.ErrorCtx(ctx, "failed to stat path", "path", srcPath, "err", err)
+		d.log.ErrorContext(ctx, "failed to stat path", "path", srcPath, "err", err)
 		return nil, fmt.Errorf("couldn't check path: %w", err)
 	}
 
