@@ -42,6 +42,7 @@ jobs:
               | grep -v "${PREFIX}/cmd" \
               | grep -v "${PREFIX}/testvectors" \
               | grep -v "${PREFIX}/pkg/cinodefs/protobuf" \
+              | grep -v "${PREFIX}/pkg/datastore/testutils/generate" \
             )
         continue-on-error: ${{ matrix.env['continue-on-error'] }}
       - uses: shogo82148/actions-goveralls@v1
