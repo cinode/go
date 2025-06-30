@@ -271,6 +271,16 @@ func (s *CompileAndReadTestSuite) TestCompileAndRead() {
 	})
 }
 
+func (s *CompileAndReadTestSuite) TestBackwardsCompatibilityForRawFileSystem() {
+	dir := s.T().TempDir()
+
+	_, ep := s.uploadDatasetToDatastore(s.initialTestDataset, dir, "--raw-filesystem")
+
+	dsRaw, err := datastore.InRawFileSystem(dir)
+	s.Require().NoError(err)
+	s.validateDatasetInDatastore(s.initialTestDataset, ep, dsRaw)
+}
+
 func testExecCommand(cmd *cobra.Command, args []string) (output, stderr []byte, err error) {
 	outputBuff := bytes.NewBuffer(nil)
 	stderrBuff := bytes.NewBuffer(nil)
