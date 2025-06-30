@@ -142,7 +142,7 @@ func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 	output := testOutputParser{}
 
 	err = json.Unmarshal(buf.Bytes(), &output)
-	s.Require().NoError(err)
+	s.Require().NoErrorf(err, "output: %s", buf.String())
 	s.Require().Equal("OK", output.Result)
 
 	if output.WI != "" {
@@ -160,6 +160,14 @@ func (s *CompileAndReadTestSuite) validateDataset(
 	ds, err := datastore.InFileSystem(datastoreDir)
 	s.Require().NoError(err)
 
+	s.validateDatasetInDatastore(dataset, ep, ds)
+}
+
+func (s *CompileAndReadTestSuite) validateDatasetInDatastore(
+	dataset []datasetFile,
+	ep *cinodefs.Entrypoint,
+	ds datastore.DS,
+) {
 	fs, err := cinodefs.New(
 		context.Background(),
 		blenc.FromDatastore(ds),
@@ -212,43 +220,43 @@ func (s *CompileAndReadTestSuite) validateDataset(
 }
 
 func (s *CompileAndReadTestSuite) TestCompileAndRead() {
-	datastore := s.T().TempDir()
+	datastoreAddress := s.T().TempDir()
 
 	// Create and test initial dataset
-	wi, ep := s.uploadDatasetToDatastore(s.initialTestDataset, datastore)
-	s.validateDataset(s.initialTestDataset, ep, datastore)
+	wi, ep := s.uploadDatasetToDatastore(s.initialTestDataset, datastoreAddress)
+	s.validateDataset(s.initialTestDataset, ep, datastoreAddress)
 
 	s.Run("Re-upload same dataset", func() {
-		s.uploadDatasetToDatastore(s.initialTestDataset, datastore,
+		s.uploadDatasetToDatastore(s.initialTestDataset, datastoreAddress,
 			"--writer-info", wi.String(),
 		)
-		s.validateDataset(s.initialTestDataset, ep, datastore)
+		s.validateDataset(s.initialTestDataset, ep, datastoreAddress)
 	})
 
 	s.Run("Upload modified dataset but for different root link", func() {
-		_, updatedEP := s.uploadDatasetToDatastore(s.updatedTestDataset, datastore)
-		s.validateDataset(s.updatedTestDataset, updatedEP, datastore)
+		_, updatedEP := s.uploadDatasetToDatastore(s.updatedTestDataset, datastoreAddress)
+		s.validateDataset(s.updatedTestDataset, updatedEP, datastoreAddress)
 		s.Require().NotEqual(ep, updatedEP)
 
 		// After restoring the original entrypoint dataset should be back to the initial one
-		s.validateDataset(s.initialTestDataset, ep, datastore)
+		s.validateDataset(s.initialTestDataset, ep, datastoreAddress)
 	})
 
 	s.Run("Update the original entrypoint with the new dataset", func() {
-		_, epOrigWriterInfo := s.uploadDatasetToDatastore(s.updatedTestDataset, datastore,
+		_, epOrigWriterInfo := s.uploadDatasetToDatastore(s.updatedTestDataset, datastoreAddress,
 			"--writer-info", wi.String(),
 		)
-		s.validateDataset(s.updatedTestDataset, epOrigWriterInfo, datastore)
+		s.validateDataset(s.updatedTestDataset, epOrigWriterInfo, datastoreAddress)
 
 		// Entrypoint must stay the same
 		s.Require().EqualValues(ep, epOrigWriterInfo)
 	})
 
 	s.Run("Upload data with static entrypoint", func() {
-		wiStatic, epStatic := s.uploadDatasetToDatastore(s.initialTestDataset, datastore,
+		wiStatic, epStatic := s.uploadDatasetToDatastore(s.initialTestDataset, datastoreAddress,
 			"--static",
 		)
-		s.validateDataset(s.initialTestDataset, epStatic, datastore)
+		s.validateDataset(s.initialTestDataset, epStatic, datastoreAddress)
 		s.Require().Nil(wiStatic)
 	})
 
@@ -256,12 +264,11 @@ func (s *CompileAndReadTestSuite) TestCompileAndRead() {
 		wiFile := filepath.Join(s.T().TempDir(), "epfile")
 		s.Require().NoError(os.WriteFile(wiFile, []byte(wi.String()), 0777))
 
-		_, ep := s.uploadDatasetToDatastore(s.initialTestDataset, datastore,
+		_, ep := s.uploadDatasetToDatastore(s.initialTestDataset, datastoreAddress,
 			"--writer-info-file", wiFile,
 		)
-		s.validateDataset(s.initialTestDataset, ep, datastore)
+		s.validateDataset(s.initialTestDataset, ep, datastoreAddress)
 	})
-
 }
 
 func testExecCommand(cmd *cobra.Command, args []string) (output, stderr []byte, err error) {
