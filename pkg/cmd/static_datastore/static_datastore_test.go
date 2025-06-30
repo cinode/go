@@ -269,6 +269,36 @@ func (s *CompileAndReadTestSuite) TestCompileAndRead() {
 		)
 		s.validateDataset(s.initialTestDataset, ep, datastoreAddress)
 	})
+
+	s.Run("Generate index file", func() {
+		dir := s.T().TempDir()
+		_, ep := s.uploadDatasetToDatastore(s.initialTestDataset, dir,
+			"--generate-index-files",
+			"--index-file", "homefile.txt",
+		)
+		s.validateDataset(s.initialTestDataset, ep, dir)
+
+		ds, err := datastore.InFileSystem(dir)
+		s.Require().NoError(err)
+
+		fs, err := cinodefs.New(
+			context.Background(),
+			blenc.FromDatastore(ds),
+			cinodefs.RootEntrypoint(ep),
+		)
+		s.Require().NoError(err)
+
+		rc, err := fs.OpenEntryData(context.Background(), []string{"subpath", "homefile.txt"})
+		s.Require().NoError(err)
+		defer rc.Close()
+
+		data, err := io.ReadAll(rc)
+		s.Require().NoError(err)
+
+		dataStr := string(data)
+		s.Require().Contains(dataStr, "file.txt")
+		s.Require().Contains(dataStr, "file2.txt")
+	})
 }
 
 func (s *CompileAndReadTestSuite) TestBackwardsCompatibilityForRawFileSystem() {
