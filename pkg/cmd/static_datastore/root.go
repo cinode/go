@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,13 +17,11 @@ limitations under the License.
 package static_datastore
 
 import (
-	"context"
-
 	"github.com/spf13/cobra"
 )
 
-// rootCmd represents the base command when called without any subcommands
-func rootCmd() *cobra.Command {
+// RootCmd represents the base command when called without any subcommands
+func RootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "static_datastore",
 		Short: "Sample application to operate on static datastore",
@@ -45,10 +43,4 @@ node is stored in a plaintext in a file called 'entrypoint.txt'.
 	cmd.AddCommand(compileCmd())
 
 	return cmd
-}
-
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute(ctx context.Context) error {
-	return rootCmd().ExecuteContext(ctx)
 }

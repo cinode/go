@@ -132,7 +132,7 @@ func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 	}
 	args = append(args, extraArgs...)
 
-	cmd := rootCmd()
+	cmd := RootCmd()
 	cmd.SetArgs(args)
 	cmd.SetOut(buf)
 
@@ -292,7 +292,7 @@ func testExecCommand(cmd *cobra.Command, args []string) (output, stderr []byte, 
 }
 
 func testExec(args []string) (output, stderr []byte, err error) {
-	return testExecCommand(rootCmd(), args)
+	return testExecCommand(RootCmd(), args)
 }
 
 func TestHelpCalls(t *testing.T) {
@@ -304,7 +304,7 @@ func TestHelpCalls(t *testing.T) {
 		{"not enough compile args", []string{"compile"}},
 	} {
 		t.Run(d.name, func(t *testing.T) {
-			cmd := rootCmd()
+			cmd := RootCmd()
 			helpCalled := false
 			cmd.SetHelpFunc(func(c *cobra.Command, s []string) { helpCalled = true })
 			cmd.SetArgs(d.args)
