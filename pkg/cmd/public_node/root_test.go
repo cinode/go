@@ -169,7 +169,7 @@ func TestBuildHttpHandler(t *testing.T) {
 
 func TestExecuteWithConfig(t *testing.T) {
 	t.Run("successful run", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		go func() {
 			time.Sleep(10 * time.Millisecond)
 			cancel()
@@ -182,7 +182,7 @@ func TestExecuteWithConfig(t *testing.T) {
 	})
 
 	t.Run("invalid configuration", func(t *testing.T) {
-		err := executeWithConfig(context.Background(), &config{})
+		err := executeWithConfig(t.Context(), &config{})
 		require.ErrorContains(t, err, "datastore")
 	})
 }
@@ -191,7 +191,7 @@ func TestExecute(t *testing.T) {
 	t.Run("valid configuration", func(t *testing.T) {
 		t.Setenv("CINODE_LISTEN_PORT", "0")
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		go func() {
 			time.Sleep(10 * time.Millisecond)
 			cancel()
@@ -202,13 +202,13 @@ func TestExecute(t *testing.T) {
 
 	t.Run("invalid configuration", func(t *testing.T) {
 		t.Setenv("CINODE_MAIN_DATASTORE", "memory://invalid")
-		err := Execute(context.Background())
+		err := Execute(t.Context())
 		require.ErrorContains(t, err, "datastore")
 	})
 
 	t.Run("invalid configuration - port", func(t *testing.T) {
 		t.Setenv("CINODE_LISTEN_PORT", "-1")
-		err := Execute(context.Background())
+		err := Execute(t.Context())
 		require.ErrorContains(t, err, "listen port")
 	})
 }

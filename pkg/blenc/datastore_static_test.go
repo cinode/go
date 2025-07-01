@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -64,14 +64,18 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 	dsw := dsWrapper{DS: datastore.InMemory()}
 	be := FromDatastore(&dsw)
 
-	bn, key, _, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader([]byte("Hello world!")))
+	bn, key, _, err := be.Create(
+		t.Context(),
+		blobtypes.Static,
+		bytes.NewReader([]byte("Hello world!")),
+	)
 	require.NoError(t, err)
 
 	t.Run("handle error while opening blob", func(t *testing.T) {
 		injectedErr := errors.New("test")
 		dsw.openFn = func(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) { return nil, injectedErr }
 
-		rc, err := be.Open(context.Background(), bn, key)
+		rc, err := be.Open(t.Context(), bn, key)
 		require.ErrorIs(t, err, injectedErr)
 		require.Nil(t, rc)
 
@@ -82,7 +86,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 		injectedErr := errors.New("test")
 		dsw.openFn = func(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) { return nil, injectedErr }
 
-		rc, err := be.Open(context.Background(), bn, key)
+		rc, err := be.Open(t.Context(), bn, key)
 		require.ErrorIs(t, err, injectedErr)
 		require.Nil(t, rc)
 
@@ -95,7 +99,11 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 			injectedErr := errors.New("test")
 			be.(*beDatastore).newSecureFifo = func() (securefifo.Writer, error) { return nil, injectedErr }
 
-			bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(nil))
+			bn, key, ai, err := be.Create(
+				t.Context(),
+				blobtypes.Static,
+				bytes.NewReader(nil),
+			)
 			require.ErrorIs(t, err, injectedErr)
 			require.Empty(t, bn)
 			require.Empty(t, key)
@@ -125,7 +133,11 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 				}, nil
 			}
 
-			bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(nil))
+			bn, key, ai, err := be.Create(
+				t.Context(),
+				blobtypes.Static,
+				bytes.NewReader(nil),
+			)
 			require.ErrorIs(t, err, injectedErr)
 			require.Empty(t, bn)
 			require.Empty(t, key)
@@ -163,7 +175,11 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 					}, nil
 				}
 
-				bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(nil))
+				bn, key, ai, err := be.Create(
+					t.Context(),
+					blobtypes.Static,
+					bytes.NewReader(nil),
+				)
 				require.ErrorIs(t, err, injectedErr)
 				require.Empty(t, bn)
 				require.Empty(t, key)
@@ -202,7 +218,11 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 					}, nil
 				}
 
-				bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader([]byte("Hello world")))
+				bn, key, ai, err := be.Create(
+					t.Context(),
+					blobtypes.Static,
+					bytes.NewReader([]byte("Hello world")),
+				)
 				require.ErrorIs(t, err, injectedErr)
 				require.Empty(t, bn)
 				require.Empty(t, key)
@@ -234,7 +254,11 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 			}, nil
 		}
 
-		bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, iotest.ErrReader(injectedErr))
+		bn, key, ai, err := be.Create(
+			t.Context(),
+			blobtypes.Static,
+			iotest.ErrReader(injectedErr),
+		)
 		require.ErrorIs(t, err, injectedErr)
 		require.Empty(t, bn)
 		require.Empty(t, key)
@@ -269,7 +293,11 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 
 		dsw.updateFn = func(ctx context.Context, name *common.BlobName, r io.Reader) error { return injectedErr }
 
-		bn, key, ai, err := be.Create(context.Background(), blobtypes.Static, bytes.NewReader(nil))
+		bn, key, ai, err := be.Create(
+			t.Context(),
+			blobtypes.Static,
+			bytes.NewReader(nil),
+		)
 		require.ErrorIs(t, err, injectedErr)
 		require.Empty(t, bn)
 		require.Empty(t, key)

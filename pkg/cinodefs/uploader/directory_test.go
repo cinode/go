@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,12 +44,14 @@ func TestDirectoryTestSuite(t *testing.T) {
 }
 
 func (s *DirectoryTestSuite) SetupTest() {
+	t := s.T()
+
 	cfs, err := cinodefs.New(
-		context.Background(),
+		t.Context(),
 		blenc.FromDatastore(datastore.InMemory()),
 		cinodefs.NewRootStaticDirectory(),
 	)
-	require.NoError(s.T(), err)
+	require.NoError(t, err)
 	s.cfs = cfs
 }
 
@@ -90,7 +92,7 @@ func (w *wrapFS) ReadDir(name string) ([]fs.DirEntry, error) {
 
 func (s *DirectoryTestSuite) uploadFS(t *testing.T, fs fs.FS, opts ...uploader.Option) {
 	err := uploader.UploadStaticDirectory(
-		context.Background(),
+		t.Context(),
 		fs,
 		s.cfs,
 		opts...,
@@ -99,7 +101,7 @@ func (s *DirectoryTestSuite) uploadFS(t *testing.T, fs fs.FS, opts ...uploader.O
 }
 
 func (s *DirectoryTestSuite) readContent(t *testing.T, path ...string) (string, error) {
-	rc, err := s.cfs.OpenEntryData(context.Background(), path)
+	rc, err := s.cfs.OpenEntryData(t.Context(), path)
 	if err != nil {
 		return "", err
 	}
@@ -109,44 +111,54 @@ func (s *DirectoryTestSuite) readContent(t *testing.T, path ...string) (string, 
 }
 
 func (s *DirectoryTestSuite) TestSingleFileUploadDefaultOptions() {
-	s.uploadFS(s.T(), s.singleFileFs())
+	t := s.T()
 
-	readBack, err := s.readContent(s.T(), "file.txt")
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), "hello", readBack)
+	s.uploadFS(t, s.singleFileFs())
+
+	readBack, err := s.readContent(t, "file.txt")
+	require.NoError(t, err)
+	require.Equal(t, "hello", readBack)
 }
 
 func (s *DirectoryTestSuite) TestSingleFileUploadBasePath() {
-	s.uploadFS(s.T(), s.singleFileFs(), uploader.BasePath("sub", "dir"))
+	t := s.T()
 
-	readBack, err := s.readContent(s.T(), "sub", "dir", "file.txt")
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), "hello", readBack)
+	s.uploadFS(t, s.singleFileFs(), uploader.BasePath("sub", "dir"))
 
-	_, err = s.readContent(s.T(), "file.txt")
-	require.ErrorIs(s.T(), err, cinodefs.ErrEntryNotFound)
+	readBack, err := s.readContent(t, "sub", "dir", "file.txt")
+	require.NoError(t, err)
+	require.Equal(t, "hello", readBack)
+
+	_, err = s.readContent(t, "file.txt")
+	require.ErrorIs(t, err, cinodefs.ErrEntryNotFound)
 }
 
 func (s *DirectoryTestSuite) TestSingleFileUploadWithIndexFile() {
-	s.uploadFS(s.T(), s.singleFileFs(), uploader.CreateIndexFile("index.html"))
+	t := s.T()
 
-	readBack, err := s.readContent(s.T(), "index.html")
-	require.NoError(s.T(), err)
-	require.True(s.T(), strings.HasPrefix(readBack, "<!DOCTYPE"))
-	require.Contains(s.T(), readBack, "file.txt")
+	s.uploadFS(t, s.singleFileFs(), uploader.CreateIndexFile("index.html"))
+
+	readBack, err := s.readContent(t, "index.html")
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(readBack, "<!DOCTYPE"))
+	require.Contains(t, readBack, "file.txt")
 }
 
 func (s *DirectoryTestSuite) TestSingleFileUploadWithIndexFileDontOverwrite() {
+	t := s.T()
+
 	fs := s.singleFileFs()
 	fs["index.html"] = &fstest.MapFile{Data: []byte("not-html")}
-	s.uploadFS(s.T(), fs, uploader.CreateIndexFile("index.html"))
+	s.uploadFS(t, fs, uploader.CreateIndexFile("index.html"))
 
-	readBack, err := s.readContent(s.T(), "index.html")
-	require.NoError(s.T(), err)
-	require.Equal(s.T(), "not-html", readBack)
+	readBack, err := s.readContent(t, "index.html")
+	require.NoError(t, err)
+	require.Equal(t, "not-html", readBack)
 }
 
 func (s *DirectoryTestSuite) TestFailLinkUpload() {
+	t := s.T()
+
 	testFS := &fstest.MapFS{
 		"file.txt": &fstest.MapFile{
 			Data: []byte("hello"),
@@ -155,14 +167,16 @@ func (s *DirectoryTestSuite) TestFailLinkUpload() {
 	}
 
 	err := uploader.UploadStaticDirectory(
-		context.Background(),
+		t.Context(),
 		testFS,
 		s.cfs,
 	)
-	require.ErrorIs(s.T(), err, uploader.ErrNotADirectoryOrAFile)
+	require.ErrorIs(t, err, uploader.ErrNotADirectoryOrAFile)
 }
 
 func (s *DirectoryTestSuite) TestFailUploadFileOpen() {
+	t := s.T()
+
 	injectErr := errors.New("injected open error")
 	testFS := &wrapFS{FS: s.singleFileFs()}
 	testFS.openFunc = func(path string) (fs.File, error) {
@@ -173,11 +187,11 @@ func (s *DirectoryTestSuite) TestFailUploadFileOpen() {
 	}
 
 	err := uploader.UploadStaticDirectory(
-		context.Background(),
+		t.Context(),
 		testFS,
 		s.cfs,
 	)
-	require.ErrorIs(s.T(), err, injectErr)
+	require.ErrorIs(t, err, injectErr)
 }
 
 type wrappedFile struct {
@@ -193,6 +207,8 @@ func (w *wrappedFile) Read(b []byte) (int, error) {
 }
 
 func (s *DirectoryTestSuite) TestFailUploadFileRead() {
+	t := s.T()
+
 	injectErr := errors.New("injected read error")
 	testFS := &wrapFS{FS: s.singleFileFs()}
 	testFS.openFunc = func(path string) (fs.File, error) {
@@ -210,37 +226,41 @@ func (s *DirectoryTestSuite) TestFailUploadFileRead() {
 	}
 
 	err := uploader.UploadStaticDirectory(
-		context.Background(),
+		t.Context(),
 		testFS,
 		s.cfs,
 	)
-	require.ErrorIs(s.T(), err, injectErr)
+	require.ErrorIs(t, err, injectErr)
 }
 
 func (s *DirectoryTestSuite) TestFailUploadStat() {
+	t := s.T()
+
 	injectErr := errors.New("injected stat error")
 	testFS := &wrapFS{FS: s.singleFileFs()}
 	testFS.statFunc = func(name string) (fs.FileInfo, error) { return nil, injectErr }
 
 	err := uploader.UploadStaticDirectory(
-		context.Background(),
+		t.Context(),
 		testFS,
 		s.cfs,
 	)
-	require.ErrorIs(s.T(), err, injectErr)
+	require.ErrorIs(t, err, injectErr)
 }
 
 func (s *DirectoryTestSuite) TestFailUploadReadDir() {
+	t := s.T()
+
 	injectErr := errors.New("injected readdir error")
 	testFS := &wrapFS{FS: s.singleFileFs()}
 	testFS.readDirFunc = func(name string) ([]fs.DirEntry, error) { return nil, injectErr }
 
 	err := uploader.UploadStaticDirectory(
-		context.Background(),
+		t.Context(),
 		testFS,
 		s.cfs,
 	)
-	require.ErrorIs(s.T(), err, injectErr)
+	require.ErrorIs(t, err, injectErr)
 }
 
 type wrappedCinodeFS struct {
@@ -261,6 +281,8 @@ func (w *wrappedCinodeFS) SetEntryFile(
 }
 
 func (s *DirectoryTestSuite) TestFailStoreFile() {
+	t := s.T()
+
 	injectErr := errors.New("injected cfs store error")
 	origFs := s.cfs
 
@@ -276,11 +298,11 @@ func (s *DirectoryTestSuite) TestFailStoreFile() {
 		}
 
 		err := uploader.UploadStaticDirectory(
-			context.Background(),
+			t.Context(),
 			s.singleFileFs(),
 			s.cfs,
 			uploader.CreateIndexFile("index.html"),
 		)
-		require.ErrorIs(s.T(), err, injectErr)
+		require.ErrorIs(t, err, injectErr)
 	}
 }

@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -86,6 +86,11 @@ func compileCmd() *cobra.Command {
 			}
 
 			if useRawFilesystem {
+				// Note: workaround for https://github.com/spf13/cobra/issues/1708
+				fmt.Fprintln(
+					cmd.ErrOrStderr(),
+					"Flag --raw-filesystem has been deprecated, use file-raw:// destination prefix instead",
+				)
 				// For backwards compatibility
 				o.dstLocation = "file-raw://" + o.dstLocation
 			}
@@ -127,10 +132,7 @@ func compileCmd() *cobra.Command {
 		"if set to true, use raw filesystem instead of the optimized one, "+
 			"can be used to create dataset for a standard http server",
 	)
-	cmd.Flags().MarkDeprecated(
-		"raw-filesystem",
-		"use file-raw:// destination prefix instead",
-	)
+	cmd.Flags().MarkHidden("raw-filesystem")
 	cmd.Flags().StringVarP(
 		&rootWriterInfoStr, "writer-info", "w", "",
 		"writer info for the root dynamic link, if neither writer info nor writer info file is specified, "+

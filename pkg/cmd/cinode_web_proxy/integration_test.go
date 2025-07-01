@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -65,20 +65,20 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	cfs, err := cinodefs.New(
-		context.Background(),
+		t.Context(),
 		blenc.FromDatastore(ds),
 		cinodefs.NewRootStaticDirectory(),
 	)
 	require.NoError(t, err)
 
 	err = uploader.UploadStaticDirectory(
-		context.Background(),
+		t.Context(),
 		testFS,
 		cfs,
 	)
 	require.NoError(t, err)
 
-	err = cfs.Flush(context.Background())
+	err = cfs.Flush(t.Context())
 	require.NoError(t, err)
 
 	ep, err := cfs.RootEntrypoint()
@@ -87,7 +87,7 @@ func TestIntegration(t *testing.T) {
 	t.Setenv("CINODE_ENTRYPOINT", ep.String())
 
 	runAndValidateCinodeProxy := func() {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 
 		// Run the server in the background
 		wg := sync.WaitGroup{}

@@ -40,16 +40,16 @@ func TestWebConnectorInvalidUrl(t *testing.T) {
 	c, err := FromWeb("httpz://bad.url")
 	require.NoError(t, err)
 
-	_, err = c.Open(context.Background(), testutils.EmptyBlobNameStatic)
+	_, err = c.Open(t.Context(), testutils.EmptyBlobNameStatic)
 	require.IsType(t, &url.Error{}, err)
 
-	_, err = c.Exists(context.Background(), testutils.EmptyBlobNameStatic)
+	_, err = c.Exists(t.Context(), testutils.EmptyBlobNameStatic)
 	require.IsType(t, &url.Error{}, err)
 
-	err = c.Delete(context.Background(), testutils.EmptyBlobNameStatic)
+	err = c.Delete(t.Context(), testutils.EmptyBlobNameStatic)
 	require.IsType(t, &url.Error{}, err)
 
-	err = c.Update(context.Background(), testutils.EmptyBlobNameStatic, bytes.NewBuffer(nil))
+	err = c.Update(t.Context(), testutils.EmptyBlobNameStatic, bytes.NewBuffer(nil))
 	require.IsType(t, &url.Error{}, err)
 }
 
@@ -88,16 +88,16 @@ func TestWebConnectorServerSideError(t *testing.T) {
 
 	for _, name := range testutils.EmptyBlobNamesOfAllTypes {
 		t.Run(fmt.Sprint(name.Type()), func(t *testing.T) {
-			_, err = c.Open(context.Background(), name)
+			_, err = c.Open(t.Context(), name)
 			require.ErrorIs(t, err, ErrWebConnectionError)
 
-			_, err = c.Exists(context.Background(), name)
+			_, err = c.Exists(t.Context(), name)
 			require.ErrorIs(t, err, ErrWebConnectionError)
 
-			err = c.Delete(context.Background(), name)
+			err = c.Delete(t.Context(), name)
 			require.ErrorIs(t, err, ErrWebConnectionError)
 
-			err = c.Update(context.Background(), name, bytes.NewBuffer(nil))
+			err = c.Update(t.Context(), name, bytes.NewBuffer(nil))
 			require.ErrorIs(t, err, ErrWebConnectionError)
 		})
 	}
@@ -116,7 +116,7 @@ func TestWebConnectorDetectInvalidBlobRead(t *testing.T) {
 
 	for _, name := range testutils.EmptyBlobNamesOfAllTypes {
 		t.Run(fmt.Sprint(name.Type()), func(t *testing.T) {
-			rc, err := ds2.Open(context.Background(), name)
+			rc, err := ds2.Open(t.Context(), name)
 			if err != nil {
 				// Either Open or Read could return an error
 				require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
@@ -148,7 +148,7 @@ func TestWebConnectorInvalidErrorCode(t *testing.T) {
 
 	for _, name := range testutils.EmptyBlobNamesOfAllTypes {
 		t.Run(fmt.Sprint(name.Type()), func(t *testing.T) {
-			_, err = ds2.Open(context.Background(), testutils.EmptyBlobNameStatic)
+			_, err = ds2.Open(t.Context(), testutils.EmptyBlobNameStatic)
 			require.ErrorIs(t, err, ErrWebConnectionError)
 		})
 	}

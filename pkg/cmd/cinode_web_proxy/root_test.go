@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -134,7 +134,7 @@ func TestWebProxyHandlerInvalidEntrypoint(t *testing.T) {
 	key := cipherfactory.NewKeyGenerator(blobtypes.Static).Generate()
 
 	handler := setupCinodeProxy(
-		context.Background(),
+		t.Context(),
 		datastore.InMemory(),
 		[]datastore.DS{},
 		cinodefs.EntrypointFromBlobNameAndKey(n, key),
@@ -179,17 +179,17 @@ func TestWebProxyHandlerSimplePage(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		fs, err := cinodefs.New(context.Background(), be, cinodefs.NewRootDynamicLink())
+		fs, err := cinodefs.New(t.Context(), be, cinodefs.NewRootDynamicLink())
 		require.NoError(t, err)
 
 		err = uploader.UploadStaticDirectory(
-			context.Background(),
+			t.Context(),
 			os.DirFS(dir),
 			fs,
 		)
 		require.NoError(t, err)
 
-		err = fs.Flush(context.Background())
+		err = fs.Flush(t.Context())
 		require.NoError(t, err)
 
 		ep, err := fs.RootEntrypoint()
@@ -197,7 +197,7 @@ func TestWebProxyHandlerSimplePage(t *testing.T) {
 		return ep
 	}()
 
-	handler := setupCinodeProxy(context.Background(), ds, []datastore.DS{}, ep)
+	handler := setupCinodeProxy(t.Context(), ds, []datastore.DS{}, ep)
 
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -235,14 +235,14 @@ func TestWebProxyHandlerSimplePage(t *testing.T) {
 
 func TestExecuteWithConfig(t *testing.T) {
 	t.Run("invalid main datastore", func(t *testing.T) {
-		err := executeWithConfig(context.Background(), &config{
+		err := executeWithConfig(t.Context(), &config{
 			mainDSLocation: "memory://invalid",
 		})
 		require.ErrorContains(t, err, "main datastore")
 	})
 
 	t.Run("invalid additional datastore", func(t *testing.T) {
-		err := executeWithConfig(context.Background(), &config{
+		err := executeWithConfig(t.Context(), &config{
 			mainDSLocation:        "memory://",
 			additionalDSLocations: []string{"memory://", "memory://invalid"},
 		})
@@ -250,7 +250,7 @@ func TestExecuteWithConfig(t *testing.T) {
 	})
 
 	t.Run("invalid entrypoint", func(t *testing.T) {
-		err := executeWithConfig(context.Background(), &config{
+		err := executeWithConfig(t.Context(), &config{
 			mainDSLocation: "memory://",
 			entrypoint:     "!@#$",
 		})
@@ -258,7 +258,7 @@ func TestExecuteWithConfig(t *testing.T) {
 	})
 
 	t.Run("invalid entrypoint bytes", func(t *testing.T) {
-		err := executeWithConfig(context.Background(), &config{
+		err := executeWithConfig(t.Context(), &config{
 			mainDSLocation: "memory://",
 			entrypoint:     base58.Encode([]byte("1234567890")),
 		})
@@ -268,7 +268,7 @@ func TestExecuteWithConfig(t *testing.T) {
 	t.Run("successful run", func(t *testing.T) {
 		ep := testblobs.DynamicLink.Entrypoint()
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		go func() {
 			time.Sleep(10 * time.Millisecond)
 			cancel()
@@ -290,7 +290,7 @@ func TestExecute(t *testing.T) {
 
 		t.Setenv("CINODE_ENTRYPOINT", ep.String())
 		t.Setenv("CINODE_LISTEN_PORT", "0")
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		go func() {
 			time.Sleep(10 * time.Millisecond)
 			cancel()
@@ -300,7 +300,7 @@ func TestExecute(t *testing.T) {
 	})
 
 	t.Run("invalid configuration", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		go func() {
 			time.Sleep(10 * time.Millisecond)
 			cancel()

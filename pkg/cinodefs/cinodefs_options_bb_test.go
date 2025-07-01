@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ limitations under the License.
 package cinodefs_test
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"testing/iotest"
@@ -30,7 +29,7 @@ import (
 
 func TestInvalidCinodeFSOptions(t *testing.T) {
 	t.Run("no blenc", func(t *testing.T) {
-		cfs, err := cinodefs.New(context.Background(), nil)
+		cfs, err := cinodefs.New(t.Context(), nil)
 		require.ErrorIs(t, err, cinodefs.ErrInvalidBE)
 		require.Nil(t, cfs)
 	})
@@ -38,13 +37,13 @@ func TestInvalidCinodeFSOptions(t *testing.T) {
 	be := blenc.FromDatastore(datastore.InMemory())
 
 	t.Run("no root info", func(t *testing.T) {
-		cfs, err := cinodefs.New(context.Background(), be)
+		cfs, err := cinodefs.New(t.Context(), be)
 		require.ErrorIs(t, err, cinodefs.ErrMissingRootInfo)
 		require.Nil(t, cfs)
 	})
 
 	t.Run("negative max links redirects", func(t *testing.T) {
-		cfs, err := cinodefs.New(context.Background(), be,
+		cfs, err := cinodefs.New(t.Context(), be,
 			cinodefs.NewRootStaticDirectory(),
 			cinodefs.MaxLinkRedirects(-1),
 		)
@@ -53,7 +52,7 @@ func TestInvalidCinodeFSOptions(t *testing.T) {
 	})
 
 	t.Run("invalid entrypoint string", func(t *testing.T) {
-		cfs, err := cinodefs.New(context.Background(), be,
+		cfs, err := cinodefs.New(t.Context(), be,
 			cinodefs.RootEntrypointString(""),
 		)
 		require.ErrorIs(t, err, cinodefs.ErrInvalidEntrypointData)
@@ -61,7 +60,7 @@ func TestInvalidCinodeFSOptions(t *testing.T) {
 	})
 
 	t.Run("invalid writer info string", func(t *testing.T) {
-		cfs, err := cinodefs.New(context.Background(), be,
+		cfs, err := cinodefs.New(t.Context(), be,
 			cinodefs.RootWriterInfoString(""),
 		)
 		require.ErrorIs(t, err, cinodefs.ErrInvalidWriterInfoData)
@@ -69,7 +68,7 @@ func TestInvalidCinodeFSOptions(t *testing.T) {
 	})
 
 	t.Run("invalid nil writer info", func(t *testing.T) {
-		cfs, err := cinodefs.New(context.Background(), be,
+		cfs, err := cinodefs.New(t.Context(), be,
 			cinodefs.RootWriterInfo(nil),
 		)
 		require.ErrorIs(t, err, cinodefs.ErrInvalidWriterInfoData)
@@ -77,7 +76,7 @@ func TestInvalidCinodeFSOptions(t *testing.T) {
 	})
 
 	t.Run("invalid writer info", func(t *testing.T) {
-		cfs, err := cinodefs.New(context.Background(), be,
+		cfs, err := cinodefs.New(t.Context(), be,
 			cinodefs.RootWriterInfo(&cinodefs.WriterInfo{}),
 		)
 		require.ErrorIs(t, err, cinodefs.ErrInvalidWriterInfoData)
@@ -85,7 +84,7 @@ func TestInvalidCinodeFSOptions(t *testing.T) {
 	})
 
 	t.Run("invalid time func", func(t *testing.T) {
-		cfs, err := cinodefs.New(context.Background(), be,
+		cfs, err := cinodefs.New(t.Context(), be,
 			cinodefs.TimeFunc(nil),
 		)
 		require.ErrorIs(t, err, cinodefs.ErrInvalidNilTimeFunc)
@@ -93,7 +92,7 @@ func TestInvalidCinodeFSOptions(t *testing.T) {
 	})
 
 	t.Run("invalid nil random source", func(t *testing.T) {
-		cfs, err := cinodefs.New(context.Background(), be,
+		cfs, err := cinodefs.New(t.Context(), be,
 			cinodefs.RandSource(nil),
 		)
 		require.ErrorIs(t, err, cinodefs.ErrInvalidNilRandSource)
@@ -105,7 +104,7 @@ func TestInvalidCinodeFSOptions(t *testing.T) {
 		// is needed which only takes place when new random
 		// dynamic link is requested
 		injectedErr := errors.New("random source error")
-		cfs, err := cinodefs.New(context.Background(), be,
+		cfs, err := cinodefs.New(t.Context(), be,
 			cinodefs.RandSource(iotest.ErrReader(injectedErr)),
 			cinodefs.NewRootDynamicLink(),
 		)
