@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 	"testing/iotest"
 
@@ -63,14 +64,18 @@ func TestDynamicLinkErrors(t *testing.T) {
 	dsw := dsWrapper{DS: datastore.InMemory()}
 	be := FromDatastore(&dsw)
 
-	bn, key, _, err := be.Create(context.Background(), blobtypes.DynamicLink, bytes.NewReader([]byte("Hello world!")))
+	bn, key, _, err := be.Create(
+		t.Context(),
+		blobtypes.DynamicLink,
+		strings.NewReader("Hello world!"),
+	)
 	require.NoError(t, err)
 
 	t.Run("handle error while opening blob", func(t *testing.T) {
 		injectedErr := errors.New("test")
 		dsw.openFn = func(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) { return nil, injectedErr }
 
-		rc, err := be.Open(context.Background(), bn, key)
+		rc, err := be.Open(t.Context(), bn, key)
 		require.ErrorIs(t, err, injectedErr)
 		require.Nil(t, rc)
 	})
@@ -102,7 +107,7 @@ func TestDynamicLinkErrors(t *testing.T) {
 					}, nil
 				}
 
-				rc, err := be.Open(context.Background(), bn, key)
+				rc, err := be.Open(t.Context(), bn, key)
 				require.ErrorIs(t, err, injectedErr)
 				require.Nil(t, rc)
 				require.True(t, closed)
@@ -122,7 +127,11 @@ func TestDynamicLinkErrors(t *testing.T) {
 
 		be.(*beDatastore).rand = iotest.ErrReader(injectedErr)
 
-		bn, key, ai, err := be.Create(context.Background(), blobtypes.DynamicLink, bytes.NewReader(nil))
+		bn, key, ai, err := be.Create(
+			t.Context(),
+			blobtypes.DynamicLink,
+			bytes.NewReader(nil),
+		)
 		require.ErrorIs(t, err, injectedErr)
 		require.Empty(t, bn)
 		require.Empty(t, key)
@@ -137,7 +146,11 @@ func TestDynamicLinkErrors(t *testing.T) {
 
 		dsw.updateFn = func(ctx context.Context, name *common.BlobName, r io.Reader) error { return injectedErr }
 
-		bn, key, ai, err := be.Create(context.Background(), blobtypes.DynamicLink, bytes.NewReader(nil))
+		bn, key, ai, err := be.Create(
+			t.Context(),
+			blobtypes.DynamicLink,
+			bytes.NewReader(nil),
+		)
 		require.ErrorIs(t, err, injectedErr)
 		require.Empty(t, bn)
 		require.Empty(t, key)
@@ -149,12 +162,22 @@ func TestDynamicLinkErrors(t *testing.T) {
 	t.Run("fail to update new dynamic link blob", func(t *testing.T) {
 		injectedErr := errors.New("test")
 
-		bn, key, ai, err := be.Create(context.Background(), blobtypes.DynamicLink, bytes.NewReader(nil))
+		bn, key, ai, err := be.Create(
+			t.Context(),
+			blobtypes.DynamicLink,
+			bytes.NewReader(nil),
+		)
 		require.NoError(t, err)
 
 		dsw.updateFn = func(ctx context.Context, name *common.BlobName, r io.Reader) error { return injectedErr }
 
-		err = be.Update(context.Background(), bn, ai, key, bytes.NewReader(nil))
+		err = be.Update(
+			t.Context(),
+			bn,
+			ai,
+			key,
+			bytes.NewReader(nil),
+		)
 		require.ErrorIs(t, err, injectedErr)
 
 		dsw.updateFn = nil

@@ -17,7 +17,6 @@ limitations under the License.
 package datastore
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -63,7 +62,7 @@ func TestFilesystemSaveFailureDir(t *testing.T) {
 	fName = filepath.Dir(fName)
 	touchFile(t, fName)
 
-	w, err := fs.openWriteStream(context.Background(), testutils.EmptyBlobNameStatic)
+	w, err := fs.openWriteStream(t.Context(), testutils.EmptyBlobNameStatic)
 	require.IsType(t, &os.PathError{}, err)
 	require.Nil(t, w)
 }
@@ -79,7 +78,7 @@ func TestFilesystemSaveFailureTempFile(t *testing.T) {
 	require.NoError(t, err)
 	defer protect(t, dirPath)()
 
-	w, err := fs.openWriteStream(context.Background(), testutils.EmptyBlobNameStatic)
+	w, err := fs.openWriteStream(t.Context(), testutils.EmptyBlobNameStatic)
 	require.IsType(t, &os.PathError{}, err)
 	require.Nil(t, w)
 }
@@ -92,7 +91,7 @@ func TestFilesystemRenameFailure(t *testing.T) {
 	fName := fs.getFileName(testutils.EmptyBlobNameStatic, fsSuffixCurrent)
 	os.MkdirAll(fName, 0777)
 
-	w, err := fs.openWriteStream(context.Background(), testutils.EmptyBlobNameStatic)
+	w, err := fs.openWriteStream(t.Context(), testutils.EmptyBlobNameStatic)
 	require.NoError(t, err)
 
 	err = w.Close()
@@ -107,14 +106,14 @@ func TestFilesystemDeleteFailure(t *testing.T) {
 	os.MkdirAll(fName, 0777)
 	touchFile(t, fName+"/keep.me")
 
-	err := fs.delete(context.Background(), testutils.EmptyBlobNameStatic)
+	err := fs.delete(t.Context(), testutils.EmptyBlobNameStatic)
 	require.IsType(t, &os.PathError{}, err)
 }
 
 func TestFilesystemDeleteNotFound(t *testing.T) {
 	fs := temporaryFS(t)
 
-	err := fs.delete(context.Background(), testutils.EmptyBlobNameStatic)
+	err := fs.delete(t.Context(), testutils.EmptyBlobNameStatic)
 	require.ErrorIs(t, err, ErrNotFound)
 }
 
@@ -128,6 +127,6 @@ func TestFilesystemExistsFailure(t *testing.T) {
 	require.NoError(t, err)
 	defer protect(t, dirPath)()
 
-	_, err = fs.exists(context.Background(), testutils.EmptyBlobNameStatic)
+	_, err = fs.exists(t.Context(), testutils.EmptyBlobNameStatic)
 	require.IsType(t, &os.PathError{}, err)
 }

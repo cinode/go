@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package blenc
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"errors"
 	"io"
@@ -30,6 +29,7 @@ import (
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
 	"github.com/cinode/go/pkg/internal/utilities/cipherfactory"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -45,67 +45,82 @@ func TestBlencTestSuite(t *testing.T) {
 }
 
 func (s *BlencTestSuite) TestStaticBlobs() {
+	t := s.T()
 	data := []byte("Hello world!!!")
 
-	bn, key, ai, err := s.be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data))
-	s.Require().NoError(err)
-	s.Require().Equal(blobtypes.Static, bn.Type())
-	s.Require().Len(bn.Hash(), sha256.Size)
-	s.Require().Nil(ai) // Static blobs don't generate auth info
+	bn, key, ai, err := s.be.Create(
+		t.Context(),
+		blobtypes.Static,
+		bytes.NewReader(data),
+	)
+	require.NoError(t, err)
+	require.Equal(t, blobtypes.Static, bn.Type())
+	require.Len(t, bn.Hash(), sha256.Size)
+	require.Nil(t, ai) // Static blobs don't generate auth info
 
-	s.Run("check successful operations on a static blob", func() {
-		s.Run("blob must be reported as existing", func() {
-			exists, err := s.be.Exists(context.Background(), bn)
-			s.Require().NoError(err)
-			s.Require().True(exists)
+	t.Run("check successful operations on a static blob", func(t *testing.T) {
+		t.Run("blob must be reported as existing", func(t *testing.T) {
+			exists, err := s.be.Exists(t.Context(), bn)
+			require.NoError(t, err)
+			require.True(t, exists)
 		})
 
-		s.Run("must correctly read blob's content", func() {
-			rc, err := s.be.Open(context.Background(), bn, key)
-			s.Require().NoError(err)
+		t.Run("must correctly read blob's content", func(t *testing.T) {
+			rc, err := s.be.Open(t.Context(), bn, key)
+			require.NoError(t, err)
 
 			readData, err := io.ReadAll(rc)
-			s.Require().NoError(err)
-			s.Require().Equal(data, readData)
+			require.NoError(t, err)
+			require.Equal(t, data, readData)
 
 			err = rc.Close()
-			s.Require().NoError(err)
+			require.NoError(t, err)
 		})
 
-		s.Run("must correctly delete blob", func() {
-			err := s.be.Delete(context.Background(), bn)
-			s.Require().NoError(err)
+		t.Run("must correctly delete blob", func(t *testing.T) {
+			err := s.be.Delete(t.Context(), bn)
+			require.NoError(t, err)
 
-			exists, err := s.be.Exists(context.Background(), bn)
-			s.Require().NoError(err)
-			s.Require().False(exists)
+			exists, err := s.be.Exists(t.Context(), bn)
+			require.NoError(t, err)
+			require.False(t, exists)
 		})
 	})
 
-	s.Run("work with second static blob", func() {
+	t.Run("work with second static blob", func(t *testing.T) {
 		data2 := []byte("Hello Cinode!")
 
-		bn2, key2, ai2, err := s.be.Create(context.Background(), blobtypes.Static, bytes.NewReader(data2))
-		s.Require().NoError(err)
-		s.Require().NotEqual(bn, bn2)
-		s.Require().Nil(ai2)
+		bn2, key2, ai2, err := s.be.Create(
+			t.Context(),
+			blobtypes.Static,
+			bytes.NewReader(data2),
+		)
+		require.NoError(t, err)
+		require.NotEqual(t, bn, bn2)
+		require.Nil(t, ai2)
 
-		s.Run("new static blob must be different from the first one", func() {
-			s.Require().NoError(err)
-			s.Require().NotEqual(key, key2)
-			s.Require().Len(key2.Bytes(), len(key.Bytes()))
+		t.Run("new static blob must be different from the first one", func(t *testing.T) {
+			require.NoError(t, err)
+			require.NotEqual(t, key, key2)
+			require.Len(t, key2.Bytes(), len(key.Bytes()))
 		})
 
-		s.Run("must fail to update static blob", func() {
+		t.Run("must fail to update static blob", func(t *testing.T) {
 			data3 := []byte("Hello Universe!")
 
-			err := s.be.Update(context.Background(), bn2, ai2, key2, bytes.NewReader(data3))
-			s.Require().ErrorIs(err, ErrCanNotUpdateStaticBlob)
+			err := s.be.Update(
+				t.Context(),
+				bn2,
+				ai2,
+				key2,
+				bytes.NewReader(data3),
+			)
+			require.ErrorIs(t, err, ErrCanNotUpdateStaticBlob)
 		})
 
-		s.Run("must fail to open static blob with wrong key", func() {
+		t.Run("must fail to open static blob with wrong key", func(t *testing.T) {
 			err := func() error {
-				rc, err := s.be.Open(context.Background(), bn2, key)
+				rc, err := s.be.Open(t.Context(), bn2, key)
 				if err != nil {
 					return err
 				}
@@ -117,169 +132,213 @@ func (s *BlencTestSuite) TestStaticBlobs() {
 
 				return rc.Close()
 			}()
-			s.Require().ErrorIs(err, blobtypes.ErrValidationFailed)
+			require.ErrorIs(t, err, blobtypes.ErrValidationFailed)
 		})
 
-		s.Run("must fail to open static blob with invalid key", func() {
+		t.Run("must fail to open static blob with invalid key", func(t *testing.T) {
 			brokenKey := common.BlobKeyFromBytes(key2.Bytes()[1:])
-			rc, err := s.be.Open(context.Background(), bn2, brokenKey)
-			s.Require().ErrorIs(err, cipherfactory.ErrInvalidEncryptionConfig)
-			s.Require().Nil(rc)
+			rc, err := s.be.Open(t.Context(), bn2, brokenKey)
+			require.ErrorIs(t, err, cipherfactory.ErrInvalidEncryptionConfig)
+			require.Nil(t, rc)
 		})
 	})
 
 }
 
 func (s *BlencTestSuite) TestDynamicLinkSuccessPath() {
+	t := s.T()
+
 	data := []byte("Hello world!!!")
 
-	bn, key, ai, err := s.be.Create(context.Background(), blobtypes.DynamicLink, bytes.NewReader(data))
-	s.Require().NoError(err)
-	s.Require().Equal(blobtypes.DynamicLink, bn.Type())
-	s.Require().Len(bn.Hash(), sha256.Size)
-	s.Require().NotNil(ai)
+	bn, key, ai, err := s.be.Create(
+		t.Context(),
+		blobtypes.DynamicLink,
+		bytes.NewReader(data),
+	)
+	require.NoError(t, err)
+	require.Equal(t, blobtypes.DynamicLink, bn.Type())
+	require.Len(t, bn.Hash(), sha256.Size)
+	require.NotNil(t, ai)
 
-	s.Run("check successful operations on a dynamic link", func() {
-		s.Run("blob must be reported as existing", func() {
-			exists, err := s.be.Exists(context.Background(), bn)
-			s.Require().NoError(err)
-			s.Require().True(exists)
+	t.Run("check successful operations on a dynamic link", func(t *testing.T) {
+		t.Run("blob must be reported as existing", func(t *testing.T) {
+			exists, err := s.be.Exists(t.Context(), bn)
+			require.NoError(t, err)
+			require.True(t, exists)
 		})
 
-		s.Run("must correctly read blob's content", func() {
-			rc, err := s.be.Open(context.Background(), bn, key)
-			s.Require().NoError(err)
+		t.Run("must correctly read blob's content", func(t *testing.T) {
+			rc, err := s.be.Open(t.Context(), bn, key)
+			require.NoError(t, err)
 
 			readData, err := io.ReadAll(rc)
-			s.Require().NoError(err)
-			s.Require().Equal(data, readData)
+			require.NoError(t, err)
+			require.Equal(t, data, readData)
 
 			err = rc.Close()
-			s.Require().NoError(err)
+			require.NoError(t, err)
 		})
 
-		s.Run("must correctly delete blob", func() {
-			err := s.be.Delete(context.Background(), bn)
-			s.Require().NoError(err)
+		t.Run("must correctly delete blob", func(t *testing.T) {
+			err := s.be.Delete(t.Context(), bn)
+			require.NoError(t, err)
 
-			exists, err := s.be.Exists(context.Background(), bn)
-			s.Require().NoError(err)
-			s.Require().False(exists)
+			exists, err := s.be.Exists(t.Context(), bn)
+			require.NoError(t, err)
+			require.False(t, exists)
 		})
 	})
 
-	s.Run("work with second dynamic link", func() {
+	t.Run("work with second dynamic link", func(t *testing.T) {
 
 		data2 := []byte("Hello Cinode!")
 
-		bn2, key2, ai2, err := s.be.Create(context.Background(), blobtypes.DynamicLink, bytes.NewReader(data2))
-		s.Require().NoError(err)
-		s.Require().NotEqual(bn, bn2)
-		s.Require().NotNil(ai2)
+		bn2, key2, ai2, err := s.be.Create(
+			t.Context(),
+			blobtypes.DynamicLink,
+			bytes.NewReader(data2),
+		)
+		require.NoError(t, err)
+		require.NotEqual(t, bn, bn2)
+		require.NotNil(t, ai2)
 
-		s.Run("new dynamic link must be different from the first one", func() {
-			s.Require().NoError(err)
-			s.Require().NotEqual(key, key2)
-			s.Require().Len(key2.Bytes(), len(key.Bytes()))
+		t.Run("new dynamic link must be different from the first one", func(t *testing.T) {
+			require.NoError(t, err)
+			require.NotEqual(t, key, key2)
+			require.Len(t, key2.Bytes(), len(key.Bytes()))
 		})
 
-		s.Run("must correctly read blob's content", func() {
-			rc, err := s.be.Open(context.Background(), bn2, key2)
-			s.Require().NoError(err)
+		t.Run("must correctly read blob's content", func(t *testing.T) {
+			rc, err := s.be.Open(t.Context(), bn2, key2)
+			require.NoError(t, err)
 
 			readData, err := io.ReadAll(rc)
-			s.Require().NoError(err)
-			s.Require().Equal(data2, readData)
+			require.NoError(t, err)
+			require.Equal(t, data2, readData)
 
 			err = rc.Close()
-			s.Require().NoError(err)
+			require.NoError(t, err)
 		})
 
-		s.Run("must correctly update dynamic link", func() {
+		t.Run("must correctly update dynamic link", func(t *testing.T) {
 			data3 := []byte("Hello Universe!")
 
-			err = s.be.Update(context.Background(), bn2, ai2, key2, bytes.NewReader(data3))
-			s.Require().NoError(err)
+			err = s.be.Update(t.Context(), bn2, ai2, key2, bytes.NewReader(data3))
+			require.NoError(t, err)
 
-			rc, err := s.be.Open(context.Background(), bn2, key2)
-			s.Require().NoError(err)
+			rc, err := s.be.Open(t.Context(), bn2, key2)
+			require.NoError(t, err)
 
 			readData, err := io.ReadAll(rc)
-			s.Require().NoError(err)
-			s.Require().Equal(data3, readData)
+			require.NoError(t, err)
+			require.Equal(t, data3, readData)
 
 			err = rc.Close()
-			s.Require().NoError(err)
+			require.NoError(t, err)
 		})
 
-		s.Run("must fail to update if encryption key is invalid", func() {
-			err := s.be.Update(context.Background(), bn2, ai2, key, bytes.NewReader(nil))
-			s.Require().ErrorIs(err, ErrDynamicLinkUpdateFailed)
-			s.Require().ErrorIs(err, ErrDynamicLinkUpdateFailedWrongKey)
+		t.Run("must fail to update if encryption key is invalid", func(t *testing.T) {
+			err := s.be.Update(
+				t.Context(),
+				bn2,
+				ai2,
+				key,
+				bytes.NewReader(nil),
+			)
+			require.ErrorIs(t, err, ErrDynamicLinkUpdateFailed)
+			require.ErrorIs(t, err, ErrDynamicLinkUpdateFailedWrongKey)
 		})
 
-		s.Run("must fail to update if blob name is invalid", func() {
-			err := s.be.Update(context.Background(), bn, ai2, key2, bytes.NewReader(nil))
-			s.Require().ErrorIs(err, ErrDynamicLinkUpdateFailed)
-			s.Require().ErrorIs(err, ErrDynamicLinkUpdateFailedWrongName)
+		t.Run("must fail to update if blob name is invalid", func(t *testing.T) {
+			err := s.be.Update(
+				t.Context(),
+				bn,
+				ai2,
+				key2,
+				bytes.NewReader(nil),
+			)
+			require.ErrorIs(t, err, ErrDynamicLinkUpdateFailed)
+			require.ErrorIs(t, err, ErrDynamicLinkUpdateFailedWrongName)
 		})
 
-		s.Run("must fail to update if auth info is invalid", func() {
+		t.Run("must fail to update if auth info is invalid", func(t *testing.T) {
 			brokenAI2 := common.AuthInfoFromBytes(ai2.Bytes()[1:])
-			err := s.be.Update(context.Background(), bn, brokenAI2, key2, bytes.NewReader(nil))
-			s.Require().ErrorIs(err, dynamiclink.ErrInvalidDynamicLinkAuthInfo)
+			err := s.be.Update(
+				t.Context(),
+				bn,
+				brokenAI2,
+				key2,
+				bytes.NewReader(nil),
+			)
+			require.ErrorIs(t, err, dynamiclink.ErrInvalidDynamicLinkAuthInfo)
 		})
 
-		s.Run("must fail to update link on read errors", func() {
+		t.Run("must fail to update link on read errors", func(t *testing.T) {
 			injectedErr := errors.New("test")
 
-			err := s.be.Update(context.Background(), bn, ai2, key2, iotest.ErrReader(injectedErr))
-			s.Require().ErrorIs(err, injectedErr)
+			err := s.be.Update(
+				t.Context(),
+				bn,
+				ai2,
+				key2,
+				iotest.ErrReader(injectedErr),
+			)
+			require.ErrorIs(t, err, injectedErr)
 		})
 
 	})
 
-	s.Run("must fail to create link on read errors", func() {
+	t.Run("must fail to create link on read errors", func(t *testing.T) {
 		injectedErr := errors.New("test")
 
-		bn, key, ai, err := s.be.Create(context.Background(), blobtypes.DynamicLink, iotest.ErrReader(injectedErr))
-		s.Require().ErrorIs(err, injectedErr)
-		s.Require().Empty(bn)
-		s.Require().Empty(key)
-		s.Require().Empty(ai)
+		bn, key, ai, err := s.be.Create(
+			t.Context(),
+			blobtypes.DynamicLink,
+			iotest.ErrReader(injectedErr),
+		)
+		require.ErrorIs(t, err, injectedErr)
+		require.Empty(t, bn)
+		require.Empty(t, key)
+		require.Empty(t, ai)
 	})
 }
 
 func (s *BlencTestSuite) TestInvalidBlobTypes() {
-	invalidBlobName, err := common.BlobNameFromHashAndType(sha256.New().Sum(nil), blobtypes.Invalid)
-	s.Require().NoError(err)
+	t := s.T()
 
-	s.Run("must fail to create blob of invalid type", func() {
-		bn, key, ai, err := s.be.Create(context.Background(), blobtypes.Invalid, bytes.NewReader(nil))
-		s.Require().ErrorIs(err, blobtypes.ErrUnknownBlobType)
-		s.Require().Empty(bn)
-		s.Require().Empty(key)
-		s.Require().Empty(ai)
+	invalidBlobName, err := common.BlobNameFromHashAndType(sha256.New().Sum(nil), blobtypes.Invalid)
+	require.NoError(t, err)
+
+	t.Run("must fail to create blob of invalid type", func(t *testing.T) {
+		bn, key, ai, err := s.be.Create(
+			t.Context(),
+			blobtypes.Invalid,
+			bytes.NewReader(nil),
+		)
+		require.ErrorIs(t, err, blobtypes.ErrUnknownBlobType)
+		require.Empty(t, bn)
+		require.Empty(t, key)
+		require.Empty(t, ai)
 	})
 
-	s.Run("must fail to open blob of invalid type", func() {
+	t.Run("must fail to open blob of invalid type", func(t *testing.T) {
 		rc, err := s.be.Open(
-			context.Background(),
+			t.Context(),
 			invalidBlobName,
 			nil,
 		)
-		s.Require().ErrorIs(err, blobtypes.ErrUnknownBlobType)
-		s.Require().Nil(rc)
+		require.ErrorIs(t, err, blobtypes.ErrUnknownBlobType)
+		require.Nil(t, rc)
 	})
 
-	s.Run("must fail to update blob of invalid type", func() {
+	t.Run("must fail to update blob of invalid type", func(t *testing.T) {
 		err = s.be.Update(
-			context.Background(),
+			t.Context(),
 			invalidBlobName,
 			nil,
 			nil,
 			bytes.NewReader(nil),
 		)
-		s.Require().ErrorIs(err, blobtypes.ErrUnknownBlobType)
+		require.ErrorIs(t, err, blobtypes.ErrUnknownBlobType)
 	})
 }

@@ -83,7 +83,7 @@ func TestDatastoreWriteFailure(t *testing.T) {
 			},
 		}}
 
-		err := ds.Update(context.Background(), testutils.EmptyBlobNameStatic, bytes.NewBuffer(nil))
+		err := ds.Update(t.Context(), testutils.EmptyBlobNameStatic, bytes.NewBuffer(nil))
 		require.ErrorIs(t, err, errRet)
 	})
 
@@ -117,7 +117,7 @@ func TestDatastoreWriteFailure(t *testing.T) {
 			},
 		}}
 
-		err := ds.Update(context.Background(), testutils.EmptyBlobNameStatic, bytes.NewBuffer(nil))
+		err := ds.Update(t.Context(), testutils.EmptyBlobNameStatic, bytes.NewBuffer(nil))
 		require.ErrorIs(t, err, errRet)
 
 		// Failed Close call will be followed by a Cancel call
@@ -131,7 +131,7 @@ func TestDatastoreDetectCorruptedRead(t *testing.T) {
 	mem := ds.(*datastore).s.(*memory)
 	mem.bmap[testutils.EmptyBlobNameStatic.String()] = []byte("I should not be here")
 
-	r, err := ds.Open(context.Background(), testutils.EmptyBlobNameStatic)
+	r, err := ds.Open(t.Context(), testutils.EmptyBlobNameStatic)
 	require.NoError(t, err)
 
 	_, err = io.ReadAll(r)

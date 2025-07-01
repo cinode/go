@@ -31,6 +31,7 @@ import (
 	"github.com/cinode/go/pkg/common"
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/cinode/go/pkg/internal/blobtypes/dynamiclink"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -51,33 +52,41 @@ func TestMultiSourceDatastore(t *testing.T) {
 }
 
 func (s *MultiSourceDatastoreTestSuite) addStaticBlob(ds datastore.DS, c string) *common.BlobName {
+	t := s.T()
+
 	hash := sha256.Sum256([]byte(c))
 	name, err := common.BlobNameFromHashAndType(hash[:], blobtypes.Static)
-	s.Require().NoError(err)
-	err = ds.Update(context.Background(), name, bytes.NewReader([]byte(c)))
-	s.Require().NoError(err)
+	require.NoError(t, err)
+	err = ds.Update(t.Context(), name, bytes.NewReader([]byte(c)))
+	require.NoError(t, err)
 	return name
 }
 
 func (s *MultiSourceDatastoreTestSuite) fetchBlob(ds datastore.DS, n *common.BlobName) string {
-	rc, err := ds.Open(context.Background(), n)
-	s.Require().NoError(err)
+	t := s.T()
+
+	rc, err := ds.Open(t.Context(), n)
+	require.NoError(t, err)
 
 	data, err := io.ReadAll(rc)
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
 	err = rc.Close()
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
 	return string(data)
 }
 
 func (s *MultiSourceDatastoreTestSuite) ensureNotFound(ds datastore.DS, n *common.BlobName) {
-	_, err := ds.Open(context.Background(), n)
-	s.Require().ErrorIs(err, datastore.ErrNotFound)
+	t := s.T()
+
+	_, err := ds.Open(t.Context(), n)
+	require.ErrorIs(t, err, datastore.ErrNotFound)
 }
 
 func (s *MultiSourceDatastoreTestSuite) TestStaticBlobPropagation() {
+	t := s.T()
+
 	main := datastore.InMemory()
 	add1 := datastore.InMemory()
 	add2 := datastore.InMemory()
@@ -91,17 +100,19 @@ func (s *MultiSourceDatastoreTestSuite) TestStaticBlobPropagation() {
 	bn1 := s.addStaticBlob(add1, "Hello world 1")
 	bn2 := s.addStaticBlob(add2, "Hello world 2")
 
-	s.Require().EqualValues("Hello world 1", s.fetchBlob(ds, bn1))
-	s.Require().EqualValues("Hello world 2", s.fetchBlob(ds, bn2))
+	require.EqualValues(t, "Hello world 1", s.fetchBlob(ds, bn1))
+	require.EqualValues(t, "Hello world 2", s.fetchBlob(ds, bn2))
 
 	// Blobs should already be in the cache
 	ds.additional = []datastore.DS{}
 
-	s.Require().EqualValues("Hello world 1", s.fetchBlob(ds, bn1))
-	s.Require().EqualValues("Hello world 2", s.fetchBlob(ds, bn2))
+	require.EqualValues(t, "Hello world 1", s.fetchBlob(ds, bn1))
+	require.EqualValues(t, "Hello world 2", s.fetchBlob(ds, bn2))
 }
 
 func (s *MultiSourceDatastoreTestSuite) TestNotFoundRecheck() {
+	t := s.T()
+
 	main := datastore.InMemory()
 	add := datastore.InMemory()
 
@@ -129,58 +140,61 @@ func (s *MultiSourceDatastoreTestSuite) TestNotFoundRecheck() {
 	time.Sleep(time.Millisecond * 20)
 
 	// Should refresh by now
-	s.Require().EqualValues("Hello world", s.fetchBlob(ds, bn))
+	require.EqualValues(t, "Hello world", s.fetchBlob(ds, bn))
 }
 
 func (s *MultiSourceDatastoreTestSuite) TestDynamicLinkRefresh() {
+	t := s.T()
+
 	main := datastore.InMemory()
 	add := datastore.InMemory()
 
 	ds := New(
 		main,
-		WithDynamicDataRefreshTime(time.Millisecond*10),
+		WithDynamicDataRefreshTime(time.Millisecond*100),
 		WithNotFoundRecheckTime(time.Hour),
 		WithAdditionalDatastores(add),
 	).(*multiSourceDatastore)
 
 	// Create a new dynamic link
 	dlp, err := dynamiclink.Create(rand.Reader)
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
 	bn := dlp.BlobName()
 
 	// Upload the data to the additional datastore
-	key := s.updateLink(dlp, 1, add, "Hello world")
+	key := s.updateLink(t, dlp, 1, add, "Hello world")
 
 	// The data should be available in the main datastore
-	s.Require().EqualValues("Hello world", s.fetchLink(ds, bn, key))
+	require.EqualValues(t, "Hello world", s.fetchLink(ds, bn, key))
 
 	// Update the data in the additional datastore
-	s.updateLink(dlp, 2, add, "Hello world 2")
+	s.updateLink(t, dlp, 2, add, "Hello world 2")
 
 	// Old link data should be cached
 	for range 10 {
-		s.Require().EqualValues("Hello world", s.fetchLink(ds, bn, key))
+		require.EqualValues(t, "Hello world", s.fetchLink(ds, bn, key))
 	}
 
-	time.Sleep(time.Millisecond * 20)
+	time.Sleep(time.Millisecond * 200)
 
 	// The updated data should be available in the main datastore by now
-	s.Require().EqualValues("Hello world 2", s.fetchLink(ds, bn, key))
+	require.EqualValues(t, "Hello world 2", s.fetchLink(ds, bn, key))
 
 }
 
 func (s *MultiSourceDatastoreTestSuite) updateLink(
+	t *testing.T,
 	dlp *dynamiclink.Publisher,
 	version uint64,
 	ds datastore.DS,
 	content string,
 ) *common.BlobKey {
 	pr, key, err := dlp.UpdateLinkData(bytes.NewReader([]byte(content)), version)
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
-	err = ds.Update(context.Background(), dlp.BlobName(), pr.GetPublicDataReader())
-	s.Require().NoError(err)
+	err = ds.Update(t.Context(), dlp.BlobName(), pr.GetPublicDataReader())
+	require.NoError(t, err)
 
 	return key
 }
@@ -190,19 +204,21 @@ func (s *MultiSourceDatastoreTestSuite) fetchLink(
 	bn *common.BlobName,
 	key *common.BlobKey,
 ) string {
-	rdr, err := ds.Open(context.Background(), bn)
-	s.Require().NoError(err)
+	t := s.T()
+
+	rdr, err := ds.Open(t.Context(), bn)
+	require.NoError(t, err)
 
 	defer rdr.Close()
 
 	pr, err := dynamiclink.FromPublicData(bn, rdr)
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
 	lrdr, err := pr.GetLinkDataReader(key)
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
 	data, err := io.ReadAll(lrdr)
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
 	return string(data)
 }
@@ -220,6 +236,8 @@ func (s *testSyncReaderDS) Open(ctx context.Context, name *common.BlobName) (io.
 }
 
 func (s *MultiSourceDatastoreTestSuite) TestParallelDownloads() {
+	t := s.T()
+
 	main := datastore.InMemory()
 	add := datastore.InMemory()
 	addSync := &testSyncReaderDS{DS: add, waitChan: make(chan struct{})}
@@ -244,28 +262,28 @@ func (s *MultiSourceDatastoreTestSuite) TestParallelDownloads() {
 			defer goroutinesDone.Add(1)
 
 			startWg.Done()
-			rc, err := ds.Open(context.Background(), bn)
-			s.Require().NoError(err)
+			rc, err := ds.Open(t.Context(), bn)
+			require.NoError(t, err)
 			err = rc.Close()
-			s.Require().NoError(err)
+			require.NoError(t, err)
 		}()
 	}
 
 	startWg.Wait()
 
-	s.Require().Eventually(
+	require.Eventually(t,
 		func() bool { return addSync.openCount.Load() == 1 },
 		time.Second, time.Millisecond,
 		"must start downloading the blob from additional datastore",
 	)
 
-	s.Require().Zero(goroutinesDone.Load())
+	require.Zero(t, goroutinesDone.Load())
 
 	close(addSync.waitChan)
 
 	finishWg.Wait()
 
-	s.Require().EqualValues(
+	require.EqualValues(t,
 		1, addSync.openCount.Load(),
 		"download should be started once for all goroutinesS",
 	)

@@ -18,7 +18,6 @@ package static_datastore
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -109,18 +108,19 @@ type testOutputParser struct {
 }
 
 func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
+	t *testing.T,
 	dataset []datasetFile,
 	datastoreDir string,
 	extraArgs ...string,
 ) (wi *cinodefs.WriterInfo, ep *cinodefs.Entrypoint) {
-	dir := s.T().TempDir()
+	dir := t.TempDir()
 
 	for _, td := range dataset {
 		err := os.MkdirAll(filepath.Join(dir, filepath.Dir(td.fName)), 0777)
-		s.Require().NoError(err)
+		require.NoError(t, err)
 
 		err = os.WriteFile(filepath.Join(dir, td.fName), []byte(td.contents), 0600)
-		s.Require().NoError(err)
+		require.NoError(t, err)
 	}
 
 	buf := bytes.NewBuffer(nil)
@@ -137,13 +137,13 @@ func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 	cmd.SetOut(buf)
 
 	err := cmd.Execute()
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
 	output := testOutputParser{}
 
 	err = json.Unmarshal(buf.Bytes(), &output)
-	s.Require().NoErrorf(err, "output: %s", buf.String())
-	s.Require().Equal("OK", output.Result)
+	require.NoErrorf(t, err, "output: %s", buf.String())
+	require.Equal(t, "OK", output.Result)
 
 	if output.WI != "" {
 		wi = golang.Must(cinodefs.WriterInfoFromString(output.WI))
@@ -157,24 +157,27 @@ func (s *CompileAndReadTestSuite) validateDataset(
 	ep *cinodefs.Entrypoint,
 	datastoreDir string,
 ) {
-	ds, err := datastore.InFileSystem(datastoreDir)
-	s.Require().NoError(err)
+	t := s.T()
 
-	s.validateDatasetInDatastore(dataset, ep, ds)
+	ds, err := datastore.InFileSystem(datastoreDir)
+	require.NoError(t, err)
+
+	s.validateDatasetInDatastore(t, dataset, ep, ds)
 }
 
 func (s *CompileAndReadTestSuite) validateDatasetInDatastore(
+	t *testing.T,
 	dataset []datasetFile,
 	ep *cinodefs.Entrypoint,
 	ds datastore.DS,
 ) {
 	fs, err := cinodefs.New(
-		context.Background(),
+		t.Context(),
 		blenc.FromDatastore(ds),
 		cinodefs.RootEntrypoint(ep),
 		cinodefs.MaxLinkRedirects(10),
 	)
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
 	testServer := httptest.NewServer(&httphandler.Handler{
 		FS:        fs,
@@ -184,131 +187,135 @@ func (s *CompileAndReadTestSuite) validateDatasetInDatastore(
 	defer testServer.Close()
 
 	for _, td := range dataset {
-		s.Run(td.fName, func() {
+		t.Run(td.fName, func(t *testing.T) {
 			res, err := http.Get(testServer.URL + td.fName)
-			s.Require().NoError(err)
+			require.NoError(t, err)
 			defer res.Body.Close()
 
 			data, err := io.ReadAll(res.Body)
-			s.Require().NoError(err)
-			s.Require().Equal([]byte(td.contents), data)
+			require.NoError(t, err)
+			require.Equal(t, []byte(td.contents), data)
 
 			res, err = http.Post(testServer.URL+td.fName, "plain/text", bytes.NewReader([]byte("test")))
-			s.Require().NoError(err)
+			require.NoError(t, err)
 			defer res.Body.Close()
 
-			s.Require().Equal(http.StatusMethodNotAllowed, res.StatusCode)
+			require.Equal(t, http.StatusMethodNotAllowed, res.StatusCode)
 
 			res, err = http.Get(testServer.URL + td.fName + ".notfound")
-			s.Require().NoError(err)
+			require.NoError(t, err)
 			defer res.Body.Close()
 
-			s.Require().Equal(http.StatusNotFound, res.StatusCode)
+			require.Equal(t, http.StatusNotFound, res.StatusCode)
 		})
 	}
 
-	s.Run("Default to index.html", func() {
+	t.Run("Default to index.html", func(t *testing.T) {
 		res, err := http.Get(testServer.URL + "/")
-		s.Require().NoError(err)
+		require.NoError(t, err)
 		defer res.Body.Close()
 
 		data, err := io.ReadAll(res.Body)
-		s.Require().NoError(err)
+		require.NoError(t, err)
 
-		s.Require().Equal([]byte("Index"), data)
+		require.Equal(t, []byte("Index"), data)
 	})
 }
 
 func (s *CompileAndReadTestSuite) TestCompileAndRead() {
-	datastoreAddress := s.T().TempDir()
+	t := s.T()
+
+	datastoreAddress := t.TempDir()
 
 	// Create and test initial dataset
-	wi, ep := s.uploadDatasetToDatastore(s.initialTestDataset, datastoreAddress)
+	wi, ep := s.uploadDatasetToDatastore(t, s.initialTestDataset, datastoreAddress)
 	s.validateDataset(s.initialTestDataset, ep, datastoreAddress)
 
-	s.Run("Re-upload same dataset", func() {
-		s.uploadDatasetToDatastore(s.initialTestDataset, datastoreAddress,
+	t.Run("Re-upload same dataset", func(t *testing.T) {
+		s.uploadDatasetToDatastore(t, s.initialTestDataset, datastoreAddress,
 			"--writer-info", wi.String(),
 		)
 		s.validateDataset(s.initialTestDataset, ep, datastoreAddress)
 	})
 
-	s.Run("Upload modified dataset but for different root link", func() {
-		_, updatedEP := s.uploadDatasetToDatastore(s.updatedTestDataset, datastoreAddress)
+	t.Run("Upload modified dataset but for different root link", func(t *testing.T) {
+		_, updatedEP := s.uploadDatasetToDatastore(t, s.updatedTestDataset, datastoreAddress)
 		s.validateDataset(s.updatedTestDataset, updatedEP, datastoreAddress)
-		s.Require().NotEqual(ep, updatedEP)
+		require.NotEqual(t, ep, updatedEP)
 
 		// After restoring the original entrypoint dataset should be back to the initial one
 		s.validateDataset(s.initialTestDataset, ep, datastoreAddress)
 	})
 
-	s.Run("Update the original entrypoint with the new dataset", func() {
-		_, epOrigWriterInfo := s.uploadDatasetToDatastore(s.updatedTestDataset, datastoreAddress,
+	t.Run("Update the original entrypoint with the new dataset", func(t *testing.T) {
+		_, epOrigWriterInfo := s.uploadDatasetToDatastore(t, s.updatedTestDataset, datastoreAddress,
 			"--writer-info", wi.String(),
 		)
 		s.validateDataset(s.updatedTestDataset, epOrigWriterInfo, datastoreAddress)
 
 		// Entrypoint must stay the same
-		s.Require().EqualValues(ep, epOrigWriterInfo)
+		require.EqualValues(t, ep, epOrigWriterInfo)
 	})
 
-	s.Run("Upload data with static entrypoint", func() {
-		wiStatic, epStatic := s.uploadDatasetToDatastore(s.initialTestDataset, datastoreAddress,
+	t.Run("Upload data with static entrypoint", func(t *testing.T) {
+		wiStatic, epStatic := s.uploadDatasetToDatastore(t, s.initialTestDataset, datastoreAddress,
 			"--static",
 		)
 		s.validateDataset(s.initialTestDataset, epStatic, datastoreAddress)
-		s.Require().Nil(wiStatic)
+		require.Nil(t, wiStatic)
 	})
 
-	s.Run("Read writer info from file", func() {
-		wiFile := filepath.Join(s.T().TempDir(), "epfile")
-		s.Require().NoError(os.WriteFile(wiFile, []byte(wi.String()), 0777))
+	t.Run("Read writer info from file", func(t *testing.T) {
+		wiFile := filepath.Join(t.TempDir(), "epfile")
+		require.NoError(t, os.WriteFile(wiFile, []byte(wi.String()), 0777))
 
-		_, ep := s.uploadDatasetToDatastore(s.initialTestDataset, datastoreAddress,
+		_, ep := s.uploadDatasetToDatastore(t, s.initialTestDataset, datastoreAddress,
 			"--writer-info-file", wiFile,
 		)
 		s.validateDataset(s.initialTestDataset, ep, datastoreAddress)
 	})
 
-	s.Run("Generate index file", func() {
-		dir := s.T().TempDir()
-		_, ep := s.uploadDatasetToDatastore(s.initialTestDataset, dir,
+	t.Run("Generate index file", func(t *testing.T) {
+		dir := t.TempDir()
+		_, ep := s.uploadDatasetToDatastore(t, s.initialTestDataset, dir,
 			"--generate-index-files",
 			"--index-file", "homefile.txt",
 		)
 		s.validateDataset(s.initialTestDataset, ep, dir)
 
 		ds, err := datastore.InFileSystem(dir)
-		s.Require().NoError(err)
+		require.NoError(t, err)
 
 		fs, err := cinodefs.New(
-			context.Background(),
+			t.Context(),
 			blenc.FromDatastore(ds),
 			cinodefs.RootEntrypoint(ep),
 		)
-		s.Require().NoError(err)
+		require.NoError(t, err)
 
-		rc, err := fs.OpenEntryData(context.Background(), []string{"subpath", "homefile.txt"})
-		s.Require().NoError(err)
+		rc, err := fs.OpenEntryData(t.Context(), []string{"subpath", "homefile.txt"})
+		require.NoError(t, err)
 		defer rc.Close()
 
 		data, err := io.ReadAll(rc)
-		s.Require().NoError(err)
+		require.NoError(t, err)
 
 		dataStr := string(data)
-		s.Require().Contains(dataStr, "file.txt")
-		s.Require().Contains(dataStr, "file2.txt")
+		require.Contains(t, dataStr, "file.txt")
+		require.Contains(t, dataStr, "file2.txt")
 	})
 }
 
 func (s *CompileAndReadTestSuite) TestBackwardsCompatibilityForRawFileSystem() {
-	dir := s.T().TempDir()
+	t := s.T()
 
-	_, ep := s.uploadDatasetToDatastore(s.initialTestDataset, dir, "--raw-filesystem")
+	dir := t.TempDir()
+
+	_, ep := s.uploadDatasetToDatastore(t, s.initialTestDataset, dir, "--raw-filesystem")
 
 	dsRaw, err := datastore.InRawFileSystem(dir)
-	s.Require().NoError(err)
-	s.validateDatasetInDatastore(s.initialTestDataset, ep, dsRaw)
+	require.NoError(t, err)
+	s.validateDatasetInDatastore(t, s.initialTestDataset, ep, dsRaw)
 }
 
 func testExecCommand(cmd *cobra.Command, args []string) (output, stderr []byte, err error) {

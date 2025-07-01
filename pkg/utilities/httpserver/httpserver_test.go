@@ -33,7 +33,7 @@ import (
 )
 
 func TestCancelWithContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	go func() {
 		time.Sleep(10 * time.Millisecond)
 		cancel()
@@ -56,7 +56,7 @@ func TestCancelWithSignal(t *testing.T) {
 	}()
 	start := time.Now()
 	err := RunGracefully(
-		context.Background(),
+		t.Context(),
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 		ListenAddr(":0"),
 	)
@@ -68,7 +68,7 @@ func TestEnsureHandlerIsCalled(t *testing.T) {
 	handlerCalled := false
 
 	server, listener, err := startGracefully(
-		context.Background(),
+		t.Context(),
 		cfg{
 			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				handlerCalled = true
@@ -96,7 +96,7 @@ func TestEnsureHandlerIsCalled(t *testing.T) {
 
 func TestFailOnInvalidListenAddr(t *testing.T) {
 	err := RunGracefully(
-		context.Background(),
+		t.Context(),
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 		ListenAddr("not-a-listen-address"),
 	)
