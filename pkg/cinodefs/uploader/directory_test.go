@@ -162,7 +162,7 @@ func (s *DirectoryTestSuite) TestFailLinkUpload() {
 	testFS := &fstest.MapFS{
 		"file.txt": &fstest.MapFile{
 			Data: []byte("hello"),
-			Mode: fs.ModeSymlink,
+			Mode: fs.ModeCharDevice,
 		},
 	}
 
