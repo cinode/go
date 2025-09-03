@@ -259,8 +259,6 @@ func (s *TestSuite) TestSimultaneousUpdates() {
 
 	for range threadCnt {
 		wg.Go(func() {
-			defer wg.Done()
-
 			err := s.DS.Update(context.Background(), b.Name, bytes.NewReader(b.Data))
 			if errors.Is(err, ErrUploadInProgress) {
 				// TODO: We should be able to handle this case

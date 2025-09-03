@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -67,14 +68,28 @@ func TestCancelWithSignal(t *testing.T) {
 func TestEnsureHandlerIsCalled(t *testing.T) {
 	handlerCalled := false
 
-	server, listener, err := startGracefully(cfg{
-		handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			handlerCalled = true
-		}),
-		listenAddr: ":0",
-		log:        slog.Default(),
-	})
+	ctx, shutdown := context.WithCancel(t.Context())
+	defer shutdown()
+
+	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
+
+	wg := sync.WaitGroup{}
+	defer wg.Wait()
+
+	wg.Go(func() {
+		err := runUntilContextNotDone(ctx,
+			cfg{
+				log: slog.Default(),
+				handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					handlerCalled = true
+				}),
+				gracefulShutdownTimeout: 5 * time.Second,
+			},
+			listener,
+		)
+		require.NoError(t, err)
+	})
 
 	resp, err := http.Get(
 		fmt.Sprintf("http://localhost:%d/", listener.Addr().(*net.TCPAddr).Port),
@@ -85,10 +100,65 @@ func TestEnsureHandlerIsCalled(t *testing.T) {
 	_, err = io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	err = server.Close()
+	require.True(t, handlerCalled)
+
+	shutdown()
+}
+
+func TestCloseOnShutdownTimeout(t *testing.T) {
+	ctx, shutdown := context.WithCancel(t.Context())
+	defer shutdown()
+
+	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
-	require.True(t, handlerCalled)
+	wg := sync.WaitGroup{}
+	defer wg.Wait()
+
+	handlerHang := make(chan struct{})
+	requestStarted := make(chan struct{})
+	serverClosed := make(chan struct{})
+
+	wg.Go(func() {
+		defer close(serverClosed)
+		err := runUntilContextNotDone(ctx,
+			cfg{
+				handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					// Send some larger buffer to initiate connection, send all headers etc.
+					w.Write(bytes.Repeat([]byte("A"), 1024*1024))
+					<-handlerHang
+				}),
+				log: slog.Default(),
+				// Very short graceful timeout to quickly switch to forcible shutdown
+				gracefulShutdownTimeout: time.Millisecond,
+			},
+			listener,
+		)
+		require.NoError(t, err)
+	})
+
+	wg.Go(func() {
+		resp, err := http.Get(
+			fmt.Sprintf("http://localhost:%d/", listener.Addr().(*net.TCPAddr).Port),
+		)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// Synchronization point to ensure the request is in progress
+		close(requestStarted)
+
+		io.ReadAll(resp.Body)
+	})
+
+	// Wait for the request to be in progress
+	<-requestStarted
+
+	// Initiate shutdown
+	shutdown()
+	<-serverClosed
+
+	// Let the handler finish
+	close(handlerHang)
 }
 
 func TestFailOnInvalidListenAddr(t *testing.T) {
