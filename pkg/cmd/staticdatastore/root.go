@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package static_datastore
+package staticdatastore
 
 import (
 	"github.com/spf13/cobra"
@@ -35,8 +35,8 @@ Note that this tool is supposed to be used for testing purposes only.
 It does not guarantee secrecy since the encryption key for the root
 node is stored in a plaintext in a file called 'entrypoint.txt'.
 `,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Help()
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
 		},
 	}
 

@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,12 +39,12 @@ var (
 )
 
 type Entrypoint struct {
-	ep protobuf.Entrypoint
 	bn *common.BlobName
+	ep protobuf.Entrypoint
 }
 
 func EntrypointFromString(s string) (*Entrypoint, error) {
-	if len(s) == 0 {
+	if s == "" {
 		return nil, fmt.Errorf("%w: empty string", ErrInvalidEntrypointData)
 	}
 

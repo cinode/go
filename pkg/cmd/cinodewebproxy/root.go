@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cinode_web_proxy
+package cinodewebproxy
 
 import (
 	"bytes"

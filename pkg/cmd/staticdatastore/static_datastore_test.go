@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package static_datastore
+package staticdatastore
 
 import (
 	"bytes"
@@ -116,10 +116,10 @@ func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 	dir := t.TempDir()
 
 	for _, td := range dataset {
-		err := os.MkdirAll(filepath.Join(dir, filepath.Dir(td.fName)), 0777)
+		err := os.MkdirAll(filepath.Join(dir, filepath.Dir(td.fName)), 0o777)
 		require.NoError(t, err)
 
-		err = os.WriteFile(filepath.Join(dir, td.fName), []byte(td.contents), 0600)
+		err = os.WriteFile(filepath.Join(dir, td.fName), []byte(td.contents), 0o600)
 		require.NoError(t, err)
 	}
 
@@ -267,7 +267,7 @@ func (s *CompileAndReadTestSuite) TestCompileAndRead() {
 
 	t.Run("Read writer info from file", func(t *testing.T) {
 		wiFile := filepath.Join(t.TempDir(), "epfile")
-		require.NoError(t, os.WriteFile(wiFile, []byte(wi.String()), 0777))
+		require.NoError(t, os.WriteFile(wiFile, []byte(wi.String()), 0o777))
 
 		_, ep := s.uploadDatasetToDatastore(t, s.initialTestDataset, datastoreAddress,
 			"--writer-info-file", wiFile,
@@ -356,13 +356,13 @@ func TestInvalidOptions(t *testing.T) {
 	tempDir := t.TempDir()
 	emptyFile := filepath.Join(tempDir, "empty")
 
-	err := os.WriteFile(emptyFile, []byte{}, 0777)
+	err := os.WriteFile(emptyFile, []byte{}, 0o777)
 	require.NoError(t, err)
 
 	for _, d := range []struct {
 		name          string
-		args          []string
 		errorContains string
+		args          []string
 	}{
 		{
 			name: "invalid root writer info",

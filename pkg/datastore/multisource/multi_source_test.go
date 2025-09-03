@@ -36,7 +36,7 @@ import (
 )
 
 func TestInterface(t *testing.T) {
-	suite.Run(t, &datastore.DatastoreTestSuite{
+	suite.Run(t, &datastore.TestSuite{
 		CreateDS: func() (datastore.DS, error) {
 			return New(datastore.InMemory()), nil
 		},
@@ -180,7 +180,6 @@ func (s *MultiSourceDatastoreTestSuite) TestDynamicLinkRefresh() {
 
 	// The updated data should be available in the main datastore by now
 	require.EqualValues(t, "Hello world 2", s.fetchLink(ds, bn, key))
-
 }
 
 func (s *MultiSourceDatastoreTestSuite) updateLink(

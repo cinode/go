@@ -88,7 +88,6 @@ func TestDynamicLinkErrors(t *testing.T) {
 			dataLen := 0
 
 			t.Run(fmt.Sprintf("error at byte %d", i), func(t *testing.T) {
-
 				dsw.openFn = func(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
 					origRC, err := dsw.DS.Open(ctx, name)
 					require.NoError(t, err)
@@ -122,7 +121,6 @@ func TestDynamicLinkErrors(t *testing.T) {
 	})
 
 	t.Run("fail to create dynamic link key pair", func(t *testing.T) {
-
 		injectedErr := errors.New("test")
 
 		be.(*beDatastore).rand = iotest.ErrReader(injectedErr)
@@ -138,7 +136,6 @@ func TestDynamicLinkErrors(t *testing.T) {
 		require.Empty(t, ai)
 
 		be.(*beDatastore).rand = rand.Reader
-
 	})
 
 	t.Run("fail to store new dynamic link blob", func(t *testing.T) {

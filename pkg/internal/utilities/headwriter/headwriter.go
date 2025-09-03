@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,14 +17,14 @@ limitations under the License.
 package headwriter
 
 type Writer struct {
-	limit int
 	data  []byte
+	limit int
 }
 
 func New(limit int) Writer {
 	return Writer{
-		limit: limit,
 		data:  make([]byte, 0, limit),
+		limit: limit,
 	}
 }
 

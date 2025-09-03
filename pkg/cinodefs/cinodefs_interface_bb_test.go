@@ -113,21 +113,20 @@ func (w *testBEWrapper) Update(
 }
 
 type testFileEntry struct {
-	path     []string
 	content  string
 	mimeType string
+	path     []string
 }
 
 type CinodeFSMultiFileTestSuite struct {
 	suite.Suite
-
-	ds               datastore.DS
 	be               testBEWrapper
+	ds               datastore.DS
 	fs               cinodefs.FS
-	contentMap       []testFileEntry
-	maxLinkRedirects int
 	randSource       io.Reader
 	timeFunc         func() time.Time
+	contentMap       []testFileEntry
+	maxLinkRedirects int
 }
 
 type randReaderForCinodeFSMultiFileTestSuite CinodeFSMultiFileTestSuite
@@ -189,22 +188,22 @@ func (c *CinodeFSMultiFileTestSuite) SetupTest() {
 	require.NoError(t, err)
 }
 
-func (c *CinodeFSMultiFileTestSuite) checkContentMap(fs cinodefs.FS) {
-	t := c.T()
-
+func (c *CinodeFSMultiFileTestSuite) checkContentMap(t *testing.T, fs cinodefs.FS) {
 	for _, file := range c.contentMap {
-		ep, err := fs.FindEntry(t.Context(), file.path)
-		require.NoError(t, err)
-		require.Contains(t, ep.MimeType(), file.mimeType)
+		t.Run(strings.Join(file.path, "/"), func(t *testing.T) {
+			ep, err := fs.FindEntry(t.Context(), file.path)
+			require.NoError(t, err)
+			require.Contains(t, ep.MimeType(), file.mimeType)
 
-		rc, err := fs.OpenEntrypointData(t.Context(), ep)
-		require.NoError(t, err)
-		defer rc.Close()
+			rc, err := fs.OpenEntrypointData(t.Context(), ep)
+			require.NoError(t, err)
+			defer rc.Close()
 
-		data, err := io.ReadAll(rc)
-		require.NoError(t, err)
+			data, err := io.ReadAll(rc)
+			require.NoError(t, err)
 
-		require.Equal(t, file.content, string(data))
+			require.Equal(t, file.content, string(data))
+		})
 	}
 }
 
@@ -222,7 +221,7 @@ func (c *CinodeFSMultiFileTestSuite) TestReopeningInReadOnlyMode() {
 	require.NoError(t, err)
 	require.NotNil(t, fs2)
 
-	c.checkContentMap(fs2)
+	c.checkContentMap(t, fs2)
 
 	_, err = c.fs.SetEntryFile(t.Context(),
 		c.contentMap[0].path,
@@ -231,7 +230,7 @@ func (c *CinodeFSMultiFileTestSuite) TestReopeningInReadOnlyMode() {
 	require.NoError(t, err)
 
 	// Data in fs was not yet flushed to the datastore, fs2 should still refer to the old content
-	c.checkContentMap(fs2)
+	c.checkContentMap(t, fs2)
 
 	err = c.fs.Flush(t.Context())
 	require.NoError(t, err)
@@ -246,7 +245,7 @@ func (c *CinodeFSMultiFileTestSuite) TestReopeningInReadOnlyMode() {
 
 	// Check with modified content map
 	c.contentMap[0].content = "modified content"
-	c.checkContentMap(fs2)
+	c.checkContentMap(t, fs2)
 
 	// We should not be allowed to modify fs2 without writer info
 	ep, err := fs2.SetEntryFile(
@@ -256,8 +255,8 @@ func (c *CinodeFSMultiFileTestSuite) TestReopeningInReadOnlyMode() {
 	)
 	require.ErrorIs(t, err, cinodefs.ErrMissingWriterInfo)
 	require.Nil(t, ep)
-	c.checkContentMap(c.fs)
-	c.checkContentMap(fs2)
+	c.checkContentMap(t, c.fs)
+	c.checkContentMap(t, fs2)
 }
 
 func (c *CinodeFSMultiFileTestSuite) TestReopeningInReadWriteMode() {
@@ -275,7 +274,7 @@ func (c *CinodeFSMultiFileTestSuite) TestReopeningInReadWriteMode() {
 	require.NoError(t, err)
 	require.NotNil(t, fs3)
 
-	c.checkContentMap(fs3)
+	c.checkContentMap(t, fs3)
 
 	// With a proper auth info we can modify files in the root path
 	ep, err := fs3.SetEntryFile(
@@ -287,7 +286,7 @@ func (c *CinodeFSMultiFileTestSuite) TestReopeningInReadWriteMode() {
 	require.NotNil(t, ep)
 
 	c.contentMap[0].content = "modified through fs3"
-	c.checkContentMap(fs3)
+	c.checkContentMap(t, fs3)
 }
 
 func (c *CinodeFSMultiFileTestSuite) TestRemovalOfAFile() {
@@ -297,7 +296,7 @@ func (c *CinodeFSMultiFileTestSuite) TestRemovalOfAFile() {
 	require.NoError(t, err)
 
 	c.contentMap = c.contentMap[1:]
-	c.checkContentMap(c.fs)
+	c.checkContentMap(t, c.fs)
 }
 
 func (c *CinodeFSMultiFileTestSuite) TestRemovalOfADirectory() {
@@ -321,12 +320,12 @@ func (c *CinodeFSMultiFileTestSuite) TestRemovalOfADirectory() {
 	c.contentMap = filteredEntries
 	require.NotZero(t, removed)
 
-	c.checkContentMap(c.fs)
+	c.checkContentMap(t, c.fs)
 
 	err = c.fs.DeleteEntry(t.Context(), removedPath)
 	require.ErrorIs(t, err, cinodefs.ErrEntryNotFound)
 
-	c.checkContentMap(c.fs)
+	c.checkContentMap(t, c.fs)
 
 	ep, err := c.fs.FindEntry(t.Context(), removedPath)
 	require.ErrorIs(t, err, cinodefs.ErrEntryNotFound)
@@ -339,7 +338,7 @@ func (c *CinodeFSMultiFileTestSuite) TestRemovalOfADirectory() {
 func (c *CinodeFSMultiFileTestSuite) TestDeleteTreatFileAsDirectory() {
 	t := c.T()
 
-	path := append(c.contentMap[0].path, "sub-file")
+	path := slices.Concat(c.contentMap[0].path, []string{"sub-file"})
 	err := c.fs.DeleteEntry(t.Context(), path)
 	require.ErrorIs(t, err, cinodefs.ErrNotADirectory)
 }
@@ -365,12 +364,12 @@ func (c *CinodeFSMultiFileTestSuite) TestResetDir() {
 	c.contentMap = filteredEntries
 	require.NotZero(t, removed)
 
-	c.checkContentMap(c.fs)
+	c.checkContentMap(t, c.fs)
 
 	err = c.fs.ResetDir(t.Context(), removedPath)
 	require.NoError(t, err)
 
-	c.checkContentMap(c.fs)
+	c.checkContentMap(t, c.fs)
 
 	ep, err := c.fs.FindEntry(t.Context(), removedPath)
 	require.ErrorIs(t, err, cinodefs.ErrModifiedDirectory)
@@ -381,7 +380,7 @@ func (c *CinodeFSMultiFileTestSuite) TestSettingEntry() {
 	t := c.T()
 
 	t.Run("prevent treating file as directory", func(t *testing.T) {
-		path := append(c.contentMap[0].path, "sub-file")
+		path := slices.Concat(c.contentMap[0].path, []string{"sub-file"})
 		_, err := c.fs.SetEntryFile(t.Context(), path, strings.NewReader("should not happen"))
 		require.ErrorIs(t, err, cinodefs.ErrNotADirectory)
 	})
@@ -395,7 +394,6 @@ func (c *CinodeFSMultiFileTestSuite) TestSettingEntry() {
 			t.Run(strings.Join(path, "::"), func(t *testing.T) {
 				_, err := c.fs.SetEntryFile(t.Context(), path, strings.NewReader("should not succeed"))
 				require.ErrorIs(t, err, cinodefs.ErrEmptyName)
-
 			})
 		}
 	})
@@ -437,7 +435,7 @@ func (c *CinodeFSMultiFileTestSuite) TestSettingEntry() {
 			mimeType: ep.MimeType(),
 		})
 
-		c.checkContentMap(c.fs)
+		c.checkContentMap(t, c.fs)
 	})
 }
 
@@ -508,30 +506,30 @@ func (c *CinodeFSMultiFileTestSuite) TestSubLinksAndWriteOnlyPath() {
 		content:  "linked-file",
 		mimeType: ep.MimeType(),
 	})
-	c.checkContentMap(c.fs)
+	c.checkContentMap(t, c.fs)
 
 	// Convert path to the file to a dynamic link
 	wi, err := c.fs.InjectDynamicLink(t.Context(), linkPath)
 	require.NoError(t, err)
 	require.NotNil(t, wi)
-	c.checkContentMap(c.fs)
+	c.checkContentMap(t, c.fs)
 
 	// Ensure flushing through the dynamic link works
 	err = c.fs.Flush(t.Context())
 	require.NoError(t, err)
-	c.checkContentMap(c.fs)
+	c.checkContentMap(t, c.fs)
 
 	// Ensure the content can still be changed - corresponding auth info
 	// is still kept in the concept
 	_, err = c.fs.SetEntryFile(t.Context(), path, strings.NewReader("updated-linked-file"))
 	require.NoError(t, err)
 	c.contentMap[len(c.contentMap)-1].content = "updated-linked-file"
-	c.checkContentMap(c.fs)
+	c.checkContentMap(t, c.fs)
 
 	// Ensure flushing works after the change behind the link
 	err = c.fs.Flush(t.Context())
 	require.NoError(t, err)
-	c.checkContentMap(c.fs)
+	c.checkContentMap(t, c.fs)
 
 	rootWriterInfo, err := c.fs.RootWriterInfo(t.Context())
 	require.NoError(t, err)
@@ -543,7 +541,7 @@ func (c *CinodeFSMultiFileTestSuite) TestSubLinksAndWriteOnlyPath() {
 		cinodefs.RootWriterInfoString(rootWriterInfo.String()),
 	)
 	require.NoError(t, err)
-	c.checkContentMap(fs2)
+	c.checkContentMap(t, fs2)
 
 	// Can not do any operation below the split point
 	ep, err = fs2.SetEntryFile(
@@ -632,51 +630,51 @@ func (c *CinodeFSMultiFileTestSuite) TestMalformedDirectory() {
 	brokenEP.BlobName = []byte{}
 
 	for _, d := range []struct {
+		err error
 		n   string
 		d   []byte
-		err error
 	}{
 		{
-			"malformed data",
-			[]byte{23, 45, 67, 89, 12, 34, 56, 78, 90}, // Some malformed message
-			cinodefs.ErrCantOpenDir,
+			n:   "malformed data",
+			d:   []byte{23, 45, 67, 89, 12, 34, 56, 78, 90}, // Some malformed message
+			err: cinodefs.ErrCantOpenDir,
 		},
 		{
-			"entry with empty name",
-			golang.Must(proto.Marshal(&protobuf.Directory{
+			n: "entry with empty name",
+			d: golang.Must(proto.Marshal(&protobuf.Directory{
 				Entries: []*protobuf.Directory_Entry{{
 					Name: "",
 				}},
 			})),
-			cinodefs.ErrEmptyName,
+			err: cinodefs.ErrEmptyName,
 		},
 		{
-			"two entries with the same name",
-			golang.Must(proto.Marshal(&protobuf.Directory{
+			n: "two entries with the same name",
+			d: golang.Must(proto.Marshal(&protobuf.Directory{
 				Entries: []*protobuf.Directory_Entry{
 					{Name: "entry", Ep: &ep},
 					{Name: "entry", Ep: &ep},
 				},
 			})),
-			cinodefs.ErrCantOpenDirDuplicateEntry,
+			err: cinodefs.ErrCantOpenDirDuplicateEntry,
 		},
 		{
-			"missing entrypoint",
-			golang.Must(proto.Marshal(&protobuf.Directory{
+			n: "missing entrypoint",
+			d: golang.Must(proto.Marshal(&protobuf.Directory{
 				Entries: []*protobuf.Directory_Entry{
 					{Name: "entry"},
 				},
 			})),
-			cinodefs.ErrInvalidEntrypointDataNil,
+			err: cinodefs.ErrInvalidEntrypointDataNil,
 		},
 		{
-			"missing blob name",
-			golang.Must(proto.Marshal(&protobuf.Directory{
+			n: "missing blob name",
+			d: golang.Must(proto.Marshal(&protobuf.Directory{
 				Entries: []*protobuf.Directory_Entry{
 					{Name: "entry", Ep: &brokenEP},
 				},
 			})),
-			common.ErrInvalidBlobName,
+			err: common.ErrInvalidBlobName,
 		},
 	} {
 		t.Run(d.n, func(t *testing.T) {
@@ -716,7 +714,7 @@ func (c *CinodeFSMultiFileTestSuite) TestMalformedLink() {
 	_, err = c.fs.SetEntryFile(t.Context(), []string{"link", "file"}, strings.NewReader("test"))
 	require.NoError(t, err)
 
-	linkWI_, err := c.fs.InjectDynamicLink(t.Context(), []string{"link"})
+	linkWI, err := c.fs.InjectDynamicLink(t.Context(), []string{"link"})
 	require.NoError(t, err)
 
 	// Flush is needed so that we can update entrypoint data and the fs cache won't get into our way
@@ -724,28 +722,28 @@ func (c *CinodeFSMultiFileTestSuite) TestMalformedLink() {
 	require.NoError(t, err)
 
 	for _, d := range []struct {
+		err error
 		n   string
 		d   []byte
-		err error
 	}{
 		{
-			"malformed data",
-			[]byte{23, 45, 67, 89, 12, 34, 56, 78, 90}, // Some malformed message
-			cinodefs.ErrCantOpenLink,
+			n:   "malformed data",
+			d:   []byte{23, 45, 67, 89, 12, 34, 56, 78, 90}, // Some malformed message
+			err: cinodefs.ErrCantOpenLink,
 		},
 		{
-			"missing target blob name",
-			golang.Must(proto.Marshal(&brokenEP)),
-			common.ErrInvalidBlobName,
+			n:   "missing target blob name",
+			d:   golang.Must(proto.Marshal(&brokenEP)),
+			err: common.ErrInvalidBlobName,
 		},
 	} {
 		t.Run(d.n, func(t *testing.T) {
-			var linkWI protobuf.WriterInfo
-			err = proto.Unmarshal(linkWI_.Bytes(), &linkWI)
+			var linkWIParsed protobuf.WriterInfo
+			err = proto.Unmarshal(linkWI.Bytes(), &linkWIParsed)
 			require.NoError(t, err)
-			linkBlobName := golang.Must(common.BlobNameFromBytes(linkWI.BlobName))
-			linkAuthInfo := common.AuthInfoFromBytes(linkWI.AuthInfo)
-			linkKey := common.BlobKeyFromBytes(linkWI.Key)
+			linkBlobName := golang.Must(common.BlobNameFromBytes(linkWIParsed.BlobName))
+			linkAuthInfo := common.AuthInfoFromBytes(linkWIParsed.AuthInfo)
+			linkKey := common.BlobKeyFromBytes(linkWIParsed.Key)
 
 			err = c.be.Update(t.Context(),
 				linkBlobName, linkAuthInfo, linkKey, bytes.NewReader(d.d),
@@ -802,7 +800,7 @@ func (c *CinodeFSMultiFileTestSuite) TestPathWithMultipleLinks() {
 		content:  initialContent,
 		mimeType: ep.MimeType(),
 	})
-	c.checkContentMap(c.fs)
+	c.checkContentMap(t, c.fs)
 
 	// Modify the content of the file in the original filesystem, not yet flushed
 	const modifiedContent1 = "modified content 1"
@@ -810,15 +808,15 @@ func (c *CinodeFSMultiFileTestSuite) TestPathWithMultipleLinks() {
 	require.NoError(t, err)
 
 	// Change not yet observed through the second filesystem due to no flush
-	c.checkContentMap(fs2)
+	c.checkContentMap(t, fs2)
 
 	err = c.fs.Flush(t.Context())
 	require.NoError(t, err)
 
 	// Change must now be observed through the second filesystem
 	c.contentMap[len(c.contentMap)-1].content = modifiedContent1
-	c.checkContentMap(c.fs)
-	c.checkContentMap(fs2)
+	c.checkContentMap(t, c.fs)
+	c.checkContentMap(t, fs2)
 }
 
 func (c *CinodeFSMultiFileTestSuite) TestBlobWriteErrorWhenCreatingFile() {
@@ -868,7 +866,13 @@ func (c *CinodeFSMultiFileTestSuite) TestBlobWriteWhenCreatingLink() {
 	t := c.T()
 
 	injectedErr := errors.New("link creation error")
-	c.be.updateFunc = func(ctx context.Context, name *common.BlobName, ai *common.AuthInfo, key *common.BlobKey, r io.Reader) error {
+	c.be.updateFunc = func(
+		ctx context.Context,
+		name *common.BlobName,
+		ai *common.AuthInfo,
+		key *common.BlobKey,
+		r io.Reader,
+	) error {
 		return injectedErr
 	}
 

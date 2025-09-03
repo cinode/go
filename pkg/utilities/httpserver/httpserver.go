@@ -28,9 +28,9 @@ import (
 )
 
 type cfg struct {
+	log        *slog.Logger
 	handler    http.Handler
 	listenAddr string
-	log        *slog.Logger
 }
 
 type Option func(c *cfg)
@@ -40,25 +40,25 @@ func ListenAddr(listenAddr string) Option { return func(c *cfg) { c.listenAddr =
 func Logger(log *slog.Logger) Option      { return func(c *cfg) { c.log = log } }
 
 func RunGracefully(ctx context.Context, handler http.Handler, opt ...Option) error {
-	cfg := cfg{
+	config := cfg{
 		handler:    handler,
 		listenAddr: ":http",
 		log:        slog.Default(),
 	}
 
 	for _, o := range opt {
-		o(&cfg)
+		o(&config)
 	}
 
-	server, _, err := startGracefully(ctx, cfg)
+	server, _, err := startGracefully(config)
 	if err != nil {
 		return err
 	}
 
-	return endGracefully(ctx, server, cfg)
+	return endGracefully(ctx, server, config)
 }
 
-func startGracefully(ctx context.Context, cfg cfg) (*http.Server, net.Listener, error) {
+func startGracefully(cfg cfg) (*http.Server, net.Listener, error) {
 	cfg.log.Info("Starting http server", "listenAddr", cfg.listenAddr)
 	listener, err := net.Listen("tcp", cfg.listenAddr)
 	if err != nil {
@@ -78,6 +78,7 @@ func startGracefully(ctx context.Context, cfg cfg) (*http.Server, net.Listener, 
 			)
 			cfg.handler.ServeHTTP(w, r)
 		}),
+		ReadHeaderTimeout: 5 * time.Second, // Prevent Slowloris attacks
 	}
 
 	go server.Serve(listener)
@@ -98,5 +99,6 @@ func endGracefully(ctx context.Context, server *http.Server, cfg cfg) error {
 func FailResponseOnError(w http.ResponseWriter, err error) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }

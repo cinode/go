@@ -42,8 +42,11 @@ type helperReader struct {
 	onEOF  func() error
 }
 
-func BReader(b []byte, onRead func() error, onEOF func() error) *helperReader {
-
+func BReader(
+	b []byte,
+	onRead func() error,
+	onEOF func() error,
+) io.Reader {
 	nop := func() error {
 		return nil
 	}

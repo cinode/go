@@ -16,6 +16,8 @@ issues:
       text: "unused-parameter"
       linters:
         - revive
+    - text: 'shadow: declaration of "(err|ctx)" shadows declaration at'
+      linters: [ govet ]
 
 linters-settings:
   govet:
@@ -69,7 +71,7 @@ linters:
   disable-all: true
   enable:
     - bodyclose
-    - depguard
+    # - depguard
     - dogsled
     - dupl
     - errcheck

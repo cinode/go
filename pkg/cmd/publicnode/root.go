@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package public_node
+package publicnode
 
 import (
 	"context"
@@ -43,7 +43,7 @@ func Execute(ctx context.Context) error {
 }
 
 func executeWithConfig(ctx context.Context, cfg *config) error {
-	handler, err := buildHttpHandler(cfg)
+	handler, err := buildHTTPHandler(cfg)
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func executeWithConfig(ctx context.Context, cfg *config) error {
 	)
 }
 
-func buildHttpHandler(cfg *config) (http.Handler, error) {
+func buildHTTPHandler(cfg *config) (http.Handler, error) {
 	mainDS, err := datastore.FromLocation(cfg.mainDSLocation)
 	if err != nil {
 		return nil, fmt.Errorf("could not create main datastore: %w", err)
@@ -109,7 +109,7 @@ func buildHttpHandler(cfg *config) (http.Handler, error) {
 				// but it does not do any harm.
 				username, password, ok := r.BasicAuth()
 
-				var validAuth int = 0
+				var validAuth = 0
 				if ok {
 					validAuth = 1
 				}
@@ -139,13 +139,12 @@ func buildHttpHandler(cfg *config) (http.Handler, error) {
 }
 
 type config struct {
+	log                   *slog.Logger
 	mainDSLocation        string
+	uploadUsername        string
+	uploadPassword        string
 	additionalDSLocations []string
 	port                  int
-	log                   *slog.Logger
-
-	uploadUsername string
-	uploadPassword string
 }
 
 func getConfig() (*config, error) {

@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ type fileSystem struct {
 var _ storage = (*fileSystem)(nil)
 
 func newStorageFilesystem(path string) (*fileSystem, error) {
-	err := os.MkdirAll(path, 0755)
+	err := os.MkdirAll(path, 0o755)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (fs *fileSystem) createTemporaryWriteStream(name *common.BlobName) (*os.Fil
 	tempName := fs.getFileName(name, fsSuffixUpload)
 
 	// Ensure dir exists
-	err := os.MkdirAll(filepath.Dir(tempName), 0755)
+	err := os.MkdirAll(filepath.Dir(tempName), 0o755)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (fs *fileSystem) createTemporaryWriteStream(name *common.BlobName) (*os.Fil
 	fh, err := os.OpenFile(
 		tempName,
 		os.O_CREATE|os.O_EXCL|os.O_APPEND|os.O_WRONLY,
-		0644,
+		0o644,
 	)
 	if os.IsExist(err) {
 		return nil, ErrUploadInProgress
@@ -122,7 +122,6 @@ func (w *fileSystemWriteCloser) Close() error {
 }
 
 func (fs *fileSystem) openWriteStream(ctx context.Context, name *common.BlobName) (WriteCloseCanceller, error) {
-
 	fl, err := fs.createTemporaryWriteStream(name)
 	if err != nil {
 		return nil, err

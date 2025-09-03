@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cinode_web_proxy_test
+package cinodewebproxy_test
 
 import (
 	"context"
@@ -31,7 +31,7 @@ import (
 	"github.com/cinode/go/pkg/blenc"
 	"github.com/cinode/go/pkg/cinodefs"
 	"github.com/cinode/go/pkg/cinodefs/uploader"
-	"github.com/cinode/go/pkg/cmd/cinode_web_proxy"
+	"github.com/cinode/go/pkg/cmd/cinodewebproxy"
 	"github.com/cinode/go/pkg/datastore"
 	"github.com/stretchr/testify/require"
 )
@@ -94,7 +94,7 @@ func TestIntegration(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			cinode_web_proxy.Execute(ctx)
+			cinodewebproxy.Execute(ctx)
 		}()
 		time.Sleep(time.Millisecond) // Wait for the server, TODO: This is ugly way to do this
 
@@ -148,7 +148,7 @@ func TestIntegration(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join(dir, fl.Name()))
 			require.NoError(t, err)
 
-			err = os.WriteFile(filepath.Join(partialDir, fl.Name()), data, 0666)
+			err = os.WriteFile(filepath.Join(partialDir, fl.Name()), data, 0o666)
 			require.NoError(t, err)
 		}
 

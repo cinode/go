@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ limitations under the License.
 package securefifo
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -26,7 +27,7 @@ import (
 )
 
 func TestSecureFifoReadBack(t *testing.T) {
-	for _, d := range []struct {
+	for i, d := range []struct {
 		data []byte
 	}{
 		{data: []byte{}},
@@ -36,45 +37,47 @@ func TestSecureFifoReadBack(t *testing.T) {
 		{data: []byte(strings.Repeat("a", 17))},
 		{data: []byte(strings.Repeat("a", 16*1024))},
 	} {
-		w, err := New()
-		require.NoError(t, err)
-		defer w.Close()
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			w, err := New()
+			require.NoError(t, err)
+			defer w.Close()
 
-		n, err := w.Write(d.data)
-		require.NoError(t, err)
-		require.EqualValues(t, len(d.data), n)
+			n, err := w.Write(d.data)
+			require.NoError(t, err)
+			require.EqualValues(t, len(d.data), n)
 
-		r, err := w.Done()
-		require.NoError(t, err)
-		defer r.Close()
+			r, err := w.Done()
+			require.NoError(t, err)
+			defer r.Close()
 
-		err = w.Close()
-		require.NoError(t, err)
+			err = w.Close()
+			require.NoError(t, err)
 
-		// Close must be idempotent
-		err = w.Close()
-		require.NoError(t, err)
+			// Close must be idempotent
+			err = w.Close()
+			require.NoError(t, err)
 
-		readBack, err := io.ReadAll(r)
-		require.NoError(t, err)
-		require.Equal(t, readBack, d.data)
+			readBack, err := io.ReadAll(r)
+			require.NoError(t, err)
+			require.Equal(t, readBack, d.data)
 
-		r2, err := r.Reset()
-		require.NoError(t, err)
+			r2, err := r.Reset()
+			require.NoError(t, err)
 
-		err = r.Close()
-		require.NoError(t, err)
+			err = r.Close()
+			require.NoError(t, err)
 
-		// Close must be idempotent
-		err = r.Close()
-		require.NoError(t, err)
+			// Close must be idempotent
+			err = r.Close()
+			require.NoError(t, err)
 
-		readBack, err = io.ReadAll(r2)
-		require.NoError(t, err)
-		require.Equal(t, readBack, d.data)
+			readBack, err = io.ReadAll(r2)
+			require.NoError(t, err)
+			require.Equal(t, readBack, d.data)
 
-		err = r2.Close()
-		require.NoError(t, err)
+			err = r2.Close()
+			require.NoError(t, err)
+		})
 	}
 }
 

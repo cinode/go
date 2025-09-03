@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -313,7 +313,7 @@ var (
 
 func writeLinkData(tc TestCase) error {
 	fName := tc.Name + ".json"
-	err := os.MkdirAll(filepath.Dir(fName), 0777)
+	err := os.MkdirAll(filepath.Dir(fName), 0o777)
 	if err != nil {
 		return err
 	}
@@ -335,7 +335,7 @@ func writeLinkData(tc TestCase) error {
 		return err
 	}
 
-	err = os.WriteFile(fName, jsonData, 0666)
+	err = os.WriteFile(fName, jsonData, 0o666)
 	if err != nil {
 		return err
 	}
@@ -380,7 +380,7 @@ func writeTestBlobCode(
 	)
 
 	fileName := filepath.Join("testblobs", strings.ToLower(name)+".go")
-	err := os.WriteFile(fileName, []byte(code), 0666)
+	err := os.WriteFile(fileName, []byte(code), 0o666)
 	if err != nil {
 		return err
 	}

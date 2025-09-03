@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import (
 
 func TestOnCloseCheckReader(t *testing.T) {
 	t.Run("properly read if read function does not raise an error", func(t *testing.T) {
-
 		r := validatingreader.CheckOnEOF(
 			bytes.NewBufferString("Hello world"),
 			func() error { return nil },
@@ -50,5 +49,4 @@ func TestOnCloseCheckReader(t *testing.T) {
 		_, err := io.ReadAll(r)
 		require.Equal(t, err, injectedError)
 	})
-
 }

@@ -98,8 +98,17 @@ func (s *HandlerTestSuite) setEntry(t *testing.T, data string, path ...string) {
 	require.NoError(t, err)
 }
 
-func (s *HandlerTestSuite) getEntryETag(t *testing.T, path, etag string) (string, string, string, int) {
-	req, err := http.NewRequest(http.MethodGet, s.server.URL+path, nil)
+func (s *HandlerTestSuite) getEntryETag(
+	t *testing.T,
+	path string,
+	etag string,
+) (
+	data string,
+	contentType string,
+	respEtag string,
+	code int,
+) {
+	req, err := http.NewRequest(http.MethodGet, s.server.URL+path, http.NoBody)
 	require.NoError(t, err)
 
 	if etag != "" {
@@ -110,14 +119,18 @@ func (s *HandlerTestSuite) getEntryETag(t *testing.T, path, etag string) (string
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	data, err := io.ReadAll(resp.Body)
+	bodyData, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	return string(data), resp.Header.Get("content-type"), resp.Header.Get("ETag"), resp.StatusCode
+	return string(bodyData), resp.Header.Get("content-type"), resp.Header.Get("ETag"), resp.StatusCode
 }
 
-func (s *HandlerTestSuite) getEntry(path string) (string, string, int) {
-	data, contentType, _, code := s.getEntryETag(s.T(), path, "")
+func (s *HandlerTestSuite) getEntry(path string) (
+	data string,
+	contentType string,
+	code int,
+) {
+	data, contentType, _, code = s.getEntryETag(s.T(), path, "")
 	return data, contentType, code
 }
 

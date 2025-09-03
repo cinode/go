@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ import (
 const (
 	filePrefix     = "file://"
 	rawFilePrefix  = "file-raw://"
-	webPrefixHttp  = "http://"
-	webPrefixHttps = "https://"
+	webPrefixHTTP  = "http://"
+	webPrefixHTTPS = "https://"
 	memoryPrefix   = "memory://"
 )
 
@@ -36,9 +36,12 @@ var (
 // FromLocation creates new instance of the datastore from location string.
 //
 // The string may be of the following form:
-//   - file://<path> - create datastore using local filesystem's path (optimized) as the storage, see InFileSystem for more details
-//   - file-raw://<path> - create datastore using local filesystem's path (simplified) as the storage, see InRawFileSystem for more details
-//   - http://<address> or https://<address> - connects to datastore exposed through a http protocol, see FromWeb for more details
+//   - file://<path> - create datastore using local filesystem's path (optimized) as the storage,
+//     see InFileSystem for more details
+//   - file-raw://<path> - create datastore using local filesystem's path (simplified) as the storage,
+//     see InRawFileSystem for more details
+//   - http://<address> or https://<address> - connects to datastore exposed through a http protocol,
+//     see FromWeb for more details
 //   - memory:// - creates a local in-process datastore without persistent storage
 //   - <path> - equivalent to file://<path>
 func FromLocation(location string) (DS, error) {
@@ -49,8 +52,8 @@ func FromLocation(location string) (DS, error) {
 	case strings.HasPrefix(location, rawFilePrefix):
 		return InRawFileSystem(location[len(rawFilePrefix):])
 
-	case strings.HasPrefix(location, webPrefixHttp),
-		strings.HasPrefix(location, webPrefixHttps):
+	case strings.HasPrefix(location, webPrefixHTTP),
+		strings.HasPrefix(location, webPrefixHTTPS):
 		return FromWeb(location)
 
 	case strings.HasPrefix(location, memoryPrefix):

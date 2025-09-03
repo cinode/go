@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -130,11 +130,10 @@ type FS interface {
 
 type cinodeFS struct {
 	c                graphContext
-	maxLinkRedirects int
-	timeFunc         func() time.Time
 	randSource       io.Reader
-
-	rootEP node
+	rootEP           node
+	timeFunc         func() time.Time
+	maxLinkRedirects int
 }
 
 func New(

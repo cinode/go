@@ -67,16 +67,13 @@ func TestCancelWithSignal(t *testing.T) {
 func TestEnsureHandlerIsCalled(t *testing.T) {
 	handlerCalled := false
 
-	server, listener, err := startGracefully(
-		t.Context(),
-		cfg{
-			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				handlerCalled = true
-			}),
-			listenAddr: ":0",
-			log:        slog.Default(),
-		},
-	)
+	server, listener, err := startGracefully(cfg{
+		handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+		}),
+		listenAddr: ":0",
+		log:        slog.Default(),
+	})
 	require.NoError(t, err)
 
 	resp, err := http.Get(
@@ -105,20 +102,20 @@ func TestFailOnInvalidListenAddr(t *testing.T) {
 
 func TestOptions(t *testing.T) {
 	t.Run("ListenPort", func(t *testing.T) {
-		cfg := cfg{}
-		ListenPort(54321)(&cfg)
-		require.Equal(t, ":54321", cfg.listenAddr)
+		config := cfg{}
+		ListenPort(54321)(&config)
+		require.Equal(t, ":54321", config.listenAddr)
 	})
 	t.Run("ListenAddr", func(t *testing.T) {
-		cfg := cfg{}
-		ListenAddr(":12345")(&cfg)
-		require.Equal(t, ":12345", cfg.listenAddr)
+		config := cfg{}
+		ListenAddr(":12345")(&config)
+		require.Equal(t, ":12345", config.listenAddr)
 	})
 	t.Run("Logger", func(t *testing.T) {
 		log := slog.New(slog.NewJSONHandler(bytes.NewBuffer(nil), nil))
-		cfg := cfg{}
-		Logger(log)(&cfg)
-		require.Equal(t, log, cfg.log)
+		config := cfg{}
+		Logger(log)(&config)
+		require.Equal(t, log, config.log)
 	})
 }
 

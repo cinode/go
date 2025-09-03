@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cinode_web_proxy
+package cinodewebproxy
 
 import (
 	"bytes"
@@ -62,7 +62,7 @@ func TestGetConfig(t *testing.T) {
 	t.Run("entrypoint file", func(t *testing.T) {
 		t.Run("valid", func(t *testing.T) {
 			entrypointFile := filepath.Join(t.TempDir(), "ep.txt")
-			err := os.WriteFile(entrypointFile, []byte("54321"), 0666)
+			err := os.WriteFile(entrypointFile, []byte("54321"), 0o666)
 			require.NoError(t, err)
 
 			t.Setenv("CINODE_ENTRYPOINT_FILE", entrypointFile)
@@ -161,7 +161,6 @@ func TestWebProxyHandlerInvalidEntrypoint(t *testing.T) {
 }
 
 func TestWebProxyHandlerSimplePage(t *testing.T) {
-
 	ds := datastore.InMemory()
 	be := blenc.FromDatastore(ds)
 
@@ -172,10 +171,10 @@ func TestWebProxyHandlerSimplePage(t *testing.T) {
 			"index.html":     "index",
 			"sub/index.html": "sub-index",
 		} {
-			err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0755)
+			err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755)
 			require.NoError(t, err)
 
-			err = os.WriteFile(filepath.Join(dir, name), []byte(content), 0644)
+			err = os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644)
 			require.NoError(t, err)
 		}
 

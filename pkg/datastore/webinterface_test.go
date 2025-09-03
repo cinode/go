@@ -44,12 +44,25 @@ func testServer(t *testing.T) string {
 	return server.URL + "/"
 }
 
-func testHTTPResponse(t *testing.T, method string, path string, data io.Reader, code int) {
+func testHTTPResponse(
+	t *testing.T,
+	method string,
+	path string,
+	data io.Reader,
+	code int,
+) {
 	url := testServer(t)
 	testHTTPResponseOwnServer(t, method, url+path, data, code)
 }
 
-func testHTTPResponseOwnServerContentType(t *testing.T, method string, url string, data io.Reader, contentType string, code int) {
+func testHTTPResponseOwnServerContentType(
+	t *testing.T,
+	method string,
+	url string,
+	data io.Reader,
+	contentType string,
+	code int,
+) {
 	req, err := http.NewRequest(method, url, data)
 	require.NoError(t, err)
 
@@ -62,37 +75,116 @@ func testHTTPResponseOwnServerContentType(t *testing.T, method string, url strin
 	require.Equal(t, code, resp.StatusCode)
 }
 
-func testHTTPResponseOwnServer(t *testing.T, method string, url string, data io.Reader, code int) {
-	testHTTPResponseOwnServerContentType(t, method, url, data, "application/octet-stream", code)
+func testHTTPResponseOwnServer(
+	t *testing.T,
+	method string,
+	url string,
+	data io.Reader,
+	code int,
+) {
+	testHTTPResponseOwnServerContentType(
+		t,
+		method,
+		url,
+		data,
+		"application/octet-stream",
+		code,
+	)
 }
 
 func TestWebInterfaceInvalidMethod(t *testing.T) {
-	testHTTPResponse(t, http.MethodOptions, "", nil, http.StatusMethodNotAllowed)
+	testHTTPResponse(
+		t,
+		http.MethodOptions,
+		"",
+		nil,
+		http.StatusMethodNotAllowed,
+	)
 }
 
 func TestWebInterfaceGetQueryString(t *testing.T) {
 	url := testServer(t)
-	testHTTPResponseOwnServer(t, http.MethodPut, url+testutils.EmptyBlobNameStatic.String(), bytes.NewBuffer(nil), http.StatusOK)
-	testHTTPResponseOwnServer(t, http.MethodGet, url+testutils.EmptyBlobNameStatic.String()+"?param=value", nil, http.StatusBadRequest)
+	testHTTPResponseOwnServer(
+		t,
+		http.MethodPut,
+		url+testutils.EmptyBlobNameStatic.String(),
+		bytes.NewBuffer(nil),
+		http.StatusOK,
+	)
+	testHTTPResponseOwnServer(
+		t,
+		http.MethodGet,
+		url+testutils.EmptyBlobNameStatic.String()+"?param=value",
+		nil,
+		http.StatusBadRequest,
+	)
 }
 
 func TestWebInterfacePutQueryString(t *testing.T) {
-	testHTTPResponse(t, http.MethodPut, testutils.EmptyBlobNameStatic.String()+"?param=value", bytes.NewBuffer(nil), http.StatusBadRequest)
-	testHTTPResponse(t, http.MethodPut, testutils.EmptyBlobNameStatic.String(), bytes.NewBuffer(nil), http.StatusOK)
+	testHTTPResponse(
+		t,
+		http.MethodPut,
+		testutils.EmptyBlobNameStatic.String()+"?param=value",
+		bytes.NewBuffer(nil),
+		http.StatusBadRequest,
+	)
+	testHTTPResponse(
+		t,
+		http.MethodPut,
+		testutils.EmptyBlobNameStatic.String(),
+		bytes.NewBuffer(nil),
+		http.StatusOK,
+	)
 }
 
 func TestWebInterfaceHeadQueryString(t *testing.T) {
 	url := testServer(t)
-	testHTTPResponseOwnServer(t, http.MethodPut, url+testutils.EmptyBlobNameStatic.String(), bytes.NewBuffer(nil), http.StatusOK)
-	testHTTPResponseOwnServer(t, http.MethodHead, url+testutils.EmptyBlobNameStatic.String()+"?param=value", nil, http.StatusBadRequest)
-	testHTTPResponseOwnServer(t, http.MethodHead, url+testutils.EmptyBlobNameStatic.String(), nil, http.StatusOK)
+	testHTTPResponseOwnServer(
+		t,
+		http.MethodPut,
+		url+testutils.EmptyBlobNameStatic.String(),
+		bytes.NewBuffer(nil),
+		http.StatusOK,
+	)
+	testHTTPResponseOwnServer(
+		t,
+		http.MethodHead,
+		url+testutils.EmptyBlobNameStatic.String()+"?param=value",
+		nil,
+		http.StatusBadRequest,
+	)
+	testHTTPResponseOwnServer(
+		t,
+		http.MethodHead,
+		url+testutils.EmptyBlobNameStatic.String(),
+		nil,
+		http.StatusOK,
+	)
 }
 
 func TestWebInterfaceDeleteQueryString(t *testing.T) {
 	url := testServer(t)
-	testHTTPResponseOwnServer(t, http.MethodPut, url+testutils.EmptyBlobNameStatic.String(), bytes.NewBuffer(nil), http.StatusOK)
-	testHTTPResponseOwnServer(t, http.MethodDelete, url+testutils.EmptyBlobNameStatic.String()+"?param=value", nil, http.StatusBadRequest)
-	testHTTPResponseOwnServer(t, http.MethodDelete, url+testutils.EmptyBlobNameStatic.String(), nil, http.StatusOK)
+	testHTTPResponseOwnServer(
+		t,
+		http.MethodPut,
+		url+testutils.EmptyBlobNameStatic.String(),
+		bytes.NewBuffer(nil),
+		http.StatusOK,
+	)
+	testHTTPResponseOwnServer(
+		t,
+		http.MethodDelete,
+		url+testutils.EmptyBlobNameStatic.String()+"?param=value",
+		nil,
+		http.StatusBadRequest,
+	)
+	testHTTPResponseOwnServer(
+		t,
+		http.MethodDelete,
+		url+testutils.EmptyBlobNameStatic.String(),
+		nil,
+		http.StatusOK,
+	)
 }
 
 func TestWebIntefaceExistsFailure(t *testing.T) {
@@ -103,7 +195,13 @@ func TestWebIntefaceExistsFailure(t *testing.T) {
 	}))
 	defer server.Close()
 
-	testHTTPResponseOwnServer(t, http.MethodHead, server.URL+"/"+testutils.EmptyBlobNameStatic.String(), nil, http.StatusInternalServerError)
+	testHTTPResponseOwnServer(
+		t,
+		http.MethodHead,
+		server.URL+"/"+testutils.EmptyBlobNameStatic.String(),
+		nil,
+		http.StatusInternalServerError,
+	)
 }
 
 func TestWebInterfaceMultipartSave(t *testing.T) {
@@ -116,7 +214,14 @@ func TestWebInterfaceMultipartSave(t *testing.T) {
 	err = writer.Close()
 	require.NoError(t, err)
 
-	testHTTPResponseOwnServerContentType(t, http.MethodPut, url+testutils.EmptyBlobNameStatic.String(), body, writer.FormDataContentType(), http.StatusOK)
+	testHTTPResponseOwnServerContentType(
+		t,
+		http.MethodPut,
+		url+testutils.EmptyBlobNameStatic.String(),
+		body,
+		writer.FormDataContentType(),
+		http.StatusOK,
+	)
 }
 
 func TestWebInterfaceMultipartNoDataSave(t *testing.T) {
@@ -131,5 +236,12 @@ func TestWebInterfaceMultipartNoDataSave(t *testing.T) {
 	err = writer.Close()
 	require.NoError(t, err)
 
-	testHTTPResponseOwnServerContentType(t, http.MethodPut, url+testutils.EmptyBlobNameStatic.String(), body, writer.FormDataContentType(), http.StatusBadRequest)
+	testHTTPResponseOwnServerContentType(
+		t,
+		http.MethodPut,
+		url+testutils.EmptyBlobNameStatic.String(),
+		body,
+		writer.FormDataContentType(),
+		http.StatusBadRequest,
+	)
 }

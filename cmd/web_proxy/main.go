@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,11 +20,11 @@ import (
 	"context"
 	"log"
 
-	"github.com/cinode/go/pkg/cmd/cinode_web_proxy"
+	"github.com/cinode/go/pkg/cmd/cinodewebproxy"
 )
 
 func main() {
-	if err := cinode_web_proxy.Execute(context.Background()); err != nil {
+	if err := cinodewebproxy.Execute(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 }

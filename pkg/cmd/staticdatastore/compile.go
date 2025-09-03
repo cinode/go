@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package static_datastore
+package staticdatastore
 
 import (
 	"context"
@@ -57,7 +57,7 @@ func compileCmd() *cobra.Command {
 			fatalResult := func(format string, args ...interface{}) error {
 				msg := fmt.Sprintf(format, args...)
 
-				enc.Encode(map[string]string{
+				_ = enc.Encode(map[string]string{
 					"result": "ERROR",
 					"msg":    msg,
 				})
@@ -67,7 +67,7 @@ func compileCmd() *cobra.Command {
 				return errors.New(msg)
 			}
 
-			if len(rootWriterInfoFile) > 0 {
+			if rootWriterInfoFile != "" {
 				data, err := os.ReadFile(rootWriterInfoFile)
 				if err != nil {
 					return fatalResult("Couldn't read data from the writer info file at '%s': %v", rootWriterInfoFile, err)
@@ -77,7 +77,7 @@ func compileCmd() *cobra.Command {
 				}
 				rootWriterInfoStr = string(data)
 			}
-			if len(rootWriterInfoStr) > 0 {
+			if rootWriterInfoStr != "" {
 				wi, err := cinodefs.WriterInfoFromString(rootWriterInfoStr)
 				if err != nil {
 					return fatalResult("Couldn't parse writer info: %v", err)
@@ -107,7 +107,8 @@ func compileCmd() *cobra.Command {
 			if wi != nil {
 				result["writer-info"] = wi.String()
 			}
-			enc.Encode(result)
+
+			_ = enc.Encode(result)
 
 			log.Println("DONE")
 			return nil
@@ -132,7 +133,7 @@ func compileCmd() *cobra.Command {
 		"if set to true, use raw filesystem instead of the optimized one, "+
 			"can be used to create dataset for a standard http server",
 	)
-	cmd.Flags().MarkHidden("raw-filesystem")
+	_ = cmd.Flags().MarkHidden("raw-filesystem")
 	cmd.Flags().StringVarP(
 		&rootWriterInfoStr, "writer-info", "w", "",
 		"writer info for the root dynamic link, if neither writer info nor writer info file is specified, "+
@@ -161,12 +162,12 @@ func compileCmd() *cobra.Command {
 }
 
 type compileFSOptions struct {
+	writerInfo         *cinodefs.WriterInfo
 	srcDir             string
 	dstLocation        string
-	static             bool
-	writerInfo         *cinodefs.WriterInfo
-	generateIndexFiles bool
 	indexFile          string
+	static             bool
+	generateIndexFiles bool
 	append             bool
 }
 
@@ -184,11 +185,13 @@ func compileFS(
 	}
 
 	opts := []cinodefs.Option{}
-	if o.static {
+
+	switch {
+	case o.static:
 		opts = append(opts, cinodefs.NewRootStaticDirectory())
-	} else if o.writerInfo == nil {
+	case o.writerInfo == nil:
 		opts = append(opts, cinodefs.NewRootDynamicLink())
-	} else {
+	default:
 		opts = append(opts, cinodefs.RootWriterInfo(o.writerInfo))
 	}
 

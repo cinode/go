@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ func (d *nodeDirectory) flush(ctx context.Context, gc *graphContext) (node, *Ent
 	}, ep, nil
 }
 
-func (c *nodeDirectory) traverse(
+func (d *nodeDirectory) traverse(
 	ctx context.Context,
 	gc *graphContext,
 	path []string,
@@ -117,10 +117,10 @@ func (c *nodeDirectory) traverse(
 	error,
 ) {
 	if pathPosition == len(path) {
-		return whenReached(ctx, c, isWritable)
+		return whenReached(ctx, d, isWritable)
 	}
 
-	subNode, found := c.entries[path[pathPosition]]
+	subNode, found := d.entries[path[pathPosition]]
 	if !found {
 		if !opts.createNodes {
 			return nil, 0, ErrEntryNotFound
@@ -129,19 +129,18 @@ func (c *nodeDirectory) traverse(
 			return nil, 0, ErrMissingWriterInfo
 		}
 		// create new sub-path
-		newNode, err := c.traverseRecursiveNewPath(
+		newNode, err := d.traverseRecursiveNewPath(
 			ctx,
 			path,
 			pathPosition+1,
-			opts,
 			whenReached,
 		)
 		if err != nil {
 			return nil, 0, err
 		}
-		c.entries[path[pathPosition]] = newNode
-		c.dState = dsDirty
-		return c, dsDirty, nil
+		d.entries[path[pathPosition]] = newNode
+		d.dState = dsDirty
+		return d, dsDirty, nil
 	}
 
 	// found path entry, descend to sub-node
@@ -159,37 +158,35 @@ func (c *nodeDirectory) traverse(
 		return nil, 0, err
 	}
 	if opts.doNotCache {
-		return c, dsClean, nil
+		return d, dsClean, nil
 	}
 
-	c.entries[path[pathPosition]] = replacement
+	d.entries[path[pathPosition]] = replacement
 	if replacementState == dsDirty {
 		// child is dirty, this propagates down to the current node
-		c.dState = dsDirty
-		return c, dsDirty, nil
+		d.dState = dsDirty
+		return d, dsDirty, nil
 	}
 
 	if replacementState == dsSubDirty {
 		// child itself is not dirty, but some sub-node is, sub-dirtiness
 		// propagates to the current node, but if the directory is
 		// already directly dirty (stronger dirtiness), keep it as it is
-		if c.dState != dsDirty {
-			c.dState = dsSubDirty
+		if d.dState != dsDirty {
+			d.dState = dsSubDirty
 		}
-		return c, dsSubDirty, nil
+		return d, dsSubDirty, nil
 	}
 
 	golang.Assert(replacementState == dsClean, "ensure correct dirtiness state")
 	// leave current state as it is
-	return c, dsClean, nil
-
+	return d, dsClean, nil
 }
 
-func (c *nodeDirectory) traverseRecursiveNewPath(
+func (d *nodeDirectory) traverseRecursiveNewPath(
 	ctx context.Context,
 	path []string,
 	pathPosition int,
-	opts traverseOptions,
 	whenReached traverseGoalFunc,
 ) (
 	node,
@@ -200,11 +197,10 @@ func (c *nodeDirectory) traverseRecursiveNewPath(
 		return replacement, err
 	}
 
-	sub, err := c.traverseRecursiveNewPath(
+	sub, err := d.traverseRecursiveNewPath(
 		ctx,
 		path,
 		pathPosition+1,
-		opts,
 		whenReached,
 	)
 	if err != nil {
@@ -219,24 +215,24 @@ func (c *nodeDirectory) traverseRecursiveNewPath(
 	}, nil
 }
 
-func (c *nodeDirectory) entrypoint() (*Entrypoint, error) {
-	if c.dState == dsDirty {
+func (d *nodeDirectory) entrypoint() (*Entrypoint, error) {
+	if d.dState == dsDirty {
 		return nil, ErrModifiedDirectory
 	}
 
 	golang.Assert(
-		c.dState == dsClean || c.dState == dsSubDirty,
+		d.dState == dsClean || d.dState == dsSubDirty,
 		"ensure dirtiness state is valid",
 	)
 
-	return c.stored, nil
+	return d.stored, nil
 }
 
-func (c *nodeDirectory) deleteEntry(name string) bool {
-	if _, hasEntry := c.entries[name]; !hasEntry {
+func (d *nodeDirectory) deleteEntry(name string) bool {
+	if _, hasEntry := d.entries[name]; !hasEntry {
 		return false
 	}
-	delete(c.entries, name)
-	c.dState = dsDirty
+	delete(d.entries, name)
+	d.dState = dsDirty
 	return true
 }

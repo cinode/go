@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import (
 )
 
 func TestCreate(t *testing.T) {
-
 	t.Run("successful creation", func(t *testing.T) {
 		dl, err := Create(rand.Reader)
 		require.NoError(t, err)
@@ -41,7 +40,6 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("error from rand source", func(t *testing.T) {
-
 		for goodBytes := 0; goodBytes < ed25519.SeedSize+8; goodBytes++ {
 			injectedErr := errors.New("test")
 			r := io.MultiReader(

@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ type graphContext struct {
 // but more advanced methods of obtaining the key may be added
 // through this function in the future.
 func (c *graphContext) keyFromEntrypoint(
-	ctx context.Context,
+	_ context.Context,
 	ep *Entrypoint,
 ) (*common.BlobKey, error) {
 	if ep.ep.KeyInfo == nil ||
