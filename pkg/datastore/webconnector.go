@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,25 +38,25 @@ var (
 )
 
 type webConnector struct {
-	baseURL          string
 	client           *http.Client
 	customizeRequest func(*http.Request) error
+	baseURL          string
 }
 
 var _ DS = (*webConnector)(nil)
 
-type webConnectorOption func(*webConnector)
+type WebConnectorOption func(*webConnector)
 
-func WebOptionHttpClient(client *http.Client) webConnectorOption {
+func WebOptionHTTPClient(client *http.Client) WebConnectorOption {
 	return func(wc *webConnector) { wc.client = client }
 }
 
-func WebOptionCustomizeRequest(f func(*http.Request) error) webConnectorOption {
+func WebOptionCustomizeRequest(f func(*http.Request) error) WebConnectorOption {
 	return func(wc *webConnector) { wc.customizeRequest = f }
 }
 
 // FromWeb returns Datastore implementation that connects to external url
-func FromWeb(baseURL string, options ...webConnectorOption) (DS, error) {
+func FromWeb(baseURL string, options ...WebConnectorOption) (DS, error) {
 	_, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
@@ -95,12 +95,7 @@ func (w *webConnector) Open(ctx context.Context, name *common.BlobName) (io.Read
 }
 
 func (w *webConnector) openStatic(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		w.baseURL+name.String(),
-		nil,
-	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, w.baseURL+name.String(), http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -126,12 +121,7 @@ func (w *webConnector) openStatic(ctx context.Context, name *common.BlobName) (i
 }
 
 func (w *webConnector) openDynamicLink(ctx context.Context, name *common.BlobName) (io.ReadCloser, error) {
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		w.baseURL+name.String(),
-		nil,
-	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, w.baseURL+name.String(), http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -179,12 +169,7 @@ func (w *webConnector) Update(ctx context.Context, name *common.BlobName, r io.R
 }
 
 func (w *webConnector) Exists(ctx context.Context, name *common.BlobName) (bool, error) {
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodHead,
-		w.baseURL+name.String(),
-		nil,
-	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, w.baseURL+name.String(), http.NoBody)
 	if err != nil {
 		return false, err
 	}
@@ -206,12 +191,7 @@ func (w *webConnector) Exists(ctx context.Context, name *common.BlobName) (bool,
 }
 
 func (w *webConnector) Delete(ctx context.Context, name *common.BlobName) error {
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodDelete,
-		w.baseURL+name.String(),
-		nil,
-	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, w.baseURL+name.String(), http.NoBody)
 	if err != nil {
 		return err
 	}

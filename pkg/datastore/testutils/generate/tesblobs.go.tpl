@@ -22,6 +22,7 @@ import (
 	"github.com/jbenet/go-base58"
 )
 
+// nolint:lll // test data vectors
 var TestBlobs = []struct {
 	Name     *common.BlobName
 	Data     []byte
@@ -36,6 +37,7 @@ var TestBlobs = []struct {
 {{- end }}
 }
 
+// nolint:lll // test data vectors
 var DynamicLinkPropagationData = []struct {
 	Name     *common.BlobName
 	Data     []byte

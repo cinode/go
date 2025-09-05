@@ -18,19 +18,23 @@ package httpserver
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
+	"time"
 )
 
 type cfg struct {
-	handler    http.Handler
-	listenAddr string
-	log        *slog.Logger
+	log                     *slog.Logger
+	handler                 http.Handler
+	listenAddr              string
+	gracefulShutdownTimeout time.Duration
 }
 
 type Option func(c *cfg)
@@ -40,33 +44,32 @@ func ListenAddr(listenAddr string) Option { return func(c *cfg) { c.listenAddr =
 func Logger(log *slog.Logger) Option      { return func(c *cfg) { c.log = log } }
 
 func RunGracefully(ctx context.Context, handler http.Handler, opt ...Option) error {
-	cfg := cfg{
-		handler:    handler,
-		listenAddr: ":http",
-		log:        slog.Default(),
+	c := cfg{
+		handler:                 handler,
+		listenAddr:              ":http",
+		log:                     slog.Default(),
+		gracefulShutdownTimeout: 5 * time.Second,
 	}
 
 	for _, o := range opt {
-		o(&cfg)
+		o(&c)
 	}
 
-	server, _, err := startGracefully(ctx, cfg)
+	c.log.Info("Starting http server", "listenAddr", c.listenAddr)
+
+	listener, err := net.Listen("tcp", c.listenAddr)
 	if err != nil {
 		return err
 	}
 
-	return endGracefully(ctx, server, cfg)
+	ctx, signalCtxCancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer signalCtxCancel()
+
+	return runUntilContextNotDone(ctx, c, listener)
 }
 
-func startGracefully(ctx context.Context, cfg cfg) (*http.Server, net.Listener, error) {
-	cfg.log.Info("Starting http server", "listenAddr", cfg.listenAddr)
-	listener, err := net.Listen("tcp", cfg.listenAddr)
-	if err != nil {
-		return nil, nil, err
-	}
-
+func runUntilContextNotDone(ctx context.Context, cfg cfg, listener net.Listener) error {
 	server := &http.Server{
-		Addr: cfg.listenAddr,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cfg.log.Info(
 				"http request",
@@ -78,25 +81,39 @@ func startGracefully(ctx context.Context, cfg cfg) (*http.Server, net.Listener, 
 			)
 			cfg.handler.ServeHTTP(w, r)
 		}),
+		ReadHeaderTimeout: 5 * time.Second, // Prevent Slowloris attacks
 	}
 
-	go server.Serve(listener)
+	wg := sync.WaitGroup{}
+	wg.Go(func() {
+		<-ctx.Done()
 
-	return server, listener, nil
-}
+		cfg.log.Info("Shutting down")
 
-func endGracefully(ctx context.Context, server *http.Server, cfg cfg) error {
-	ctx, _ = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.gracefulShutdownTimeout)
+		defer cancel()
 
-	<-ctx.Done()
-	cfg.log.Info("Shutting down")
+		// TODO: More graceful way?
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			cfg.log.Error("Failed to shutdown gracefully")
+			server.Close()
+		} else {
+			cfg.log.Info("Shutdown complete")
+		}
+	})
+	defer wg.Wait()
 
-	// TODO: More graceful way?
-	return server.Close()
+	err := server.Serve(listener)
+	if errors.Is(err, http.ErrServerClosed) {
+		err = nil
+	}
+
+	return err
 }
 
 func FailResponseOnError(w http.ResponseWriter, err error) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }

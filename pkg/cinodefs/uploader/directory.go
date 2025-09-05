@@ -88,9 +88,9 @@ type dirCompiler struct {
 	fsys            fs.FS
 	cfs             cinodefs.FS
 	log             *slog.Logger
+	indexFileName   string
 	basePath        []string
 	createIndexFile bool
-	indexFileName   string
 }
 
 type dirEntry struct {

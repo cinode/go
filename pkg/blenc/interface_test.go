@@ -142,7 +142,6 @@ func (s *BlencTestSuite) TestStaticBlobs() {
 			require.Nil(t, rc)
 		})
 	})
-
 }
 
 func (s *BlencTestSuite) TestDynamicLinkSuccessPath() {
@@ -190,7 +189,6 @@ func (s *BlencTestSuite) TestDynamicLinkSuccessPath() {
 	})
 
 	t.Run("work with second dynamic link", func(t *testing.T) {
-
 		data2 := []byte("Hello Cinode!")
 
 		bn2, key2, ai2, err := s.be.Create(
@@ -285,7 +283,6 @@ func (s *BlencTestSuite) TestDynamicLinkSuccessPath() {
 			)
 			require.ErrorIs(t, err, injectedErr)
 		})
-
 	})
 
 	t.Run("must fail to create link on read errors", func(t *testing.T) {

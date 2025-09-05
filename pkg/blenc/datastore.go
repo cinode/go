@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/rand"
 	"io"
+	"math"
 	"time"
 
 	"github.com/cinode/go/pkg/blobtypes"
@@ -32,10 +33,13 @@ import (
 // the storage layer
 func FromDatastore(ds datastore.DS) BE {
 	return &beDatastore{
-		ds:              ds,
-		rand:            rand.Reader,
-		generateVersion: func() uint64 { return uint64(time.Now().UnixMicro()) },
-		newSecureFifo:   securefifo.New,
+		ds:   ds,
+		rand: rand.Reader,
+		generateVersion: func() uint64 {
+			// nolint:gosec // UnixMicro should never return negative value
+			return uint64(time.Now().UnixMicro() & math.MaxInt64)
+		},
+		newSecureFifo: securefifo.New,
 	}
 }
 
@@ -79,7 +83,13 @@ func (be *beDatastore) Create(
 	return nil, nil, nil, blobtypes.ErrUnknownBlobType
 }
 
-func (be *beDatastore) Update(ctx context.Context, name *common.BlobName, authInfo *common.AuthInfo, key *common.BlobKey, r io.Reader) error {
+func (be *beDatastore) Update(
+	ctx context.Context,
+	name *common.BlobName,
+	authInfo *common.AuthInfo,
+	key *common.BlobKey,
+	r io.Reader,
+) error {
 	switch name.Type() {
 	case blobtypes.Static:
 		return be.updateStatic(ctx, name, authInfo, key, r)

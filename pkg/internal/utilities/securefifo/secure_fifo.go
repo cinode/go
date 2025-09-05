@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -128,7 +128,6 @@ func (r *reader) Reset() (Reader, error) {
 // New creates new secure fifo pipe. That pipe may handle large amounts of data by using a temporary storage
 // but ensures that even if the data can be accessed from disk, it can not be decrypted.
 func New() (wr Writer, err error) {
-
 	var randData [chacha20.KeySize + chacha20.NonceSize]byte
 	_, err = rand.Read(randData[:])
 	if err != nil {

@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ func BlobNameFromHashAndType(hash []byte, t BlobType) (*BlobName, error) {
 
 	copy(bn[1:], hash)
 
-	scrambledTypeByte := byte(t.t)
+	scrambledTypeByte := t.t
 	for _, b := range hash {
 		scrambledTypeByte ^= b
 	}

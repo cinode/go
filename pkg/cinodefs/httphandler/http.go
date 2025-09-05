@@ -29,9 +29,9 @@ import (
 )
 
 type Handler struct {
+	Log       *slog.Logger
 	FS        cinodefs.FS
 	IndexFile string
-	Log       *slog.Logger
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -72,7 +72,7 @@ func (h *Handler) serveGet(w http.ResponseWriter, r *http.Request, log *slog.Log
 		// that will in the end load the index file if present.
 		http.Redirect(w, r, r.URL.Path+"/", http.StatusTemporaryRedirect)
 		return
-	case h.handleHttpError(err, w, log, "Error finding entrypoint"):
+	case h.handleHTTPError(err, w, log, "Error finding entrypoint"):
 		return
 	}
 
@@ -87,17 +87,17 @@ func (h *Handler) serveGet(w http.ResponseWriter, r *http.Request, log *slog.Log
 	}
 
 	rc, err := h.FS.OpenEntrypointData(r.Context(), fileEP)
-	if h.handleHttpError(err, w, log, "Error opening file") {
+	if h.handleHTTPError(err, w, log, "Error opening file") {
 		return
 	}
 	defer rc.Close()
 
 	w.Header().Set("Content-Type", fileEP.MimeType())
 	_, err = io.Copy(w, rc)
-	h.handleHttpError(err, w, log, "Error sending file")
+	h.handleHTTPError(err, w, log, "Error sending file")
 }
 
-func (h *Handler) handleHttpError(err error, w http.ResponseWriter, log *slog.Logger, logMsg string) bool {
+func (h *Handler) handleHTTPError(err error, w http.ResponseWriter, log *slog.Logger, logMsg string) bool {
 	if err != nil {
 		log.Error(logMsg, "err", err)
 		http.Error(w,

@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,36 +27,35 @@ import (
 )
 
 func TestCipherForKeyIV(t *testing.T) {
-
 	for _, d := range []struct {
+		err  error
 		desc string
 		key  []byte
 		iv   []byte
-		err  error
 	}{
 		{
-			"Empty key",
-			nil,
-			nil,
-			ErrInvalidEncryptionConfigKeyType,
+			desc: "Empty key",
+			key:  nil,
+			iv:   nil,
+			err:  ErrInvalidEncryptionConfigKeyType,
 		},
 		{
-			"Invalid Chacha20 key size",
-			make([]byte, chacha20.KeySize),
-			make([]byte, chacha20.NonceSizeX),
-			ErrInvalidEncryptionConfigKeySize,
+			desc: "Invalid Chacha20 key size",
+			key:  make([]byte, chacha20.KeySize),
+			iv:   make([]byte, chacha20.NonceSizeX),
+			err:  ErrInvalidEncryptionConfigKeySize,
 		},
 		{
-			"Invalid Chacha20 nonce size",
-			make([]byte, chacha20.KeySize+1),
-			make([]byte, chacha20.NonceSizeX-1),
-			ErrInvalidEncryptionConfigIVSize,
+			desc: "Invalid Chacha20 nonce size",
+			key:  make([]byte, chacha20.KeySize+1),
+			iv:   make([]byte, chacha20.NonceSizeX-1),
+			err:  ErrInvalidEncryptionConfigIVSize,
 		},
 		{
-			"Valid chacha20 key",
-			make([]byte, chacha20.KeySize+1),
-			make([]byte, chacha20.NonceSizeX),
-			nil,
+			desc: "Valid chacha20 key",
+			key:  make([]byte, chacha20.KeySize+1),
+			iv:   make([]byte, chacha20.NonceSizeX),
+			err:  nil,
 		},
 	} {
 		t.Run(d.desc, func(t *testing.T) {

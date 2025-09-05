@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -52,7 +52,6 @@ func TestFromPublicData(t *testing.T) {
 	})
 
 	t.Run("fail when reading link data", func(t *testing.T) {
-
 		dl, err := Create(rand.Reader)
 		require.NoError(t, err)
 
@@ -148,9 +147,9 @@ func TestFromPublicData(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, d := range []struct {
-				name string
 				dl1  *Publisher
 				dl2  *Publisher
+				name string
 			}{
 				{
 					// changing key pair must generate different blog name.
@@ -170,7 +169,6 @@ func TestFromPublicData(t *testing.T) {
 				},
 			} {
 				t.Run(d.name, func(t *testing.T) {
-
 					pr1, key, err := d.dl1.UpdateLinkData(bytes.NewReader(nil), 0)
 					require.NoError(t, err)
 					require.NotEmpty(t, key)
@@ -197,13 +195,11 @@ func TestFromPublicData(t *testing.T) {
 					require.NotNil(t, dl4)
 				})
 			}
-
 		})
 	})
 }
 
 func TestGreaterThan(t *testing.T) {
-
 	const testSize = 100
 	const versions = 10
 	const reSortingCount = 10

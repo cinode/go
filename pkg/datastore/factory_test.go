@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,16 +24,40 @@ import (
 
 func TestNewFromLocation(t *testing.T) {
 	for _, d := range []struct {
+		expectedMainType    any
+		expectedStorageType any
 		location            string
-		expectedMainType    interface{}
-		expectedStorageType interface{}
 	}{
-		{"file://" + t.TempDir(), &datastore{}, &fileSystem{}},
-		{"file-raw://" + t.TempDir(), &datastore{}, &rawFileSystem{}},
-		{"memory://", &datastore{}, &memory{}},
-		{"http://some.domain.com", &webConnector{}, nil},
-		{"https://some.domain.com", &webConnector{}, nil},
-		{t.TempDir(), &datastore{}, &fileSystem{}},
+		{
+			location:            "file://" + t.TempDir(),
+			expectedMainType:    &datastore{},
+			expectedStorageType: &fileSystem{},
+		},
+		{
+			location:            "file-raw://" + t.TempDir(),
+			expectedMainType:    &datastore{},
+			expectedStorageType: &rawFileSystem{},
+		},
+		{
+			location:            "memory://",
+			expectedMainType:    &datastore{},
+			expectedStorageType: &memory{},
+		},
+		{
+			location:            "http://some.domain.com",
+			expectedMainType:    &webConnector{},
+			expectedStorageType: nil,
+		},
+		{
+			location:            "https://some.domain.com",
+			expectedMainType:    &webConnector{},
+			expectedStorageType: nil,
+		},
+		{
+			location:            t.TempDir(),
+			expectedMainType:    &datastore{},
+			expectedStorageType: &fileSystem{},
+		},
 	} {
 		t.Run(d.location, func(t *testing.T) {
 			ds, err := FromLocation(d.location)

@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ func (wi *WriterInfo) String() string {
 }
 
 func WriterInfoFromString(s string) (*WriterInfo, error) {
-	if len(s) == 0 {
+	if s == "" {
 		return nil, fmt.Errorf("%w: empty string", ErrInvalidWriterInfoData)
 	}
 
@@ -68,7 +68,11 @@ func WriterInfoFromBytes(b []byte) (*WriterInfo, error) {
 	return &wi, nil
 }
 
-func writerInfoFromBlobNameKeyAndAuthInfo(bn *common.BlobName, key *common.BlobKey, authInfo *common.AuthInfo) *WriterInfo {
+func writerInfoFromBlobNameKeyAndAuthInfo(
+	bn *common.BlobName,
+	key *common.BlobKey,
+	authInfo *common.AuthInfo,
+) *WriterInfo {
 	return &WriterInfo{
 		wi: protobuf.WriterInfo{
 			BlobName: bn.Bytes(),

@@ -19,11 +19,11 @@ package main
 import (
 	"log"
 
-	"github.com/cinode/go/pkg/cmd/static_datastore"
+	"github.com/cinode/go/pkg/cmd/staticdatastore"
 )
 
 func main() {
-	if err := static_datastore.RootCmd().Execute(); err != nil {
+	if err := staticdatastore.RootCmd().Execute(); err != nil {
 		log.Fatal(err.Error())
 	}
 }

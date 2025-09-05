@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ func TestVectors(t *testing.T) {
 		testCase := struct {
 			Name             string   `json:"name"`
 			Description      string   `json:"description"`
+			GoErrorContains  string   `json:"go_error_contains"`
 			Details          []string `json:"details"`
 			BlobName         []byte   `json:"blob_name"`
 			EncryptionKey    []byte   `json:"encryption_key"`
@@ -49,7 +50,6 @@ func TestVectors(t *testing.T) {
 			DecryptedDataset []byte   `json:"decrypted_dataset"`
 			ValidPublicly    bool     `json:"valid_publicly"`
 			ValidPrivately   bool     `json:"valid_privately"`
-			GoErrorContains  string   `json:"go_error_contains"`
 		}{}
 
 		data, err := os.ReadFile(path)

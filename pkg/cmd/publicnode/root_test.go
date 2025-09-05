@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package public_node
+package publicnode
 
 import (
 	"context"
@@ -84,7 +84,7 @@ func TestGetConfig(t *testing.T) {
 
 func TestBuildHttpHandler(t *testing.T) {
 	t.Run("Successfully created handler", func(t *testing.T) {
-		h, err := buildHttpHandler(&config{
+		h, err := buildHTTPHandler(&config{
 			mainDSLocation: t.TempDir(),
 			additionalDSLocations: []string{
 				t.TempDir(),
@@ -108,21 +108,20 @@ func TestBuildHttpHandler(t *testing.T) {
 	})
 
 	t.Run("Upload auth", func(t *testing.T) {
+		const ValidUserName = "Alice"
+		const InvalidUserName = "Bob"
+		const ValidPassword = "secret"
+		const InvalidPassword = "plaintext"
 
-		const VALID_USERNAME = "Alice"
-		const INVALID_USERNAME = "Bob"
-		const VALID_PASSWORD = "secret"
-		const INVALID_PASSWORD = "plaintext"
-
-		h, err := buildHttpHandler(&config{
+		h, err := buildHTTPHandler(&config{
 			mainDSLocation: t.TempDir(),
 			additionalDSLocations: []string{
 				t.TempDir(),
 				t.TempDir(),
 				t.TempDir(),
 			},
-			uploadUsername: VALID_USERNAME,
-			uploadPassword: VALID_PASSWORD,
+			uploadUsername: ValidUserName,
+			uploadPassword: ValidPassword,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, h)
@@ -133,16 +132,16 @@ func TestBuildHttpHandler(t *testing.T) {
 		err = testblobs.DynamicLink.Put(server.URL)
 		require.ErrorContains(t, err, "403")
 
-		err = testblobs.DynamicLink.PutWithAuth(server.URL, VALID_USERNAME, VALID_PASSWORD)
+		err = testblobs.DynamicLink.PutWithAuth(server.URL, ValidUserName, ValidPassword)
 		require.NoError(t, err)
 
-		err = testblobs.DynamicLink.PutWithAuth(server.URL, VALID_USERNAME, INVALID_PASSWORD)
+		err = testblobs.DynamicLink.PutWithAuth(server.URL, ValidUserName, InvalidPassword)
 		require.ErrorContains(t, err, "403")
 
-		err = testblobs.DynamicLink.PutWithAuth(server.URL, INVALID_USERNAME, VALID_PASSWORD)
+		err = testblobs.DynamicLink.PutWithAuth(server.URL, InvalidUserName, ValidPassword)
 		require.ErrorContains(t, err, "403")
 
-		err = testblobs.DynamicLink.PutWithAuth(server.URL, INVALID_USERNAME, INVALID_PASSWORD)
+		err = testblobs.DynamicLink.PutWithAuth(server.URL, InvalidUserName, InvalidPassword)
 		require.ErrorContains(t, err, "403")
 
 		_, err = testblobs.DynamicLink.Get(server.URL)
@@ -150,7 +149,7 @@ func TestBuildHttpHandler(t *testing.T) {
 	})
 
 	t.Run("invalid main datastore", func(t *testing.T) {
-		h, err := buildHttpHandler(&config{
+		h, err := buildHTTPHandler(&config{
 			mainDSLocation: "",
 		})
 		require.ErrorContains(t, err, "could not create main datastore")
@@ -158,7 +157,7 @@ func TestBuildHttpHandler(t *testing.T) {
 	})
 
 	t.Run("invalid additional datastore", func(t *testing.T) {
-		h, err := buildHttpHandler(&config{
+		h, err := buildHTTPHandler(&config{
 			mainDSLocation:        "memory://",
 			additionalDSLocations: []string{""},
 		})

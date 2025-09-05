@@ -176,7 +176,6 @@ func TestStorageDelete(t *testing.T) {
 					})
 				}
 			})
-
 		})
 	}
 }
@@ -184,7 +183,6 @@ func TestStorageDelete(t *testing.T) {
 func TestStorageTooManySimultaneousSaves(t *testing.T) {
 	for _, st := range allTestStorages(t) {
 		t.Run(st.kind(), func(t *testing.T) {
-
 			// Start the first writer
 			w1, err := st.openWriteStream(t.Context(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
@@ -215,7 +213,6 @@ func TestStorageTooManySimultaneousSaves(t *testing.T) {
 func TestStorageSaveWhileDeleting(t *testing.T) {
 	for _, st := range allTestStorages(t) {
 		t.Run(st.kind(), func(t *testing.T) {
-
 			w, err := st.openWriteStream(t.Context(), testutils.EmptyBlobNameStatic)
 			require.NoError(t, err)
 

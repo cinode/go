@@ -265,7 +265,12 @@ func (s *DirectoryTestSuite) TestFailUploadReadDir() {
 
 type wrappedCinodeFS struct {
 	cinodefs.FS
-	setEntryFileFunc func(ctx context.Context, path []string, data io.Reader, opts ...cinodefs.EntrypointOption) (*cinodefs.Entrypoint, error)
+	setEntryFileFunc func(
+		ctx context.Context,
+		path []string,
+		data io.Reader,
+		opts ...cinodefs.EntrypointOption,
+	) (*cinodefs.Entrypoint, error)
 }
 
 func (w *wrappedCinodeFS) SetEntryFile(
@@ -289,7 +294,12 @@ func (s *DirectoryTestSuite) TestFailStoreFile() {
 	for _, fName := range []string{"file.txt", "index.html"} {
 		s.cfs = &wrappedCinodeFS{
 			FS: origFs,
-			setEntryFileFunc: func(ctx context.Context, path []string, data io.Reader, opts ...cinodefs.EntrypointOption) (*cinodefs.Entrypoint, error) {
+			setEntryFileFunc: func(
+				ctx context.Context,
+				path []string,
+				data io.Reader,
+				opts ...cinodefs.EntrypointOption,
+			) (*cinodefs.Entrypoint, error) {
 				if path[0] == fName {
 					return nil, injectErr
 				}

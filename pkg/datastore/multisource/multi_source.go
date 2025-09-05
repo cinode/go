@@ -34,15 +34,22 @@ const (
 )
 
 type multiSourceDatastoreBlobState struct {
+	downloadingFinishedCChan chan struct{}
 	lastUpdateTime           time.Time
 	downloading              bool
 	notFound                 bool
-	downloadingFinishedCChan chan struct{}
 }
 
 type multiSourceDatastore struct {
+	// Logger output
+	log *slog.Logger
+
 	// Main datastore
 	main datastore.DS
+
+	// Last update time for blobs, either for dynamic content or last result of not found for
+	// static ones
+	blobStates map[string]multiSourceDatastoreBlobState
 
 	// Additional sources that will be queried whenever the main source
 	// does not contain the data or contains outdated content
@@ -54,24 +61,17 @@ type multiSourceDatastore struct {
 	// Time between re-checking blob existence in additional datastores
 	notFoundRecheckTime time.Duration
 
-	// Last update time for blobs, either for dynamic content or last result of not found for
-	// static ones
-	blobStates map[string]multiSourceDatastoreBlobState
-
 	// Guard additional sources and update time map
 	m sync.Mutex
-
-	// Logger output
-	log *slog.Logger
 }
 
 func New(main datastore.DS, options ...Option) datastore.DS {
 	ds := &multiSourceDatastore{
 		main:                   main,
+		blobStates:             map[string]multiSourceDatastoreBlobState{},
 		additional:             nil,
 		dynamicDataRefreshTime: defaultDynamicDataRefreshTime,
 		notFoundRecheckTime:    defaultNotFoundRecheckTime,
-		blobStates:             map[string]multiSourceDatastoreBlobState{},
 		log:                    slog.Default(),
 	}
 
@@ -119,94 +119,59 @@ func (m *multiSourceDatastore) fetch(ctx context.Context, name *common.BlobName)
 	// do an update process
 
 	for {
-		waitChan, startDownload := func() (chan struct{}, bool) {
-			m.m.Lock()
-			defer m.m.Unlock()
+		waitChan, startDownload := m.determineBlobState(name)
 
-			needsDownload := false
+		switch {
+		case startDownload:
+			// Start the download routine
+			m.startBlobDownload(ctx, name, waitChan)
 
-			state, found := m.blobStates[name.String()]
-
-			switch {
-			case !found:
-				// Seen for the first time
-				needsDownload = true
-
-			case state.downloading:
-				// Blob currently being downloaded
-				return state.downloadingFinishedCChan, false
-
-			case m.needsDownload(state, name, time.Now()):
-				// We should update the blob
-				needsDownload = true
-			}
-
-			if !needsDownload {
-				return nil, false
-			}
-
-			// State not found, request new download
-			ch := make(chan struct{})
-			m.blobStates[name.String()] = multiSourceDatastoreBlobState{
-				downloading:              true,
-				downloadingFinishedCChan: ch,
-			}
-			return ch, true
-		}()
-
-		if startDownload {
-			m.log.Info("Starting download",
-				"blob", name.String(),
-			)
-			wasFound := false
-			for i, ds := range m.additional {
-				r, err := ds.Open(ctx, name)
-				if err != nil {
-					m.log.Debug("Failed to fetch blob from additional datastore",
-						"blob", name.String(),
-						"datastore", ds.Address(),
-						"err", err,
-					)
-					continue
-				}
-
-				m.log.Info("Blob found in additional datastore",
-					"blob", name.String(),
-					"datastore-num", i+1,
-				)
-				err = m.main.Update(ctx, name, r)
-				r.Close()
-				if err != nil {
-					m.log.Error("Failed to store blob in local datastore",
-						slog.Any("err", err),
-						slog.String("blob", name.String()),
-					)
-				}
-				wasFound = true
-			}
-			if !wasFound {
-				m.log.Warn("Did not find blob in any datastore",
-					"blob", name.String(),
-				)
-			}
-			defer close(waitChan)
-
-			m.m.Lock()
-			defer m.m.Unlock()
-
-			m.blobStates[name.String()] = multiSourceDatastoreBlobState{
-				lastUpdateTime: time.Now(),
-				notFound:       !wasFound,
-			}
+		case waitChan == nil:
+			// No ned to do anything, blob ready
 			return
-		}
 
-		if waitChan == nil {
-			return
+		default:
+			// Wait for the current in-progress download
+			<-waitChan
 		}
-
-		<-waitChan
 	}
+}
+
+func (m *multiSourceDatastore) determineBlobState(name *common.BlobName) (
+	finishedDownloadingChannel chan struct{},
+	needsDownload bool,
+) {
+	m.m.Lock()
+	defer m.m.Unlock()
+
+	state, found := m.blobStates[name.String()]
+
+	switch {
+	case !found:
+		// Seen for the first time
+		needsDownload = true
+
+	case state.downloading:
+		// Blob currently being downloaded
+		return state.downloadingFinishedCChan, false
+
+	case m.needsDownload(state, name, time.Now()):
+		// We should update the blob
+		needsDownload = true
+	}
+
+	if !needsDownload {
+		return nil, false
+	}
+
+	// State not found, request new download
+	ch := make(chan struct{})
+	m.blobStates[name.String()] = multiSourceDatastoreBlobState{
+		downloading:              true,
+		downloadingFinishedCChan: ch,
+	}
+
+	return ch, true
 }
 
 // needsDownload checks if the blob needs to be downloaded based on the state and the current time.
@@ -224,5 +189,57 @@ func (m *multiSourceDatastore) needsDownload(
 
 	default:
 		return now.After(state.lastUpdateTime.Add(m.dynamicDataRefreshTime))
+	}
+}
+
+func (m *multiSourceDatastore) startBlobDownload(
+	ctx context.Context,
+	name *common.BlobName,
+	waitChan chan struct{},
+) {
+	m.log.Info("Starting download",
+		"blob", name.String(),
+	)
+
+	wasFound := false
+
+	for i, ds := range m.additional {
+		r, err := ds.Open(ctx, name)
+		if err != nil {
+			m.log.Debug("Failed to fetch blob from additional datastore",
+				"blob", name.String(),
+				"datastore", ds.Address(),
+				"err", err,
+			)
+			continue
+		}
+
+		m.log.Info("Blob found in additional datastore",
+			"blob", name.String(),
+			"datastore-num", i+1,
+		)
+		err = m.main.Update(ctx, name, r)
+		r.Close()
+		if err != nil {
+			m.log.Error("Failed to store blob in local datastore",
+				slog.Any("err", err),
+				slog.String("blob", name.String()),
+			)
+		}
+		wasFound = true
+	}
+	if !wasFound {
+		m.log.Warn("Did not find blob in any datastore",
+			"blob", name.String(),
+		)
+	}
+	defer close(waitChan)
+
+	m.m.Lock()
+	defer m.m.Unlock()
+
+	m.blobStates[name.String()] = multiSourceDatastoreBlobState{
+		lastUpdateTime: time.Now(),
+		notFound:       !wasFound,
 	}
 }

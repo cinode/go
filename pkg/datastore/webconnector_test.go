@@ -54,7 +54,6 @@ func TestWebConnectorInvalidUrl(t *testing.T) {
 }
 
 func TestWebConnectorInvalidContext(t *testing.T) {
-
 	var nilCtx context.Context
 
 	c, err := FromWeb("http://datastore.local")
@@ -104,7 +103,6 @@ func TestWebConnectorServerSideError(t *testing.T) {
 }
 
 func TestWebConnectorDetectInvalidBlobRead(t *testing.T) {
-
 	// Test web interface and web connector
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello, I should not be here!"))
@@ -157,7 +155,7 @@ func TestWebConnectorInvalidErrorCode(t *testing.T) {
 func TestWebConnectorOptions(t *testing.T) {
 	t.Run("http client", func(t *testing.T) {
 		cl := &http.Client{}
-		ds, err := FromWeb("http://test.local/", WebOptionHttpClient(cl))
+		ds, err := FromWeb("http://test.local/", WebOptionHTTPClient(cl))
 		require.NoError(t, err)
 		require.Equal(t, cl, ds.(*webConnector).client)
 	})
@@ -169,5 +167,4 @@ func TestWebConnectorOptions(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, testErr, ds.(*webConnector).customizeRequest(nil))
 	})
-
 }

@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,9 +31,20 @@ var (
 	// key can not be interpreted
 	ErrInvalidEncryptionConfig = errors.New("invalid encryption config")
 
-	ErrInvalidEncryptionConfigKeyType = fmt.Errorf("%w: wrong key type", ErrInvalidEncryptionConfig)
-	ErrInvalidEncryptionConfigKeySize = fmt.Errorf("%w: wrong XChaCha20 key size, expected %d bytes", ErrInvalidEncryptionConfig, chacha20.KeySize+1)
-	ErrInvalidEncryptionConfigIVSize  = fmt.Errorf("%w: wrong XChaCha20 iv size, expected %d bytes", ErrInvalidEncryptionConfig, chacha20.NonceSizeX)
+	ErrInvalidEncryptionConfigKeyType = fmt.Errorf(
+		"%w: wrong key type",
+		ErrInvalidEncryptionConfig,
+	)
+	ErrInvalidEncryptionConfigKeySize = fmt.Errorf(
+		"%w: wrong XChaCha20 key size, expected %d bytes",
+		ErrInvalidEncryptionConfig,
+		chacha20.KeySize+1,
+	)
+	ErrInvalidEncryptionConfigIVSize = fmt.Errorf(
+		"%w: wrong XChaCha20 iv size, expected %d bytes",
+		ErrInvalidEncryptionConfig,
+		chacha20.NonceSizeX,
+	)
 )
 
 const (

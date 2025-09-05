@@ -25,25 +25,25 @@ import (
 
 func TestDatastoreTestSuite(t *testing.T) {
 	t.Run("InMemory", func(t *testing.T) {
-		suite.Run(t, &DatastoreTestSuite{
+		suite.Run(t, &TestSuite{
 			CreateDS: func() (DS, error) { return InMemory(), nil },
 		})
 	})
 
 	t.Run("InFileSystem", func(t *testing.T) {
-		suite.Run(t, &DatastoreTestSuite{
+		suite.Run(t, &TestSuite{
 			CreateDS: func() (DS, error) { return InFileSystem(t.TempDir()) },
 		})
 	})
 
 	t.Run("InRawFileSystem", func(t *testing.T) {
-		suite.Run(t, &DatastoreTestSuite{
+		suite.Run(t, &TestSuite{
 			CreateDS: func() (DS, error) { return InRawFileSystem(t.TempDir()) },
 		})
 	})
 
 	t.Run("FromWeb", func(t *testing.T) {
-		suite.Run(t, &DatastoreTestSuite{
+		suite.Run(t, &TestSuite{
 			CreateDS: func() (DS, error) {
 				server := httptest.NewServer(WebInterface(InMemory()))
 				t.Cleanup(func() { server.Close() })

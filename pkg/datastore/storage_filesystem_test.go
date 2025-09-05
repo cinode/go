@@ -31,13 +31,12 @@ func temporaryFS(t *testing.T) *fileSystem {
 	return ds
 }
 
-func touchFile(t *testing.T, fName string) string {
-	err := os.MkdirAll(filepath.Dir(fName), 0777)
+func touchFile(t *testing.T, fName string) {
+	err := os.MkdirAll(filepath.Dir(fName), 0o777)
 	require.NoError(t, err)
 	fl, err := os.Create(fName)
 	require.NoError(t, err)
 	fl.Close()
-	return fName
 }
 
 func protect(t *testing.T, fName string) func() {
@@ -68,13 +67,12 @@ func TestFilesystemSaveFailureDir(t *testing.T) {
 }
 
 func TestFilesystemSaveFailureTempFile(t *testing.T) {
-
 	fs := temporaryFS(t)
 
 	// Create blob's directory as unmodifiable
 	fName := fs.getFileName(testutils.EmptyBlobNameStatic, fsSuffixCurrent)
 	dirPath := filepath.Dir(fName)
-	err := os.MkdirAll(dirPath, 0777)
+	err := os.MkdirAll(dirPath, 0o777)
 	require.NoError(t, err)
 	defer protect(t, dirPath)()
 
@@ -84,12 +82,11 @@ func TestFilesystemSaveFailureTempFile(t *testing.T) {
 }
 
 func TestFilesystemRenameFailure(t *testing.T) {
-
 	fs := temporaryFS(t)
 
 	// Create directory where blob should be
 	fName := fs.getFileName(testutils.EmptyBlobNameStatic, fsSuffixCurrent)
-	os.MkdirAll(fName, 0777)
+	os.MkdirAll(fName, 0o777)
 
 	w, err := fs.openWriteStream(t.Context(), testutils.EmptyBlobNameStatic)
 	require.NoError(t, err)
@@ -103,7 +100,7 @@ func TestFilesystemDeleteFailure(t *testing.T) {
 
 	// Create directory where blob should be with some file inside
 	fName := fs.getFileName(testutils.EmptyBlobNameStatic, fsSuffixCurrent)
-	os.MkdirAll(fName, 0777)
+	os.MkdirAll(fName, 0o777)
 	touchFile(t, fName+"/keep.me")
 
 	err := fs.delete(t.Context(), testutils.EmptyBlobNameStatic)
@@ -123,7 +120,7 @@ func TestFilesystemExistsFailure(t *testing.T) {
 	// Create blob's directory as unmodifiable
 	fName := fs.getFileName(testutils.EmptyBlobNameStatic, fsSuffixCurrent)
 	dirPath := filepath.Dir(fName)
-	err := os.MkdirAll(dirPath, 0777)
+	err := os.MkdirAll(dirPath, 0o777)
 	require.NoError(t, err)
 	defer protect(t, dirPath)()
 

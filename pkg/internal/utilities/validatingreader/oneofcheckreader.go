@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,12 +18,12 @@ package validatingreader
 
 import "io"
 
-type onEofCheckReader struct {
+type onEOFCheckReader struct {
 	r            io.Reader
 	onCloseCheck func() error
 }
 
-func (h onEofCheckReader) Read(b []byte) (int, error) {
+func (h onEOFCheckReader) Read(b []byte) (int, error) {
 	n, err := h.r.Read(b)
 
 	if err == io.EOF {
@@ -37,7 +37,7 @@ func (h onEofCheckReader) Read(b []byte) (int, error) {
 }
 
 func CheckOnEOF(r io.Reader, check func() error) io.Reader {
-	return onEofCheckReader{
+	return onEOFCheckReader{
 		r:            r,
 		onCloseCheck: check,
 	}

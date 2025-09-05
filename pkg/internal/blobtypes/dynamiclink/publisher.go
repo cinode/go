@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,8 +33,8 @@ var (
 )
 
 type Publisher struct {
-	Public
 	privKey ed25519.PrivateKey
+	Public
 }
 
 func nonceFromRand(randSource io.Reader) (uint64, error) {
@@ -108,17 +108,17 @@ func (dl *Publisher) AuthInfo() *common.AuthInfo {
 	return common.AuthInfoFromBytes(ret[:])
 }
 
-func (dl *Publisher) calculateEncryptionKey() (*common.BlobKey, []byte) {
+func (dl *Publisher) calculateEncryptionKey() (key *common.BlobKey, signature []byte) {
 	dataSeed := append(
 		[]byte{signatureForEncryptionKeyGeneration},
 		dl.BlobName().Bytes()...,
 	)
 
-	signature := ed25519.Sign(dl.privKey, dataSeed)
+	signature = ed25519.Sign(dl.privKey, dataSeed)
 
 	keyGenerator := cipherfactory.NewKeyGenerator(blobtypes.DynamicLink)
-	keyGenerator.Write(signature)
-	key := keyGenerator.Generate()
+	_, _ = keyGenerator.Write(signature)
+	key = keyGenerator.Generate()
 
 	// Key validation block - it is used to ensure the key was generated in a correct way
 	return key, signature
@@ -151,7 +151,7 @@ func (dl *Publisher) UpdateLinkData(r io.Reader, version uint64) (*PublicReader,
 	pr.contentVersion = version
 
 	ivGenerator := pr.ivGeneratorPrefilled()
-	ivGenerator.Write(unencryptedLink)
+	_, _ = ivGenerator.Write(unencryptedLink)
 	pr.iv = ivGenerator.Generate()
 
 	encryptedLinkBuff := bytes.NewBuffer(nil)

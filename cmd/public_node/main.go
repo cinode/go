@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2025 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,11 +20,11 @@ import (
 	"context"
 	"log"
 
-	"github.com/cinode/go/pkg/cmd/public_node"
+	"github.com/cinode/go/pkg/cmd/publicnode"
 )
 
 func main() {
-	if err := public_node.Execute(context.Background()); err != nil {
+	if err := publicnode.Execute(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 }

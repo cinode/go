@@ -37,15 +37,15 @@ type webInterface struct {
 	log *slog.Logger
 }
 
-type webInterfaceOption func(i *webInterface)
+type WebInterfaceOption func(i *webInterface)
 
-func WebInterfaceOptionLogger(log *slog.Logger) webInterfaceOption {
+func WebInterfaceOptionLogger(log *slog.Logger) WebInterfaceOption {
 	return func(i *webInterface) { i.log = log }
 }
 
 // WebInterface returns http handler representing web interface to given
 // Datastore instance
-func WebInterface(ds DS, opts ...webInterfaceOption) http.Handler {
+func WebInterface(ds DS, opts ...WebInterfaceOption) http.Handler {
 	ret := &webInterface{
 		ds: ds,
 	}
@@ -76,7 +76,7 @@ func (i *webInterface) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (i *webInterface) getName(w http.ResponseWriter, r *http.Request) (*common.BlobName, error) {
+func (i *webInterface) getName(_ http.ResponseWriter, r *http.Request) (*common.BlobName, error) {
 	// Don't allow url queries and require path to start with '/'
 	if r.URL.Path[0] != '/' || r.URL.RawQuery != "" {
 		return nil, common.ErrInvalidBlobName
@@ -90,17 +90,22 @@ func (i *webInterface) getName(w http.ResponseWriter, r *http.Request) (*common.
 	return bn, nil
 }
 
-func (i *webInterface) sendName(name *common.BlobName, w http.ResponseWriter, r *http.Request) {
+func (i *webInterface) sendName(name *common.BlobName, w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-type", "application/json")
-	json.NewEncoder(w).Encode(&webNameResponse{
+	_ = json.NewEncoder(w).Encode(&webNameResponse{
 		Name: name.String(),
 	})
 }
 
-func (i *webInterface) sendError(w http.ResponseWriter, httpCode int, code string, message string) {
+func (i *webInterface) sendError(
+	w http.ResponseWriter,
+	httpCode int,
+	code string,
+	message string,
+) {
 	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(httpCode)
-	json.NewEncoder(w).Encode(&webErrResponse{
+	_ = json.NewEncoder(w).Encode(&webErrResponse{
 		Code:    code,
 		Message: message,
 	})
@@ -146,9 +151,14 @@ func (i *webInterface) serveGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	defer rc.Close()
-	io.Copy(w, rc)
-	// TODO: Log error / drop the connection ? It may be too late to send the error to the user
-	// thus we have to assume that the blob will be validated on the other side
+
+	_, err = io.Copy(w, rc)
+	if err != nil {
+		i.log.Error("Error while copying blob data to response", "err", err)
+		// TODO: Drop the connection or other error passing mechanism?
+		// It may be too late to send the error to the user thus we have to assume
+		// that the blob will be validated on the other side
+	}
 }
 
 type partReader struct {
@@ -170,7 +180,6 @@ func (r *partReader) Close() error {
 }
 
 func (i *webInterface) getUploadReader(r *http.Request) (io.ReadCloser, error) {
-
 	mpr, err := r.MultipartReader()
 	if err == http.ErrNotMultipart {
 		// Not multipart, read raw body data
@@ -222,7 +231,6 @@ func (i *webInterface) servePut(w http.ResponseWriter, r *http.Request) {
 }
 
 func (i *webInterface) serveDelete(w http.ResponseWriter, r *http.Request) {
-
 	name, err := i.getName(w, r)
 	if !i.checkErr(err, w, r) {
 		return
