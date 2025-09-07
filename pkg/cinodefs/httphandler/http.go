@@ -52,6 +52,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// sanitizeRedirectPath ensures redirect targets do not lead to open redirects.
+func sanitizeRedirectPath(p string) string {
+	if len(p) > 1 && p[0] == '/' && p[1] != '/' && p[1] != '\\' {
+		return p
+	}
+	return "/"
+}
+
 func (h *Handler) serveGet(w http.ResponseWriter, r *http.Request, log *slog.Logger) {
 	path := r.URL.Path
 	if strings.HasSuffix(path, "/") {
@@ -70,14 +78,14 @@ func (h *Handler) serveGet(w http.ResponseWriter, r *http.Request, log *slog.Log
 		// Can't get the entrypoint, but since it's a directory
 		// (only with unsaved changes), redirect to the directory itself
 		// that will in the end load the index file if present.
-		http.Redirect(w, r, r.URL.Path+"/", http.StatusTemporaryRedirect)
+		http.Redirect(w, r, sanitizeRedirectPath(r.URL.Path+"/"), http.StatusTemporaryRedirect)
 		return
 	case h.handleHTTPError(err, w, log, "Error finding entrypoint"):
 		return
 	}
 
 	if fileEP.IsDir() {
-		http.Redirect(w, r, r.URL.Path+"/", http.StatusTemporaryRedirect)
+		http.Redirect(w, r, sanitizeRedirectPath(r.URL.Path+"/"), http.StatusTemporaryRedirect)
 		return
 	}
 
