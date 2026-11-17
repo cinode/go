@@ -371,10 +371,15 @@ func writeTestBlobCode(
 	code := fmt.Sprintf(`
 		package testblobs
 
+		import (
+			"github.com/cinode/go/pkg/common"
+			"github.com/cinode/go/pkg/utilities/golang"
+		)
+
 		var %s = TestBlob {
 			%s,
-			%s,
-			%s,
+			golang.Must(common.BlobNameFromBytes(%s)),
+			common.BlobKeyFromBytes(%s),
 			%s,
 		}
 		`,
