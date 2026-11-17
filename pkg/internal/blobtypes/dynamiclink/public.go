@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -123,9 +123,7 @@ type PublicReader struct {
 // or when the validation of the link fails for whatever reason
 func FromPublicData(name *common.BlobName, r io.Reader) (*PublicReader, error) {
 	dl := PublicReader{
-		Public: Public{
-			publicKey: make([]byte, ed25519.PublicKeySize),
-		},
+		publicKey: make([]byte, ed25519.PublicKeySize),
 		signature: make([]byte, ed25519.SignatureSize),
 	}
 

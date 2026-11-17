@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -52,7 +53,7 @@ func TestIntegration(t *testing.T) {
 		},
 	}
 
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		testFS[fmt.Sprintf("batch/file_%d", i)] = &fstest.MapFile{
 			Data: []byte(fmt.Sprintf("data_%d", i)),
 		}
@@ -91,12 +92,19 @@ func TestIntegration(t *testing.T) {
 
 		// Run the server in the background
 		wg := sync.WaitGroup{}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			cinodewebproxy.Execute(ctx)
-		}()
-		time.Sleep(time.Millisecond) // Wait for the server, TODO: This is ugly way to do this
+		})
+
+		// Wait until the server accepts connections
+		require.Eventually(t, func() bool {
+			conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", "localhost:8080")
+			if err != nil {
+				return false
+			}
+			_ = conn.Close()
+			return true
+		}, 10*time.Second, 5*time.Millisecond, "web proxy did not start listening")
 
 		// Ensure we clean up cleanly
 		defer func() {

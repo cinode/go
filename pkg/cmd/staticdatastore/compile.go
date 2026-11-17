@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ func compileCmd() *cobra.Command {
 			enc := json.NewEncoder(cmd.OutOrStdout())
 			enc.SetIndent("", "  ")
 
-			fatalResult := func(format string, args ...interface{}) error {
+			fatalResult := func(format string, args ...any) error {
 				msg := fmt.Sprintf(format, args...)
 
 				_ = enc.Encode(map[string]string{

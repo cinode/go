@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -60,13 +60,13 @@ func static(data string) blobData {
 
 func dynamicLink(data string, version uint64, seed int) blobData {
 	baseSeed := []byte{
-		byte(seed >> 8), byte(seed),
+		byte((seed >> 8) & 0xff), byte(seed & 0xff),
 		// That's some random byte sequence, fixed here to ensure we're regenerating the same dataset
 		0x7b, 0x7c, 0x99, 0x35, 0x7f, 0xed, 0x93, 0xd3,
 	}
 
 	pseudoRandBuffer := []byte{}
-	for i := byte(0); i < 5; i++ {
+	for i := range byte(5) {
 		h := sha256.Sum256(append([]byte{i}, baseSeed...))
 		pseudoRandBuffer = append(pseudoRandBuffer, h[:]...)
 	}

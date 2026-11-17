@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -166,7 +166,7 @@ func (c *CinodeFSMultiFileTestSuite) SetupTest() {
 	const subDirsCount = 2
 
 	c.contentMap = make([]testFileEntry, testFilesCount)
-	for i := 0; i < testFilesCount; i++ {
+	for i := range testFilesCount {
 		c.contentMap[i].path = []string{
 			fmt.Sprintf("dir%d", i%dirsCount),
 			fmt.Sprintf("subdir%d", i%subDirsCount),

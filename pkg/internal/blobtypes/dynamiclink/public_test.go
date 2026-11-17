@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ import (
 
 func TestFromPublicData(t *testing.T) {
 	t.Run("Ensure we don't crash on truncated data", func(t *testing.T) {
-		for i := 0; i < 1000; i++ {
+		for i := range 1000 {
 			data := make([]byte, i)
 			dl, err := FromPublicData(&common.BlobName{}, bytes.NewReader(data))
 			require.ErrorIs(t, err, ErrInvalidDynamicLinkData)
@@ -213,7 +213,7 @@ func TestGreaterThan(t *testing.T) {
 		baseLink, err := Create(rand.Reader)
 		require.NoError(t, err)
 
-		for i := 0; i < testSize; i++ {
+		for i := range testSize {
 			pr, _, err := baseLink.UpdateLinkData(io.LimitReader(rand.Reader, 16), uint64(i%versions))
 			require.NoError(t, err)
 
@@ -243,7 +243,7 @@ func TestGreaterThan(t *testing.T) {
 	// Try sorting the array multiple times, the result must always be the same
 	rnd := math_rand.New(math_rand.NewSource(int64(links[0].nonce)))
 
-	for i := 0; i < reSortingCount; i++ {
+	for range reSortingCount {
 		linksCopy := make([]*PublicReader, len(links))
 		copy(linksCopy, links)
 

@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import (
 
 type rawFileSystem struct {
 	path        string
-	tempFileNum uint64
+	tempFileNum atomic.Uint64
 }
 
 var _ storage = (*rawFileSystem)(nil)
@@ -82,7 +82,7 @@ func (w *rawFilesystemWriter) Cancel() {
 }
 
 func (fs *rawFileSystem) openWriteStream(ctx context.Context, name *common.BlobName) (WriteCloseCanceller, error) {
-	tempNum := atomic.AddUint64(&fs.tempFileNum, 1)
+	tempNum := fs.tempFileNum.Add(1)
 
 	tempFileName := filepath.Join(fs.path, fmt.Sprintf("tempfile_%d", tempNum))
 

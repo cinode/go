@@ -1,5 +1,5 @@
 /*
-Copyright © 2022 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import (
 	"io"
 )
 
-func panicIf(b bool, msg interface{}) {
+func panicIf(b bool, msg any) {
 	if b {
 		panic(fmt.Sprint(msg))
 	}
@@ -81,7 +81,7 @@ func storeBuff(w io.Writer, b []byte) {
 func storeDynamicSizeBuff(w io.Writer, b []byte) {
 	panicIf(len(b) >= 0x80, "Block size too large")
 
-	storeByte(w, byte(len(b)))
+	storeByte(w, byte(len(b))) //nolint:gosec // length is checked above
 	storeBuff(w, b)
 }
 

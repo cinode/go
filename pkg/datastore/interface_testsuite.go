@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -229,10 +229,10 @@ func (s *TestSuite) TestSimultaneousReads() {
 	wg := sync.WaitGroup{}
 	wg.Add(threadCnt)
 
-	for i := 0; i < threadCnt; i++ {
+	for i := range threadCnt {
 		go func(i int) {
 			defer wg.Done()
-			for n := 0; n < readCnt; n++ {
+			for n := range readCnt {
 				b := testutils.TestBlobs[(i+n)%len(testutils.TestBlobs)]
 
 				r, err := s.DS.Open(context.Background(), b.Name)

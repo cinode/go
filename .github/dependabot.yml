@@ -1,0 +1,71 @@
+version: 2
+
+updates:
+  # Go modules
+  #
+  # Security updates are configured separately by Dependabot: they ignore the
+  # grouping below and arrive as dedicated PRs per vulnerable dependency
+  # (the `security-updates` group) so they can be reviewed and merged quickly.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - go
+    commit-message:
+      prefix: deps
+    groups:
+      # Single PR with all minor / patch updates of regular dependencies
+      go-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+      # One combined PR for all security fixes
+      go-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    # Major version bumps arrive as separate PRs (no group), since they
+    # usually need code changes
+
+  # Dockerfiles (base golang image)
+  - package-ecosystem: docker
+    directory: /build/docker
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - docker
+    commit-message:
+      prefix: build
+    groups:
+      docker-images:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  # GitHub Actions used in workflows
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: ci
+    groups:
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      github-actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
