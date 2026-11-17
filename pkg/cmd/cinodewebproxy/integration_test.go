@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -94,7 +95,16 @@ func TestIntegration(t *testing.T) {
 		wg.Go(func() {
 			cinodewebproxy.Execute(ctx)
 		})
-		time.Sleep(time.Millisecond) // Wait for the server, TODO: This is ugly way to do this
+
+		// Wait until the server accepts connections
+		require.Eventually(t, func() bool {
+			conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", "localhost:8080")
+			if err != nil {
+				return false
+			}
+			_ = conn.Close()
+			return true
+		}, 10*time.Second, 5*time.Millisecond, "web proxy did not start listening")
 
 		// Ensure we clean up cleanly
 		defer func() {
