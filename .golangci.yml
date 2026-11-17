@@ -1,88 +1,16 @@
-run:
-  timeout: 5m
-
-issues:
-  exclude-dirs:
-    - testvectors
-    - scripts
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - errcheck
-        - dupl
-        - gosec
-    - path: _test\.go
-      text: "unused-parameter"
-      linters:
-        - revive
-    - text: 'shadow: declaration of "(err|ctx)" shadows declaration at'
-      linters: [ govet ]
-
-linters-settings:
-  govet:
-    enable-all: true
-  revive:
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: var-declaration
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
-  staticcheck:
-    checks: ["all"]
-  stylecheck:
-    checks: ["all"]
-  misspell:
-    locale: US
-  gocyclo:
-    min-complexity: 15
-  dupl:
-    threshold: 100
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-    disabled-checks:
-      - hugeParam
-      - rangeValCopy
-
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
     - bodyclose
-    # - depguard
     - dogsled
     - dupl
     - errcheck
     - goconst
     - gocritic
     - gocyclo
-    - gofmt
-    - goimports
     - goprintffuncname
     - gosec
-    - gosimple
     - govet
     - ineffassign
     - lll
@@ -91,9 +19,100 @@ linters:
     - prealloc
     - revive
     - staticcheck
-    - stylecheck
-    - typecheck
     - unconvert
     - unparam
     - unused
     - whitespace
+  settings:
+    dupl:
+      threshold: 100
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    gocritic:
+      disabled-checks:
+        - hugeParam
+        - rangeValCopy
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+    gocyclo:
+      min-complexity: 15
+    gosec:
+      excludes:
+        # Taint-analysis rules: paths/URLs here come from validated blob names
+        # and user-provided configuration; redirects use sanitizeRedirectPath.
+        - G703
+        - G704
+        - G710
+    govet:
+      enable-all: true
+    misspell:
+      locale: US
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
+    staticcheck:
+      checks:
+        - all
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - dupl
+          - errcheck
+          - goconst
+          - gocyclo
+          - gosec
+        path: _test\.go
+      - linters:
+          - revive
+        path: _test\.go
+        text: unused-parameter
+      - linters:
+          - govet
+        text: 'shadow: declaration of "(err|ctx)" shadows declaration at'
+    paths:
+      - testvectors
+      - scripts
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - testvectors
+      - scripts
+      - third_party$
+      - builtin$
+      - examples$
