@@ -1,5 +1,5 @@
 /*
-Copyright © 2023 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package cinodefs
 
 import (
 	"context"
+	"slices"
 )
 
 type traverseGoalFunc func(
@@ -44,10 +45,8 @@ func (fs *cinodeFS) traverseGraph(
 	opts traverseOptions,
 	whenReached traverseGoalFunc,
 ) error {
-	for _, p := range path {
-		if p == "" {
-			return ErrEmptyName
-		}
+	if slices.Contains(path, "") {
+		return ErrEmptyName
 	}
 
 	opts.maxLinkRedirects = fs.maxLinkRedirects

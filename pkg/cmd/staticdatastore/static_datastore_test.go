@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/cinode/go/pkg/blenc"
@@ -125,12 +126,11 @@ func (s *CompileAndReadTestSuite) uploadDatasetToDatastore(
 
 	buf := bytes.NewBuffer(nil)
 
-	args := []string{
+	args := slices.Concat([]string{
 		"compile",
 		"-s", dir,
 		"-d", datastoreDir,
-	}
-	args = append(args, extraArgs...)
+	}, extraArgs)
 
 	cmd := RootCmd()
 	cmd.SetArgs(args)

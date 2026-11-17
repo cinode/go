@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,6 +41,8 @@ import (
 
 	"golang.org/x/crypto/chacha20"
 )
+
+//go:generate go run generate.go
 
 func main() {
 	generateTestVectorsForDynamicLinks()
@@ -114,8 +116,11 @@ func def[T any](b **T, v T) {
 	}
 }
 
-func uint64p(v uint64) *uint64 { return &v }
-func bytep(b byte) *byte       { return &b }
+//go:fix inline
+func uint64p(v uint64) *uint64 { return new(v) }
+
+//go:fix inline
+func bytep(b byte) *byte { return new(b) }
 
 func defF[T any](b *func(T) T) {
 	cp := func(val any) any {
@@ -351,16 +356,17 @@ func writeTestBlobCode(
 	decryptedDataset []byte,
 ) error {
 	toBytes := func(buf []byte) string {
-		ret := "[]byte{"
+		var ret strings.Builder
+		ret.WriteString("[]byte{")
 		for i, b := range buf {
 			if i%8 == 0 {
-				ret += "\n"
+				ret.WriteString("\n")
 			}
-			ret += fmt.Sprintf("0x%02X", b)
-			ret += ","
+			ret.WriteString(fmt.Sprintf("0x%02X", b))
+			ret.WriteString(",")
 		}
-		ret += "\n}"
-		return ret
+		ret.WriteString("\n}")
+		return ret.String()
 	}
 	code := fmt.Sprintf(`
 		package testblobs
@@ -410,7 +416,7 @@ func generateTestVectorsForDynamicLinks() {
 	}
 
 	// Completely valid links
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		linkData := []byte(fmt.Sprintf("Link data %02d", i))
 		gp := gp{
 			linkData: &linkData,

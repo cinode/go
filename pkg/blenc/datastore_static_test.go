@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -148,7 +148,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 	})
 
 	t.Run("fail to call Done on secure fifos", func(t *testing.T) {
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			t.Run(fmt.Sprint(i), func(t *testing.T) {
 				be := FromDatastore(datastore.InMemory())
 				injectedErr := errors.New("test")
@@ -191,7 +191,7 @@ func TestStaticErrorTruncatedDatastore(t *testing.T) {
 	})
 
 	t.Run("fail to call write to secure fifos", func(t *testing.T) {
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			t.Run(fmt.Sprint(i), func(t *testing.T) {
 				be := FromDatastore(datastore.InMemory())
 				injectedErr := errors.New("test")

@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -200,7 +200,7 @@ func (s *HandlerTestSuite) TestReadIndexFile() {
 	s.setEntry(t, "hello", "dir", "index.html")
 
 	// Repeat twice, once before and once after flush
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		readBack := s.getData(t, "/dir")
 		require.Equal(t, "hello", readBack)
 

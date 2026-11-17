@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -58,11 +58,9 @@ func Create(randSource io.Reader) (*Publisher, error) {
 	}
 
 	return &Publisher{
-		Public: Public{
-			publicKey: pubKey,
-			nonce:     nonce,
-		},
-		privKey: privKey,
+		publicKey: pubKey,
+		nonce:     nonce,
+		privKey:   privKey,
 	}, nil
 }
 
@@ -77,11 +75,9 @@ func FromAuthInfo(authInfo *common.AuthInfo) (*Publisher, error) {
 	nonce := binary.BigEndian.Uint64(authInfoBytes[1+ed25519.SeedSize:])
 
 	return &Publisher{
-		Public: Public{
-			publicKey: pubKey,
-			nonce:     nonce,
-		},
-		privKey: privKey,
+		publicKey: pubKey,
+		nonce:     nonce,
+		privKey:   privKey,
 	}, nil
 }
 
@@ -92,11 +88,9 @@ func ReNonce(p *Publisher, randSource io.Reader) (*Publisher, error) {
 	}
 
 	return &Publisher{
-		Public: Public{
-			publicKey: p.publicKey,
-			nonce:     nonce,
-		},
-		privKey: p.privKey,
+		publicKey: p.publicKey,
+		nonce:     nonce,
+		privKey:   p.privKey,
 	}, nil
 }
 

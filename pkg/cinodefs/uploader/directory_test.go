@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -90,10 +90,10 @@ func (w *wrapFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	return fs.ReadDir(w.FS, name)
 }
 
-func (s *DirectoryTestSuite) uploadFS(t *testing.T, fs fs.FS, opts ...uploader.Option) {
+func (s *DirectoryTestSuite) uploadFS(t *testing.T, fsys fs.FS, opts ...uploader.Option) {
 	err := uploader.UploadStaticDirectory(
 		t.Context(),
-		fs,
+		fsys,
 		s.cfs,
 		opts...,
 	)
@@ -147,9 +147,9 @@ func (s *DirectoryTestSuite) TestSingleFileUploadWithIndexFile() {
 func (s *DirectoryTestSuite) TestSingleFileUploadWithIndexFileDontOverwrite() {
 	t := s.T()
 
-	fs := s.singleFileFs()
-	fs["index.html"] = &fstest.MapFile{Data: []byte("not-html")}
-	s.uploadFS(t, fs, uploader.CreateIndexFile("index.html"))
+	files := s.singleFileFs()
+	files["index.html"] = &fstest.MapFile{Data: []byte("not-html")}
+	s.uploadFS(t, files, uploader.CreateIndexFile("index.html"))
 
 	readBack, err := s.readContent(t, "index.html")
 	require.NoError(t, err)

@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -70,9 +70,9 @@ func UploadStaticDirectory(
 
 type Option func(d *dirCompiler)
 
-func BasePath(path ...string) Option {
+func BasePath(basePath ...string) Option {
 	return Option(func(d *dirCompiler) {
-		d.basePath = path
+		d.basePath = basePath
 	})
 }
 

@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Bartłomiej Święcki (byo)
+Copyright © 2026 Bartłomiej Święcki (byo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("error from rand source", func(t *testing.T) {
-		for goodBytes := 0; goodBytes < ed25519.SeedSize+8; goodBytes++ {
+		for goodBytes := range ed25519.SeedSize + 8 {
 			injectedErr := errors.New("test")
 			r := io.MultiReader(
 				io.LimitReader(rand.Reader, int64(goodBytes)),
@@ -94,7 +94,7 @@ func TestReNonce(t *testing.T) {
 	})
 
 	t.Run("failed random source", func(t *testing.T) {
-		for goodBytes := 0; goodBytes < 8; goodBytes++ {
+		for goodBytes := range 8 {
 			injectedErr := errors.New("test")
 			r := io.MultiReader(
 				io.LimitReader(rand.Reader, int64(goodBytes)),
