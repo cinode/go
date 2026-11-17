@@ -15,10 +15,10 @@ jobs:
             continue-on-error: true
     runs-on: ${{ matrix.env.os }}
     steps:
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.27"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check if generated files are up to date
         if: matrix.env.generate-check
@@ -51,7 +51,7 @@ jobs:
         if: ${{ matrix.env.coverage }}
         with:
           path-to-profile: profile.cov
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v7
         if: ${{ matrix.env.coverage }}
         with:
           files: profile.cov
